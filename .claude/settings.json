@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -m venv .venv)",
+      "Bash(.venv/bin/python -m pip install --quiet --upgrade pip)",
+      "Bash(.venv/bin/python -m pip install --quiet -r requirements.txt pytest)",
+      "Bash(echo \"---EXIT:$?---\")",
+      "Bash(.venv/bin/python -m pip index versions pandas-ta)",
+      "Bash(.venv/bin/python -m pip install --quiet \"pandas-ta\")",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(echo \"---INSTALL EXIT:$?---\")",
+      "Bash(.venv/bin/python -m pytest tests/ -q)",
+      "Bash(echo \"---PYTEST EXIT:$?---\")",
+      "Bash(.venv/bin/python poc.py)",
+      "Bash(.venv/bin/python -c ' *)",
+      "Read(//tmp/**)",
+      "Bash(.venv/bin/python backtest.py)",
+      "Bash(.venv/bin/python report.py)",
+      "Bash(rm -f /tmp/live.log)",
+      "Bash(PYTHONWARNINGS=ignore .venv/bin/python run_live.py)",
+      "Bash(echo \"started pid $!\")",
+      "Bash(PYTHONWARNINGS=ignore .venv/bin/python -u -c ' *)",
+      "Bash(pkill -f run_live.py)",
+      "Bash(pkill -f \"BarStream\")",
+      "Bash(.venv/bin/python -m pip install --quiet \"flask>=2.2,<4\")",
+      "Bash(rm -f /tmp/dash.log)",
+      "Bash(PYTHONWARNINGS=ignore DASHBOARD_PORT=8000 .venv/bin/python run_dashboard.py)",
+      "Bash(echo \"server pid $!\")",
+      "Bash(pkill -f run_dashboard.py)",
+      "Bash(pkill -f \"dashboard.app\")",
+      "Bash(awk '{print $NF}')",
+      "Bash(git init *)",
+      "Bash(git symbolic-ref *)",
+      "Bash(git add *)"
+    ]
+  }
+}

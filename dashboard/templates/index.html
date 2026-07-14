@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paper Trader — Dashboard</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a2029; --line:#2a323d; --fg:#e6e9ee; --muted:#8a94a3;
+          --green:#3fb950; --red:#f85149; --accent:#58a6ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  header { display:flex; align-items:center; justify-content:space-between;
+           padding:16px 24px; border-bottom:1px solid var(--line); }
+  h1 { font-size:18px; margin:0; font-weight:600; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+       margin:0 0 12px; }
+  .muted { color:var(--muted); }
+  .wrap { padding:24px; max-width:1200px; margin:0 auto; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .card .k { color:var(--muted); font-size:12px; }
+  .card .v { font-size:22px; font-weight:600; margin-top:4px; }
+  section { margin-top:28px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px; }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  th,td { text-align:right; padding:7px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th:first-child,td:first-child { text-align:left; }
+  th { color:var(--muted); font-weight:500; font-size:12px; }
+  tbody tr:hover { background:#222a35; }
+  .pos { color:var(--green); } .neg { color:var(--red); }
+  .badge { padding:1px 7px; border-radius:5px; font-size:12px; font-weight:600; }
+  .LONG,.WIN,.BULL { color:var(--green); } .SHORT,.LOSS,.BEAR { color:var(--red); }
+  .WAIT,.OPEN,.CHOPPY,.UNKNOWN { color:var(--muted); }
+  button { background:#21262d; color:var(--fg); border:1px solid var(--line); border-radius:7px;
+           padding:7px 12px; cursor:pointer; font-size:13px; }
+  button:hover { border-color:var(--accent); }
+  .grid2 { display:grid; grid-template-columns:2fr 1fr; gap:18px; }
+  @media (max-width:820px){ .grid2 { grid-template-columns:1fr; } }
+  svg { width:100%; height:260px; display:block; }
+  .scroll { max-height:340px; overflow:auto; }
+  /* Alerts */
+  .alertctl { display:flex; gap:14px; align-items:center; flex-wrap:wrap; font-size:12px; color:var(--muted); }
+  .alertctl label { display:flex; align-items:center; gap:5px; cursor:pointer; }
+  .alertctl select { background:#21262d; color:var(--fg); border:1px solid var(--line);
+                     border-radius:6px; padding:3px 6px; font-size:12px; }
+  .alertrow { display:flex; align-items:center; gap:12px; padding:8px 6px; border-bottom:1px solid var(--line); }
+  .alertrow:first-child { animation:flash .9s ease-out; }
+  @keyframes flash { from { background:rgba(88,166,255,.18); } to { background:transparent; } }
+  .alertrow .atext { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .alertrow .atime { font-variant-numeric:tabular-nums; }
+  .alertrow .badge { min-width:74px; text-align:center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>📈 Paper Trader <span class="muted" style="font-weight:400">— signal dashboard</span></h1>
+  <div>
+    <span id="updated" class="muted" style="margin-right:12px"></span>
+    <button onclick="refresh()">Refresh</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div id="cards" class="cards"></div>
+
+  <section class="panel" id="alertsPanel">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px">
+      <h2 style="margin:0">🔔 Alerts</h2>
+      <div class="alertctl">
+        <label>Min conf
+          <select id="fConf">
+            <option value="0">any</option>
+            <option value="0.5">50%</option>
+            <option value="0.6">60%</option>
+            <option value="0.65">65%</option>
+            <option value="0.7">70%</option>
+            <option value="0.75">75%</option>
+            <option value="0.8">80%</option>
+          </select></label>
+        <label><input type="checkbox" id="fSignal" checked> signals</label>
+        <label><input type="checkbox" id="fOpen" checked> opens</label>
+        <label><input type="checkbox" id="fClose" checked> closes</label>
+        <label><input type="checkbox" id="fSound" checked> sound</label>
+        <button id="notifyBtn">Enable notifications</button>
+        <button id="clearAlerts">Clear</button>
+      </div>
+    </div>
+    <div id="alertsFeed" class="scroll" style="margin-top:12px"></div>
+  </section>
+
+  <section class="grid2">
+    <div class="panel">
+      <h2>Realized equity curve</h2>
+      <div id="equity"></div>
+    </div>
+    <div class="panel">
+      <h2>By regime</h2>
+      <table id="byregime"><thead>
+        <tr><th>Regime</th><th>N</th><th>Win%</th><th>P&amp;L</th></tr></thead>
+        <tbody></tbody></table>
+      <h2 style="margin-top:20px">By ticker</h2>
+      <div class="scroll"><table id="byticker"><thead>
+        <tr><th>Ticker</th><th>N</th><th>Win%</th><th>P&amp;L</th></tr></thead>
+        <tbody></tbody></table></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Open positions</h2>
+    <table id="open"><thead>
+      <tr><th>Ticker</th><th>Dir</th><th>Entry</th><th>Stop</th><th>Target</th><th>Shares</th></tr>
+      </thead><tbody></tbody></table>
+  </section>
+
+  <section class="panel">
+    <h2>Recent trades</h2>
+    <div class="scroll"><table id="trades"><thead>
+      <tr><th>ID</th><th>Ticker</th><th>Dir</th><th>Entry</th><th>Exit</th><th>Outcome</th>
+          <th>P&amp;L</th><th>Bars</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section class="panel">
+    <h2>Recent signals</h2>
+    <div class="scroll"><table id="signals"><thead>
+      <tr><th>ID</th><th>Ticker</th><th>Dir</th><th>Conf</th><th>Entry</th><th>R:R</th>
+          <th>Regime</th><th>Bar time</th></tr></thead><tbody></tbody></table></div>
+  </section>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const fmt = (n,d=2) => (n===null||n===undefined) ? "—" : Number(n).toFixed(d);
+const pct = n => (n===null||n===undefined) ? "—" : (n*100).toFixed(1)+"%";
+const sign = n => n>0 ? "pos" : n<0 ? "neg" : "";
+const cls = v => `<span class="badge ${v}">${v}</span>`;
+
+function card(k, v, extra="") { return `<div class="card"><div class="k">${k}</div>
+  <div class="v ${extra}">${v}</div></div>`; }
+
+function drawEquity(points) {
+  const W=600, H=240, pad=28;
+  if (!points || points.length < 2) { $("#equity").innerHTML =
+    '<p class="muted">No closed trades yet — equity curve appears once trades close.</p>'; return; }
+  const ys = points.map(p=>p.equity);
+  const min=Math.min(...ys), max=Math.max(...ys), span=(max-min)||1;
+  const x = i => pad + i*(W-2*pad)/(points.length-1);
+  const y = v => H-pad - (v-min)*(H-2*pad)/span;
+  const path = points.map((p,i)=>`${i?'L':'M'}${x(i).toFixed(1)},${y(p.equity).toFixed(1)}`).join(' ');
+  const last = points[points.length-1].equity, first = points[0].equity;
+  const color = last>=first ? 'var(--green)' : 'var(--red)';
+  const base = y(first).toFixed(1);
+  $("#equity").innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <line x1="${pad}" y1="${base}" x2="${W-pad}" y2="${base}" stroke="var(--line)" stroke-dasharray="4 4"/>
+    <path d="${path}" fill="none" stroke="${color}" stroke-width="2"/>
+    <text x="${pad}" y="14" fill="var(--muted)" font-size="11">${max.toFixed(0)}</text>
+    <text x="${pad}" y="${H-6}" fill="var(--muted)" font-size="11">${min.toFixed(0)}</text>
+  </svg>`;
+}
+
+function rows(sel, data, render) {
+  const tb = $(sel+" tbody");
+  if (!data.length) { tb.innerHTML = `<tr><td class="muted" colspan="9">No data yet.</td></tr>`; return; }
+  tb.innerHTML = data.map(render).join("");
+}
+
+/* ---- Alerts (TradingView-style: engine signals surfaced as UI + browser notifications) ---- */
+const AK = "pt_alert_settings", SK = "pt_alert_seen";
+let settings = Object.assign(
+  { minConf:0.6, signal:true, open:true, close:true, sound:true, notify:false },
+  JSON.parse(localStorage.getItem(AK) || "{}"));
+let seen = new Set(JSON.parse(localStorage.getItem(SK) || "[]"));
+let dismissed = new Set();   // in-memory "Clear" — hides current feed until new alerts arrive
+let allAlerts = [];
+
+const saveSettings = () => localStorage.setItem(AK, JSON.stringify(settings));
+const saveSeen = () => localStorage.setItem(SK, JSON.stringify([...seen].slice(-800)));
+
+function passes(a) {
+  if (a.kind === "signal" && !settings.signal) return false;
+  if (a.kind === "open"   && !settings.open)   return false;
+  if (a.kind === "close"  && !settings.close)  return false;
+  if (a.kind === "signal" && (a.confidence ?? 0) < settings.minConf) return false;
+  return true;
+}
+
+function alertText(a) {
+  if (a.kind === "signal") return { title:`${a.ticker} ${a.direction}`,
+    body:`conf ${Math.round((a.confidence||0)*100)}% · entry ${fmt(a.entry)} · stop ${fmt(a.stop)} · target ${fmt(a.target)} · R:R ${fmt(a.rr)}` };
+  if (a.kind === "open") return { title:`${a.ticker} opened ${a.direction}`,
+    body:`${a.shares} sh @ ${fmt(a.entry)}` };
+  return { title:`${a.ticker} ${a.outcome}`,
+    body:`P&L ${a.pnl>=0?'+':''}${fmt(a.pnl)} · exit ${fmt(a.exit)} · ${a.bars_held} bars` };
+}
+
+function beep() {
+  try {
+    const c = new (window.AudioContext || window.webkitAudioContext)();
+    const o = c.createOscillator(), g = c.createGain();
+    o.connect(g); g.connect(c.destination);
+    o.type = "sine"; o.frequency.value = 880; g.gain.value = 0.05;
+    o.start(); o.stop(c.currentTime + 0.15);
+  } catch (e) { /* autoplay policy may block until user interacts — fine */ }
+}
+
+function fireNotification(a) {
+  const { title, body } = alertText(a);
+  if (settings.notify && "Notification" in window && Notification.permission === "granted")
+    new Notification(title, { body });
+  if (settings.sound) beep();
+}
+
+function processAlerts(list) {
+  allAlerts = list;
+  const firstSeed = seen.size === 0;            // don't spam the whole backlog on first ever load
+  const fresh = list.filter(a => !seen.has(a.key));
+  // API is newest-first; notify oldest→newest so the latest ends up most recent.
+  fresh.slice().reverse().forEach(a => {
+    if (!firstSeed && passes(a)) fireNotification(a);
+    seen.add(a.key);
+  });
+  saveSeen();
+  renderAlerts();
+}
+
+function renderAlerts() {
+  const shown = allAlerts.filter(a => passes(a) && !dismissed.has(a.key)).slice(0, 60);
+  const el = $("#alertsFeed");
+  if (!shown.length) { el.innerHTML =
+    '<p class="muted">No alerts yet. New LONG/SHORT signals, trade opens, and closes appear here as they happen.</p>';
+    return; }
+  el.innerHTML = shown.map(a => {
+    const t = alertText(a);
+    const icon = a.kind === "signal" ? (a.direction === "LONG" ? "▲" : "▼")
+               : a.kind === "open"   ? "↗" : "✔";
+    const badgeCls = a.kind === "close" ? a.outcome : a.direction;
+    const time = (a.order_ts || "").slice(11, 19);
+    return `<div class="alertrow">
+      <span class="badge ${badgeCls}">${icon} ${a.ticker}</span>
+      <span class="atext"><b>${t.title}</b> <span class="muted">${t.body}</span></span>
+      <span class="muted atime">${time}</span></div>`;
+  }).join("");
+}
+
+function updateNotifyBtn() {
+  const b = $("#notifyBtn");
+  const perm = ("Notification" in window) ? Notification.permission : "unsupported";
+  if (perm === "unsupported") { b.textContent = "Notifications unsupported"; b.disabled = true; }
+  else if (perm === "denied") { b.textContent = "Notifications blocked"; }
+  else if (perm === "granted" && settings.notify) { b.textContent = "🔔 Notifications on"; }
+  else { b.textContent = "Enable notifications"; }
+}
+
+function initAlertUI() {
+  $("#fConf").value = String(settings.minConf);
+  $("#fSignal").checked = settings.signal;
+  $("#fOpen").checked = settings.open;
+  $("#fClose").checked = settings.close;
+  $("#fSound").checked = settings.sound;
+
+  $("#fConf").onchange   = e => { settings.minConf = parseFloat(e.target.value); saveSettings(); renderAlerts(); };
+  $("#fSignal").onchange = e => { settings.signal = e.target.checked; saveSettings(); renderAlerts(); };
+  $("#fOpen").onchange   = e => { settings.open   = e.target.checked; saveSettings(); renderAlerts(); };
+  $("#fClose").onchange  = e => { settings.close  = e.target.checked; saveSettings(); renderAlerts(); };
+  $("#fSound").onchange  = e => { settings.sound  = e.target.checked; saveSettings(); };
+  $("#clearAlerts").onclick = () => { allAlerts.forEach(a => dismissed.add(a.key)); renderAlerts(); };
+  $("#notifyBtn").onclick = async () => {
+    if (!("Notification" in window)) return;
+    const p = await Notification.requestPermission();
+    settings.notify = (p === "granted"); saveSettings(); updateNotifyBtn();
+  };
+  updateNotifyBtn();
+}
+
+async function refresh() {
+  try {
+    const [m, open, trades, signals, alerts] = await Promise.all(
+      ["/api/metrics","/api/open","/api/trades","/api/signals","/api/alerts"].map(u=>fetch(u).then(r=>r.json())));
+
+    processAlerts(alerts);
+
+    $("#cards").innerHTML = [
+      card("Closed trades", m.n_closed + (m.n_open?` <span class="muted" style="font-size:13px">(${m.n_open} open)</span>`:"")),
+      card("Win rate", pct(m.win_rate)),
+      card("Expectancy / trade", fmt(m.expectancy), sign(m.expectancy)),
+      card("Profit factor", m.profit_factor===null?"∞":fmt(m.profit_factor,2)),
+      card("Total P&L", fmt(m.total_pnl), sign(m.total_pnl)),
+      card("Max drawdown", fmt(m.max_drawdown)+` <span class="muted" style="font-size:13px">(${pct(m.max_drawdown_pct)})</span>`),
+      card("Avg win / loss", `${fmt(m.avg_win)} / ${fmt(m.avg_loss)}`),
+      card("Ending capital", fmt(m.ending_capital,0), sign(m.ending_capital-m.starting_capital)),
+    ].join("");
+
+    drawEquity(m.equity);
+
+    const br = Object.entries(m.by_regime||{}).sort((a,b)=>b[1].pnl-a[1].pnl);
+    rows("#byregime", br, ([r,b])=>`<tr><td>${cls(r)}</td><td>${b.n}</td><td>${pct(b.win_rate)}</td>
+      <td class="${sign(b.pnl)}">${fmt(b.pnl)}</td></tr>`);
+
+    const bt = Object.entries(m.by_ticker||{}).sort((a,b)=>b[1].pnl-a[1].pnl);
+    rows("#byticker", bt, ([t,b])=>`<tr><td>${t}</td><td>${b.n}</td><td>${pct(b.win_rate)}</td>
+      <td class="${sign(b.pnl)}">${fmt(b.pnl)}</td></tr>`);
+
+    rows("#open", open, p=>`<tr><td>${p.ticker}</td><td>${cls(p.direction)}</td>
+      <td>${fmt(p.entry)}</td><td>${fmt(p.stop)}</td><td>${fmt(p.target)}</td><td>${p.shares}</td></tr>`);
+
+    rows("#trades", trades, t=>`<tr><td>${t.id}</td><td>${t.ticker}</td><td>${cls(t.direction)}</td>
+      <td>${fmt(t.entry)}</td><td>${t.exit_price==null?"—":fmt(t.exit_price)}</td>
+      <td>${cls(t.outcome)}</td><td class="${sign(t.pnl)}">${t.pnl==null?"—":fmt(t.pnl)}</td>
+      <td>${t.bars_held==null?"—":t.bars_held}</td></tr>`);
+
+    rows("#signals", signals, s=>`<tr><td>${s.id}</td><td>${s.ticker}</td><td>${cls(s.direction)}</td>
+      <td>${pct(s.confidence)}</td><td>${fmt(s.entry)}</td><td>${s.rr==null?"—":fmt(s.rr)}</td>
+      <td>${s.regime?cls(s.regime):"—"}</td>
+      <td class="muted">${(s.bar_timestamp||"").slice(0,19)}</td></tr>`);
+
+    $("#updated").textContent = "updated " + new Date().toLocaleTimeString();
+  } catch (e) {
+    $("#updated").textContent = "error: " + e.message;
+  }
+}
+
+initAlertUI();
+refresh();
+setInterval(refresh, 15000);  // auto-refresh; handy while run_live.py is streaming
+</script>
+</body>
+</html>
