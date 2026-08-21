@@ -115,16 +115,32 @@ SPY and QQQ serve as market regime context — their signal direction matters fo
 
 ## What we already built
 
-A fully working React/JS paper trading simulator (runs in Claude.ai artifact) with:
-- Mock intraday price generation
-- All 9 indicators computed on each bar
-- Signal generation with confidence scoring
-- Paper trade execution with position sizing
-- Trade log with filtering
-- Performance dashboard: equity curve, win/loss distribution, expectancy, drawdown
-- Indicator breakdown per ticker
+**The Python backend is built and running** (the original React/JS artifact simulator was
+the blueprint; the logic mapped 1:1 and is now the live Python system):
 
-This simulator is the blueprint for the Python backend. The logic maps 1:1.
+- **Signal engine** — 6 directional votes + volume modifier, pure/tested (`signals/`)
+- **Indicators** — hand-rolled in pandas/numpy (pandas-ta unavailable on py3.9); session-anchored VWAP
+- **Data** — Alpaca IEX bars (REST history + 1-min websocket), synthetic offline fallback (`data/`)
+- **Paper execution** — local `PaperBroker` (default) OR real Alpaca paper orders via `BROKER=alpaca` (`trades/`)
+- **Backtest** — replays real multi-month IEX history through the identical engine/executor/tracker
+- **Persistence** — SQLite signals + trades logging (`db/`)
+- **Analytics + dashboard** — Flask app: equity curve, win/loss, expectancy, drawdown, by-ticker/regime (`dashboard/`)
+- **Alerts** — in-dashboard live feed + browser Web Notifications + native macOS banners (`alerts/`).
+  Replaced the originally-planned Telegram bot for personal use.
+- **Tests** — 58 passing (`tests/`)
+
+### Validation findings so far (real 3-month IEX backtest, ~2,500 trades)
+
+- Win rate ~36% at a ~2:1 reward:risk → **gross expectancy ≈ +$3/trade**, positive across
+  both directions and all three regimes (i.e. not just long-bias/beta).
+- **But that edge is thinner than realistic transaction costs** — roughly break-even to
+  negative after ~$1.50–3.00/trade of friction, and live exit slippage would be worse.
+- **Raising the confidence threshold makes it worse, not better** — the 6 votes are all
+  price-derived and collinear, so high agreement = late/extended entry. The current 0.62 is
+  already the sweet spot; tuning that knob is a dead end.
+- Conclusion: the lever is **orthogonal information** (relative strength, real volume, regime
+  alignment) used as *quality gates*, not more price-derived votes. See the "State of the
+  project" artifact / next-steps notes.
 
 ---
 
@@ -185,17 +201,32 @@ DATABASE_URL=postgresql://localhost/papertrader
 
 ## Roadmap
 
-1. **Phase 1 (now):** Python backend — Alpaca stream, indicator engine, signal logic, paper trade executor, PostgreSQL logging, Telegram alerts
-2. **Phase 2 (weeks 4–8):** Run live paper trading, accumulate signal/trade data, tune indicator weights and thresholds based on results
-3. **Phase 3 (month 3+):** Evaluate signal quality honestly. If expectancy is positive across 200+ trades in mixed market conditions, consider MVP
-4. **Phase 4 (MVP):** React dashboard, user auth, signal delivery via Telegram/SMS/webhook, Stripe billing — signal delivery only, no auto-execution
+1. **Phase 1 — DONE:** Python backend (Alpaca stream, indicator engine, signal logic, paper
+   executor, SQLite logging). Alerts via dashboard/browser/macOS instead of Telegram; dashboard
+   built early. Alpaca paper execution wired (opt-in).
+2. **Phase 1.5 — signal quality (CURRENT):** The backtest shows a real but *sub-cost* edge, and
+   threshold tuning is exhausted. Before accumulating more live data, prove whether **orthogonal
+   quality gates** (relative strength, real/RVOL volume, regime alignment) can lift expectancy
+   above the cost line. If yes, that's the core improvement; if no, the voting approach needs a
+   rethink. Also model transaction costs + realistic exits in the backtest.
+3. **Phase 2:** Once a config clears costs in backtest, run it live on Alpaca paper and accumulate
+   50+ real trades across mixed regimes to confirm.
+4. **Phase 3 (month 3+):** Evaluate honestly. If expectancy is positive across 200+ trades in
+   mixed conditions, consider MVP. Options-flow / dealer-gamma data becomes a justified paid
+   upgrade only *after* the free orthogonal gates prove the concept.
+5. **Phase 4 (MVP):** hardened dashboard, user auth, signal delivery (Telegram/SMS/webhook),
+   Stripe billing — signal delivery only, no auto-execution.
 
 ---
 
 ## What not to build yet
 
-- Options flow data integration (requires paid data feed ~$50-100/mo, add after core is validated)
+- Options flow / dealer-gamma data (paid ~$50-150/mo) — genuinely orthogonal and the best
+  eventual input, but premature: prove the *free* orthogonal gates lift expectancy first, else
+  you're stacking an unvalidated paid input on an unvalidated core. Buy gamma/positioning, not
+  "unusual activity" flow alerts.
 - Broker integration with auto-execution (regulatory complexity, premature)
 - ML/trained model layer (need outcome data first)
-- Frontend dashboard (Telegram is fine for now)
 - Multi-user support (personal use only until signal quality is proven)
+- SIP (full-volume) data upgrade — would most help any volume-based signal, but only worth it
+  once volume gating shows promise on IEX first.
