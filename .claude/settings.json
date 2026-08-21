@@ -31,7 +31,8 @@
       "Bash(awk '{print $NF}')",
       "Bash(git init *)",
       "Bash(git symbolic-ref *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -q -m ' *)"
     ]
   }
 }

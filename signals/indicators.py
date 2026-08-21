@@ -9,10 +9,14 @@ because it is not installable on this Python (see requirements.txt); these funct
 drop-in equivalent for the seven indicators in CLAUDE.md.
 """
 
+from zoneinfo import ZoneInfo
+
 import numpy as np
 import pandas as pd
 
 import config
+
+ET = ZoneInfo("America/New_York")
 
 
 def _last(series: pd.Series) -> float:
@@ -64,10 +68,20 @@ def _atr(df: pd.DataFrame, length: int) -> pd.Series:
 
 
 def _session_vwap(df: pd.DataFrame) -> float:
-    """Cumulative VWAP over the bars provided (assumed to be one session)."""
-    typical = (df["high"] + df["low"] + df["close"]) / 3.0
-    cum_vol = df["volume"].cumsum()
-    cum_pv = (typical * df["volume"]).cumsum()
+    """Session-anchored VWAP: cumulative only over the current trading day's bars.
+
+    VWAP resets at each 9:30 ET open, so we restrict to the bars sharing the ET calendar
+    date of the most recent bar. Without this reset a multi-day window (e.g. the backtest)
+    would anchor VWAP to a price from days ago and corrupt the price-vs-VWAP vote.
+    """
+    ts = pd.to_datetime(df["timestamp"])
+    et = ts.dt.tz_localize("UTC").dt.tz_convert(ET) if ts.dt.tz is None else ts.dt.tz_convert(ET)
+    session_mask = (et.dt.date == et.dt.date.iloc[-1]).values
+
+    sub = df.loc[session_mask]
+    typical = (sub["high"] + sub["low"] + sub["close"]) / 3.0
+    cum_vol = sub["volume"].cumsum()
+    cum_pv = (typical * sub["volume"]).cumsum()
     vwap = cum_pv / cum_vol.replace(0, np.nan)
     return _last(vwap)
 

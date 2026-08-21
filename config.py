@@ -44,13 +44,28 @@ ATR_STOP_MULT = 1.5
 ATR_TARGET_MULT = 3.0
 POSITION_PCT = 0.10           # 10% of capital per trade
 
+# --- Broker backend --------------------------------------------------------
+# 'local'  = in-memory PaperBroker (default; offline, no orders leave the machine).
+# 'alpaca' = submit real market orders to the Alpaca paper account (requires
+#            ALPACA_API_KEY / ALPACA_SECRET_KEY). Live loop only — the backtest always
+#            uses the local broker since you can't submit orders against historical bars.
+BROKER = os.environ.get("BROKER", "local").lower()
+# How long to wait for a market order to fill before giving up (seconds).
+ORDER_FILL_TIMEOUT = 10.0
+ORDER_POLL_INTERVAL = 0.5
+
 # --- Paper execution / backtest --------------------------------------------
 STARTING_CAPITAL = 100_000.0
 WARMUP_BARS = 50              # need >= SMA_SLOW bars before generating signals
-BACKTEST_BARS = 300          # synthetic bars to replay per ticker
+BACKTEST_BARS = int(os.environ.get("BACKTEST_BARS", 300))   # bars to replay per ticker
+# Trailing window fed to the indicators each bar. Bounded (not the full history) so the
+# backtest is O(n) and uses the same lookback the live loop keeps in memory.
+BACKTEST_LOOKBACK = 120
 
 # --- Storage ---------------------------------------------------------------
-DB_PATH = os.path.join(os.path.dirname(__file__), "papertrader.db")
+# DB_PATH is env-overridable so a backtest can write to its own file (e.g.
+# `DB_PATH=backtest.db python backtest.py`) without polluting the live DB.
+DB_PATH = os.environ.get("DB_PATH") or os.path.join(os.path.dirname(__file__), "papertrader.db")
 
 # --- Dashboard -------------------------------------------------------------
 # Default 8000 (macOS uses port 5000 for AirPlay, so avoid it). Override with env.

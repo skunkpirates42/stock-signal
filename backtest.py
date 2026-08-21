@@ -36,9 +36,11 @@ def precompute_regimes(spy_df, qqq_df) -> list:
         return []
     n = len(spy_df)
     regimes = [None] * n
+    lb = config.BACKTEST_LOOKBACK
     for i in range(config.WARMUP_BARS, n):
-        spy_ind = compute_indicators(spy_df.iloc[: i + 1])
-        qqq_ind = compute_indicators(qqq_df.iloc[: i + 1]) if qqq_df is not None else None
+        lo = max(0, i - lb + 1)
+        spy_ind = compute_indicators(spy_df.iloc[lo : i + 1])
+        qqq_ind = compute_indicators(qqq_df.iloc[lo : i + 1]) if qqq_df is not None else None
         regimes[i] = classify(spy_ind, qqq_ind)
     return regimes
 
@@ -60,7 +62,8 @@ def run_ticker(broker: PaperBroker, ticker: str, df, regimes) -> None:
             continue
 
         # Flat in this ticker -> look for a fresh entry on this bar.
-        window = df.iloc[: i + 1]
+        # Bounded trailing window (matches the live loop's rolling buffer; keeps this O(n)).
+        window = df.iloc[max(0, i - config.BACKTEST_LOOKBACK + 1) : i + 1]
         signal = generate_signal(ticker, compute_indicators(window))
         signal["regime"] = regimes[i] if i < len(regimes) else None
         if signal["direction"] not in ("LONG", "SHORT"):

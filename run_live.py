@@ -48,6 +48,10 @@ def main() -> None:
     if not using_alpaca():
         sys.exit("No Alpaca credentials in .env — set ALPACA_API_KEY / ALPACA_SECRET_KEY.")
 
+    broker_mode = "ALPACA paper account (real orders)" if config.BROKER == "alpaca" \
+        else "local simulator (no orders leave this machine)"
+    print(f"Broker: {broker_mode}.")
+
     clock = market_clock()
     status = "OPEN" if clock.is_open else "CLOSED"
     print(f"Market is {status} (now {clock.timestamp:%Y-%m-%d %H:%M %Z}).")

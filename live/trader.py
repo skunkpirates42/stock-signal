@@ -73,9 +73,23 @@ class LiveTrader:
         self.broker = self._rebuild_broker()
 
     # --- startup ----------------------------------------------------------
-    def _rebuild_broker(self) -> PaperBroker:
-        """Reconstruct capital (start + realized P&L) and any open positions from the DB."""
-        broker = PaperBroker(starting_capital=config.STARTING_CAPITAL + realized_pnl(self.db_path))
+    def _rebuild_broker(self):
+        """Reconstruct the broker and any open positions from the DB.
+
+        The stop/target/signal_id/entry_bar bookkeeping always comes from our DB (Alpaca
+        doesn't know our planned levels). Only the capital source differs: the local broker
+        derives it from starting capital + realized P&L, while the Alpaca broker reads real
+        account equity.
+        """
+        if config.BROKER == "alpaca":
+            from trades.alpaca_broker import AlpacaBroker
+
+            broker = AlpacaBroker()
+        else:
+            broker = PaperBroker(
+                starting_capital=config.STARTING_CAPITAL + realized_pnl(self.db_path)
+            )
+
         for row in load_open_positions(self.db_path):
             broker.open_positions[row["ticker"]] = {
                 "signal_id": row["signal_id"],
@@ -90,7 +104,25 @@ class LiveTrader:
                 "db_id": row["id"],
                 "entry_ts": datetime.fromisoformat(row["created_at"]),
             }
+
+        # With the Alpaca broker, our DB and the real account can drift (a fill or a manual
+        # close outside this loop). Surface any mismatch loudly rather than trading on stale state.
+        if config.BROKER == "alpaca":
+            self._warn_position_drift(broker)
+
         return broker
+
+    def _warn_position_drift(self, broker) -> None:
+        """Compare our reconstructed open positions against Alpaca's actual positions."""
+        ours = set(broker.open_positions)
+        theirs = broker.alpaca_open_symbols()
+        if ours != theirs:
+            print(
+                "  WARN broker/DB position mismatch — "
+                f"ours={sorted(ours) or '[]'} alpaca={sorted(theirs) or '[]'}. "
+                "Reconcile before trading (a fill or close may have happened outside this loop).",
+                flush=True,
+            )
 
     def seed(self) -> None:
         """Fill each rolling window with recent 5-min bars from REST history."""
