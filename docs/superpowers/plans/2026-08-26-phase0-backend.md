@@ -769,7 +769,13 @@ source .venv/bin/activate && python3 -m pip install "openai>=1.0"
 source .venv/bin/activate && python3 -m pytest -q
 ```
 
-Expected: 75 passed. `tests/test_alerts.py` and `poc.py` reference `synthesis_source` — if either fails, report the failure rather than editing the test.
+Expected: 75 passed. `poc.py:45` reads `sig['synthesis_source']` and is the only other consumer of that key; it is a script with no test coverage, so confirm it still parses:
+
+```bash
+source .venv/bin/activate && python3 -c "import ast; ast.parse(open('poc.py').read()); print('poc.py parses')"
+```
+
+If any test fails, report the failure rather than editing the test.
 
 - [ ] **Step 8: Commit**
 
@@ -1139,11 +1145,18 @@ In `dashboard/app.py`, replace `_recent` and the two endpoints:
         return [dict(r) for r in rows]
 
     def _query_params(default_limit: int):
-        limit = request.args.get("limit", default_limit, type=int)
-        if limit is None:
+        raw = request.args.get("limit")
+        if raw is None:
+            return default_limit, request.args.get("source")
+        try:
+            return int(raw), request.args.get("source")
+        except ValueError:
             abort(400, "limit must be an integer")
-        return limit, request.args.get("source")
 ```
+
+Flask's `request.args.get(..., type=int)` silently returns the default on a parse failure,
+which would make `?limit=notanumber` return 100 rows instead of a 400. Hence the explicit
+`int()` and `abort` above.
 
 Then:
 
@@ -1165,20 +1178,8 @@ Add `abort` and `request` to the Flask import at the top:
 from flask import Flask, abort, jsonify, render_template, request
 ```
 
-Flask's `type=int` returns the default on a parse failure, so pass no default into `request.args.get` when validating. Use this exact form instead:
-
-```python
-    def _query_params(default_limit: int):
-        raw = request.args.get("limit")
-        if raw is None:
-            return default_limit, request.args.get("source")
-        try:
-            return int(raw), request.args.get("source")
-        except ValueError:
-            abort(400, "limit must be an integer")
-```
-
-Use the second form; discard the first.
+`/api/alerts` calls `_recent("signals", 200)` positionally — the new `source` parameter is
+third, so that call keeps working unchanged. Do not modify it.
 
 - [ ] **Step 4: Run the tests**
 
