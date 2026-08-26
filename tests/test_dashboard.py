@@ -44,6 +44,34 @@ def test_metrics_endpoint(tmp_path):
     assert m["equity"][-1]["equity"] == config.STARTING_CAPITAL + 40.0
 
 
+def test_metrics_endpoint_filters_by_source(tmp_path):
+    db = str(tmp_path / "d.db")
+    _seed(db)
+    log_trade_open(
+        {"signal_id": None, "ticker": "CCC", "direction": "LONG", "entry": 10, "stop": 9,
+         "target": 12, "shares": 5, "entry_bar": 1},
+        db_path=db, source="backtest",
+    )
+    close_trade(
+        # the trade above is the 3rd row inserted into a fresh db (id=3)
+        3, {"exit_price": 12, "outcome": "WIN", "pnl": 500.0, "exit_bar": 5, "bars_held": 4},
+        db_path=db,
+    )
+    c = create_app(db_path=db).test_client()
+
+    live = c.get("/api/metrics?source=live").get_json()
+    backtest = c.get("/api/metrics?source=backtest").get_json()
+    unfiltered = c.get("/api/metrics").get_json()
+
+    assert live["n_closed"] == 1
+    assert live["total_pnl"] == 40.0
+    assert backtest["n_closed"] == 1
+    assert backtest["total_pnl"] == 500.0
+    # no source filter still blends live + backtest, same as before this endpoint had one
+    assert unfiltered["n_closed"] == 2
+    assert unfiltered["total_pnl"] == 540.0
+
+
 def test_open_trades_endpoint(tmp_path):
     data = _client(tmp_path).get("/api/open").get_json()
     assert len(data) == 1 and data[0]["ticker"] == "BBB"

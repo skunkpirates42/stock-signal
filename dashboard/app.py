@@ -58,7 +58,7 @@ def create_app(db_path: str = None) -> Flask:
 
     @app.route("/api/metrics")
     def api_metrics():
-        trades = load_closed_trades(_db())
+        trades = load_closed_trades(_db(), source=request.args.get("source"))
         m = compute_metrics(trades)
         m["equity"] = equity_curve(trades)
         return jsonify(m)
