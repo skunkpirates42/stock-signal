@@ -164,6 +164,15 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
+    # argparse's `choices` only validates a value the user actually typed, not the
+    # default — so a --provider-less run with LLM_PROVIDER=template would otherwise
+    # silently fall through to the groq branch below and fail on every row.
+    if args.provider not in ("anthropic", "groq"):
+        ap.error(
+            "--provider defaulted to %r (from config.LLM_PROVIDER), which isn't "
+            "'anthropic' or 'groq'; pass --provider explicitly" % args.provider
+        )
+
     rows = load_blank(args.db, args.limit)
     print("%d live signals with blank reasoning" % len(rows))
     if not rows:
