@@ -823,8 +823,12 @@ import sqlite3
 import sys
 import time
 
+from dotenv import load_dotenv
+
 import config
 from signals.llm_synthesis import _prompt_for, _template_reasoning
+
+load_dotenv()
 
 SELECT_BLANK = """
     SELECT id, ticker, direction, confidence, entry, stop, target, rr, indicators_json
