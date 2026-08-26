@@ -87,7 +87,8 @@ class LiveTrader:
             broker = AlpacaBroker()
         else:
             broker = PaperBroker(
-                starting_capital=config.STARTING_CAPITAL + realized_pnl(self.db_path)
+                starting_capital=config.STARTING_CAPITAL
+                + realized_pnl(self.db_path, source="live")
             )
 
         for row in load_open_positions(self.db_path):

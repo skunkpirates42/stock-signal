@@ -171,10 +171,17 @@ def load_open_positions(db_path: str = None) -> list:
     return [dict(r) for r in rows]
 
 
-def realized_pnl(db_path: str = None) -> float:
-    """Sum of P&L over all closed (WIN/LOSS) trades. Used to rebuild account capital."""
+def realized_pnl(db_path: str = None, source: str = None) -> float:
+    """Sum of P&L over all closed (WIN/LOSS) trades. Used to rebuild account capital.
+
+    `source` optionally restricts to "live" or "backtest" rows; omitted, all rows count
+    (unchanged from before the source column existed).
+    """
+    sql = "SELECT COALESCE(SUM(pnl), 0) FROM trades WHERE outcome IN ('WIN', 'LOSS')"
+    params = []
+    if source:
+        sql += " AND source = ?"
+        params.append(source)
     with _connect(db_path) as conn:
-        (total,) = conn.execute(
-            "SELECT COALESCE(SUM(pnl), 0) FROM trades WHERE outcome IN ('WIN', 'LOSS')"
-        ).fetchone()
+        (total,) = conn.execute(sql, params).fetchone()
     return float(total)

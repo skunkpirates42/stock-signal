@@ -6,7 +6,7 @@ papertrader.db predates these columns.
 
 import sqlite3
 
-from db.logger import init_db, log_signal, log_trade_open
+from db.logger import close_trade, init_db, log_signal, log_trade_open, realized_pnl
 
 
 def _signal(**over):
@@ -103,6 +103,21 @@ def test_log_trade_open_records_explicit_source(tmp_path):
     init_db(db)
     tid = log_trade_open(_position(), db_path=db, source="backtest")
     assert _row(db, "trades", tid)["source"] == "backtest"
+
+
+def test_realized_pnl_filters_by_source(tmp_path):
+    db = str(tmp_path / "d.db")
+    init_db(db)
+    live_id = log_trade_open(_position(), db_path=db, source="live")
+    backtest_id = log_trade_open(_position(ticker="BBB"), db_path=db, source="backtest")
+    close_trade(live_id, {"exit_price": 104.0, "outcome": "WIN", "pnl": 40.0,
+                          "exit_bar": 5, "bars_held": 4}, db_path=db)
+    close_trade(backtest_id, {"exit_price": 47.0, "outcome": "LOSS", "pnl": -300.0,
+                              "exit_bar": 5, "bars_held": 4}, db_path=db)
+
+    assert realized_pnl(db, source="live") == 40.0
+    assert realized_pnl(db, source="backtest") == -300.0
+    assert realized_pnl(db) == -260.0
 
 
 def test_backtest_module_logs_with_backtest_source():
