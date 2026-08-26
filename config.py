@@ -78,4 +78,9 @@ ALERT_MIN_CONFIDENCE = 0.0    # min signal confidence to fire a desktop notifica
 ALERT_SOUND = "Ping"          # macOS notification sound name ("" to silence)
 
 # --- LLM -------------------------------------------------------------------
-LLM_MODEL = "claude-sonnet-4-20250514"
+# Synthesis is presentation-only and never affects the trading decision, so any
+# provider (or none) is safe. 'template' needs no network and no key.
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "groq").lower()
+LLM_MODEL = os.environ.get("LLM_MODEL", "claude-haiku-4-5")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "qwen/qwen3.6-27b")
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
