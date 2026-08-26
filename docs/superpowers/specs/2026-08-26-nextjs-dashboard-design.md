@@ -224,11 +224,60 @@ stale positions open since 2026-07-15 are labeled as such.
 - TypeScript: Vitest over `lib/` pure functions — `indicators.ts`, `filters.ts`, `format.ts`.
   No component mounting, no DOM, no Playwright.
 
+## Deployment path (decided, not built in this phase)
+
+Not building it now is a scheduling choice, not an open question. The answer below is
+settled so the design does not paint itself into a corner, and so it can be explained on
+demand.
+
+**The deployed build reads a committed snapshot; local dev reads the Flask API.**
+
+`lib/api.ts` gets two implementations behind one set of return types, selected by an
+environment variable:
+
+| Environment | Source | Data |
+|---|---|---|
+| local dev | Flask on `localhost:8000` | current, live |
+| Vercel build | `snapshot.json` committed to the repo | as of last export |
+
+The snapshot is produced by a Python script that calls `analytics.metrics.compute_metrics`
+and serializes the result alongside the signal and trade rows. **The metrics are computed in
+Python and baked in — TypeScript never recomputes them.** This is the same single-source-of-
+truth decision as the Flask path, preserved across the deployment boundary rather than
+abandoned at it.
+
+Consequences:
+
+- The Vercel build is fully static. No serverless functions, no database, no cold starts,
+  nothing to keep awake. Free tier, indefinitely.
+- Refresh is `python scripts/export_snapshot.py && git push`.
+- Payload is small: 269 signals plus 155 trades plus a metrics object is well under 1 MB.
+  Including the 2,510-row `backtest.db` corpus is optional and would exercise the
+  provenance filter with real volume — a better demo, at a few MB.
+- The deployed page must label itself a snapshot with its export date. Presenting stale data
+  as live would contradict the honesty affordances that are the point of the UI.
+
+### Why not hosted Postgres
+
+Supabase or Neon on a free tier would make the deployment genuinely live, and is the more
+impressive architecture on paper. It was rejected for this project because it requires
+reworking `db/logger.py` off `sqlite3`, requires the local runner to have network access to
+write, and — decisively for a link on a résumé — free-tier projects auto-suspend after
+inactivity. A portfolio URL that is slow or broken when a recruiter opens it is worse than a
+static one that always loads. If the engine ever runs continuously on a host, this becomes
+the right answer and `lib/api.ts` is the only file that changes.
+
+### The constraint this places on Phase 1
+
+`lib/api.ts` must expose functions returning fully-typed domain objects with no Flask-shaped
+details leaking past it, and no component may assume data is current. That is already the
+design; this section is why it is non-negotiable.
+
 ## Non-goals
 
-Vercel deployment; WebSocket or streaming updates; auth; real-time unrealized P&L; changes
-to `backtest.db`; rewriting or deleting the Flask app, which keeps working throughout;
-any change to signal logic or thresholds.
+Vercel deployment *in this phase* (the path is settled above); WebSocket or streaming
+updates; auth; real-time unrealized P&L; changes to `backtest.db`; rewriting or deleting the
+Flask app, which keeps working throughout; any change to signal logic or thresholds.
 
 ## Risks
 
