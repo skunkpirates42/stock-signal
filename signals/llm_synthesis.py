@@ -87,6 +87,8 @@ def _groq_reasoning(signal: dict):
         model=config.GROQ_MODEL,
         max_tokens=300,
         messages=[{"role": "user", "content": _prompt_for(signal)}],
+        # qwen3.6 is a reasoning model; without this it emits <think> scratchpad into content
+        reasoning_effort="none",
     )
     text = (resp.choices[0].message.content or "").strip()
     if not text:

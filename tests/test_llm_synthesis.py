@@ -5,6 +5,8 @@ contract under test is that synthesize() always produces a non-empty reasoning s
 and an accurate synthesis_source, whatever the provider does.
 """
 
+import openai
+
 import config
 from signals import llm_synthesis
 from signals.llm_synthesis import synthesize
@@ -77,6 +79,34 @@ def test_unknown_provider_uses_template(monkeypatch):
     monkeypatch.setattr(config, "LLM_PROVIDER", "nonesuch")
     out = synthesize(_actionable())
     assert out["synthesis_source"] == "template"
+
+
+def test_groq_reasoning_disables_thinking_output(monkeypatch):
+    captured = {}
+
+    class FakeMessage:
+        content = "four bullish votes support the call"
+
+    class FakeResponse:
+        choices = [type("Choice", (), {"message": FakeMessage()})()]
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            return FakeResponse()
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.chat = type("Chat", (), {"completions": FakeCompletions()})()
+
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setattr(openai, "OpenAI", FakeClient)
+
+    text, source = llm_synthesis._groq_reasoning(_actionable())
+
+    assert captured["reasoning_effort"] == "none"
+    assert text == "four bullish votes support the call"
+    assert source == "groq:%s" % config.GROQ_MODEL
 
 
 def test_prompt_forbids_changing_the_decision():
