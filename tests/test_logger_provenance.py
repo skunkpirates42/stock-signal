@@ -103,3 +103,14 @@ def test_log_trade_open_records_explicit_source(tmp_path):
     init_db(db)
     tid = log_trade_open(_position(), db_path=db, source="backtest")
     assert _row(db, "trades", tid)["source"] == "backtest"
+
+
+def test_backtest_module_logs_with_backtest_source():
+    """backtest.py must stamp its writes so a mis-pointed DB_PATH is visible, not silent."""
+    import inspect
+
+    import backtest
+
+    src = inspect.getsource(backtest.run_ticker)
+    assert 'source="backtest"' in src, "backtest.py must pass source='backtest' when logging"
+    assert src.count('source="backtest"') >= 2, "both log_signal and log_trade_open need it"
