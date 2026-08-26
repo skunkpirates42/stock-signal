@@ -64,7 +64,10 @@ def _prompt_for(signal: dict) -> str:
 def _anthropic_reasoning(signal: dict):
     from anthropic import Anthropic
 
-    client = Anthropic()
+    # synthesize() runs inside the live bar handler (live/trader.py), which is invoked
+    # synchronously from the asyncio websocket callback — a slow/hung request here stalls
+    # bar aggregation and exit checks for every ticker, so fail fast instead of retrying.
+    client = Anthropic(timeout=10.0, max_retries=0)
     resp = client.messages.create(
         model=config.LLM_MODEL,
         max_tokens=300,
@@ -79,9 +82,13 @@ def _anthropic_reasoning(signal: dict):
 def _groq_reasoning(signal: dict):
     from openai import OpenAI
 
+    # See _anthropic_reasoning: this also runs inside the live bar handler and must not
+    # stall the event loop, so keep the timeout short and skip retries.
     client = OpenAI(
         api_key=os.environ["GROQ_API_KEY"],
         base_url=config.GROQ_BASE_URL,
+        timeout=10.0,
+        max_retries=0,
     )
     resp = client.chat.completions.create(
         model=config.GROQ_MODEL,

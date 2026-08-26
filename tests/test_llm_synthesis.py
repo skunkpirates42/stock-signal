@@ -5,6 +5,7 @@ contract under test is that synthesize() always produces a non-empty reasoning s
 and an accurate synthesis_source, whatever the provider does.
 """
 
+import anthropic
 import openai
 
 import config
@@ -107,6 +108,60 @@ def test_groq_reasoning_disables_thinking_output(monkeypatch):
     assert captured["reasoning_effort"] == "none"
     assert text == "four bullish votes support the call"
     assert source == "groq:%s" % config.GROQ_MODEL
+
+
+def test_groq_client_has_bounded_timeout_and_no_retries(monkeypatch):
+    captured = {}
+
+    class FakeMessage:
+        content = "four bullish votes support the call"
+
+    class FakeResponse:
+        choices = [type("Choice", (), {"message": FakeMessage()})()]
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            return FakeResponse()
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+            self.chat = type("Chat", (), {"completions": FakeCompletions()})()
+
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setattr(openai, "OpenAI", FakeClient)
+
+    llm_synthesis._groq_reasoning(_actionable())
+
+    assert captured["timeout"] == 10.0
+    assert captured["max_retries"] == 0
+
+
+def test_anthropic_client_has_bounded_timeout_and_no_retries(monkeypatch):
+    captured = {}
+
+    class FakeContentBlock:
+        type = "text"
+        text = "four of six lean bullish"
+
+    class FakeResponse:
+        content = [FakeContentBlock()]
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            return FakeResponse()
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(anthropic, "Anthropic", FakeClient)
+
+    llm_synthesis._anthropic_reasoning(_actionable())
+
+    assert captured["timeout"] == 10.0
+    assert captured["max_retries"] == 0
 
 
 def test_prompt_forbids_changing_the_decision():
