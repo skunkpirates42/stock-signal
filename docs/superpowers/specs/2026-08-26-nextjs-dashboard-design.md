@@ -58,7 +58,7 @@ performance.
 | Contamination | Tag with a `source` column | Non-destructive and reversible. Avoids a magic id cutoff in the frontend and prevents recurrence. |
 | LLM provider | `anthropic` \| `groq` \| `template`, env-selected | User preference for provider flexibility. Implemented as a dispatch inside one function, not an adapter layer. |
 | Backfill scope | The 269 live signals, including WAIT | Backtest rows are hidden by default in the UI; generating rationale for them is spend with no reader. |
-| Backfill model | `claude-haiku-4-5` via Batch API | ~$0.11 for 269 signals. Cheaper than Groq's `qwen/qwen3.6-27b` ($0.60/$3.00, and flagged preview) with no added dependency. |
+| Backfill provider | Groq `qwen/qwen3.6-27b`, free tier | The developer has free-tier Groq access, which covers this volume outright. Anthropic `claude-haiku-4-5` via Batch API (~$0.11) stays wired as a one-env-var fallback. |
 
 ### WAIT-signal rationale stays out of the bar loop
 
@@ -156,9 +156,14 @@ Three module-level helpers, one dispatch, no classes and no registry. Both provi
 fall back to the template on any exception, preserving current offline behavior. Groq is
 OpenAI-wire-compatible and uses the `openai` package against `https://api.groq.com/openai/v1`.
 
-New config: `LLM_PROVIDER` (default `anthropic`), `LLM_MODEL` updated from the superseded
-`claude-sonnet-4-20250514` to `claude-haiku-4-5`, `GROQ_MODEL` (default `qwen/qwen3.6-27b`).
-New env: `GROQ_API_KEY`. New dependency: `openai`.
+New config: `LLM_PROVIDER` (default `groq`, since its free tier covers this volume),
+`LLM_MODEL` updated from the superseded `claude-sonnet-4-20250514` to `claude-haiku-4-5`,
+`GROQ_MODEL` (default `qwen/qwen3.6-27b`), `GROQ_BASE_URL`. New env: `GROQ_API_KEY`. New
+dependency: `openai`.
+
+Groq's Batch API is a paid-plan feature, so the free-tier backfill is sequential and
+rate-limited — roughly 15-20 minutes for 269 signals, honoring the `retry-after` header on
+429 and checkpointing every 25 rows. The Anthropic path uses the Batch API instead.
 
 ### 0.5 Backfill script
 
