@@ -1,9 +1,12 @@
 """PoC entry point.
 
-Runs the full signal pipeline once over the watchlist, on synthetic data, with no network
-required:
+Runs the full signal pipeline once over the watchlist, on synthetic data when no Alpaca
+credentials are configured. Reasoning still hits the network if an LLM provider key
+(config.LLM_PROVIDER != "template") is present:
 
     bars -> indicators -> rule-based signal -> LLM/template reasoning -> print + log
+
+Signals are logged with source="poc" so they're never mistaken for live trading activity.
 
 Run:  python3 poc.py
 """
@@ -61,7 +64,7 @@ def main() -> None:
         signal = generate_signal(ticker, inds[ticker])
         signal["regime"] = regime
         signal = synthesize(signal)
-        log_signal(signal, bar_timestamp=bars[ticker]["timestamp"].iloc[-1])
+        log_signal(signal, bar_timestamp=bars[ticker]["timestamp"].iloc[-1], source="poc")
         _print_signal(signal)
         results.append(signal)
 
