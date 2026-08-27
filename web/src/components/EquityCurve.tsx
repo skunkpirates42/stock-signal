@@ -27,9 +27,9 @@ export default function EquityCurve({ points }: EquityCurveProps) {
           <Tooltip
             labelFormatter={(label) => formatTimestamp(String(label))}
             formatter={(value) => formatCurrency(typeof value === "number" ? value : undefined)}
-            contentStyle={{ background: "var(--panel)", border: "1px solid var(--line)" }}
-            labelStyle={{ color: "var(--fg)" }}
-            itemStyle={{ color: "var(--fg)" }}
+            contentStyle={{ background: "var(--surface)", border: "1px solid var(--line)" }}
+            labelStyle={{ color: "var(--ink)" }}
+            itemStyle={{ color: "var(--ink)" }}
           />
           <Line type="monotone" dataKey="equity" stroke="var(--accent)" dot={false} />
         </LineChart>

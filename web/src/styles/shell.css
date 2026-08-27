@@ -5,7 +5,7 @@
   gap: 1.5rem;
   padding: 1rem 1.5rem;
   border-bottom: 1px solid var(--line);
-  background: var(--panel);
+  background: var(--surface);
 }
 
 .nav-link {
@@ -14,7 +14,7 @@
 }
 
 .nav-link:hover {
-  color: var(--fg);
+  color: var(--ink);
   text-decoration: none;
 }
 
@@ -30,5 +30,5 @@
 .error-detail {
   color: var(--muted);
   font-size: 0.85rem;
-  font-family: var(--font-geist-mono, monospace);
+  font-family: var(--font-mono, monospace);
 }

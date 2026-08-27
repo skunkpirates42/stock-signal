@@ -9,7 +9,7 @@
 
 .stat-tile {
   border: 1px solid var(--line);
-  background: var(--panel);
+  background: var(--surface);
   border-radius: 8px;
   padding: 1rem;
 }
@@ -28,15 +28,15 @@
 }
 
 .stat-tile-value-positive {
-  color: var(--green);
+  color: var(--win);
 }
 
 .stat-tile-value-negative {
-  color: var(--red);
+  color: var(--loss);
 }
 
 .stat-tile-value-neutral {
-  color: var(--fg);
+  color: var(--ink);
 }
 
 .stat-tile-note {
@@ -49,19 +49,19 @@
 
 .provenance-band {
   border: 1px solid var(--line);
-  background: var(--panel);
+  background: var(--surface);
   border-radius: 8px;
   padding: 0.85rem 1rem;
   margin-bottom: 1rem;
 }
 
 .provenance-statement {
-  color: var(--fg);
+  color: var(--ink);
 }
 
 .provenance-warning {
   margin-top: 0.5rem;
-  color: var(--red);
+  color: var(--loss);
   font-weight: 600;
 }
 
@@ -69,7 +69,7 @@
 
 .cost-adjusted-expectancy {
   border: 1px solid var(--line);
-  background: var(--panel);
+  background: var(--surface);
   border-radius: 8px;
   padding: 1rem;
   margin: 1.5rem 0;
@@ -101,8 +101,8 @@
   padding: 0.4rem 0.5rem;
   border-radius: 6px;
   border: 1px solid var(--line);
-  background: var(--bg);
-  color: var(--fg);
+  background: var(--ground);
+  color: var(--ink);
   width: 100px;
 }
 
@@ -116,7 +116,7 @@
 
 .equity-curve {
   border: 1px solid var(--line);
-  background: var(--panel);
+  background: var(--surface);
   border-radius: 8px;
   padding: 1rem;
   margin: 1.5rem 0;
@@ -131,11 +131,11 @@
 /* Tone helpers (shared by SignalRow, VoteTable, RationalePanel) */
 
 .tone-positive {
-  color: var(--green);
+  color: var(--win);
 }
 
 .tone-negative {
-  color: var(--red);
+  color: var(--loss);
 }
 
 .tone-muted {
