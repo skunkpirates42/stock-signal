@@ -8,7 +8,7 @@ export default function Error({
   retry: () => void;
 }) {
   return (
-    <main className="canvas">
+    <main>
       <h1>Something went wrong</h1>
       <p className="error-message">
         This dashboard could not reach its data API. The most likely cause is that the Flask

@@ -26,7 +26,7 @@ export default async function SignalsPage({
   }
 
   return (
-    <main className="canvas">
+    <main>
       <div className="page-head">
         <h1>Signals</h1>
         <span className="micro">{signals.length} signals</span>

@@ -25,7 +25,7 @@ export default async function OverviewPage({
   const nLiveClosed = liveMetrics === null ? metrics.n_closed : liveMetrics.n_closed;
 
   return (
-    <main className="canvas">
+    <main>
       <HeroStat
         label="Total P&L"
         value={formatCurrency(metrics.total_pnl)}

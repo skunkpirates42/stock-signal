@@ -19,7 +19,7 @@ export default async function PositionsPage({
   const now = new Date();
 
   return (
-    <main className="canvas">
+    <main>
       <div className="page-head">
         <h1>Positions</h1>
         <span className="micro">{positions.length} open</span>
