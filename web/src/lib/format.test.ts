@@ -22,10 +22,10 @@ describe("formatR", () => {
 
 describe("formatTimestamp", () => {
   it("handles the space-separated bar_timestamp form", () => {
-    expect(formatTimestamp("2026-07-15 19:55:00+00:00")).toBe("2026-07-15 19:55");
+    expect(formatTimestamp("2026-07-15 19:55:00+00:00")).toBe("2026-07-15 19:55 UTC");
   });
   it("handles the ISO created_at form", () => {
-    expect(formatTimestamp("2026-07-15T20:54:00.144301+00:00")).toBe("2026-07-15 20:54");
+    expect(formatTimestamp("2026-07-15T20:54:00.144301+00:00")).toBe("2026-07-15 20:54 UTC");
   });
   it("passes through the literal start label", () => {
     expect(formatTimestamp("start")).toBe("start");

@@ -23,5 +23,5 @@ export function formatR(value: number | null | undefined): string {
 export function formatTimestamp(raw: string | null | undefined): string {
   if (!raw) return DASH;
   if (raw === "start") return raw;
-  return raw.replace("T", " ").slice(0, 16);
+  return `${raw.replace("T", " ").slice(0, 16)} UTC`;
 }
