@@ -45,15 +45,6 @@
 
 /* ProvenanceBand */
 
-/* Still worn by ScopeNote on the positions and signals pages, which Tasks 6-7 restyle. */
-.provenance-band {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: linear-gradient(to bottom, var(--surface-2), var(--surface));
-  padding: calc(var(--space) * 1.5) calc(var(--space) * 2);
-  margin-bottom: calc(var(--space) * 2);
-}
-
 .provenance {
   margin-top: calc(var(--space) * 1.5);
 }
@@ -67,6 +58,15 @@
   color: var(--caution);
   font-size: 0.85rem;
   max-width: 68ch;
+}
+
+/* ScopeNote */
+
+.scope-note {
+  margin-bottom: calc(var(--space) * 3);
+  padding-left: calc(var(--space) * 1.5);
+  border-left: 2px solid var(--line-strong);
+  max-width: 80ch;
 }
 
 /* Layout grids */

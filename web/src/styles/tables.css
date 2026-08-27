@@ -131,22 +131,33 @@
   width: 100%;
   border-collapse: collapse;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
 .vote-table th,
 .vote-table td {
   text-align: left;
-  padding: 0.4rem 0.65rem;
+  padding: calc(var(--space) / 2) calc(var(--space) * 0.75);
   border-bottom: 1px solid var(--line);
 }
 
 .vote-table th {
-  color: var(--muted);
+  font-family: var(--font-mono);
+  color: var(--faint);
   font-size: 0.7rem;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.18em;
+}
+
+.vote-table td {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.vote-table tr:last-child td {
+  border-bottom: none;
 }
 
 .vote-table-detail {

@@ -17,20 +17,16 @@
   gap: 0.35rem;
   font-size: 0.75rem;
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .filter-field select,
 .filter-field input {
   font-size: 0.9rem;
   padding: 0.35rem 0.5rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: var(--ground);
   color: var(--ink);
-  text-transform: none;
-  letter-spacing: normal;
 }
 
 /* SignalList */
@@ -63,26 +59,28 @@
 }
 
 .signal-row-summary {
-  display: flex;
+  display: grid;
+  grid-template-columns: 4.5rem 4.5rem minmax(120px, 1fr) 6rem 12rem;
   align-items: center;
-  gap: 1rem;
+  gap: calc(var(--space) * 1.5);
   width: 100%;
-  padding: 0.65rem 1rem;
+  padding: calc(var(--space) * 1.25) calc(var(--space) * 2);
   background: none;
   border: none;
   color: var(--ink);
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: background-color 150ms;
 }
 
 .signal-row-summary:hover {
-  background: var(--line);
+  background: var(--surface-2);
 }
 
 .signal-row-ticker {
-  font-weight: 700;
-  min-width: 3.5rem;
+  font-family: var(--font-mono);
+  font-weight: 600;
 }
 
 .signal-badge {
@@ -92,14 +90,11 @@
   letter-spacing: 0.03em;
 }
 
-.signal-row-confidence,
 .signal-row-timestamp {
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.signal-row-timestamp {
-  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--faint);
+  text-align: right;
 }
 
 .signal-row-detail {
@@ -163,6 +158,106 @@
 
 .rationale-volume-note {
   margin-top: 0.5rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.rationale-columns {
+  display: grid;
+  grid-template-columns: 1.2fr 1.4fr 1fr;
+  gap: calc(var(--space) * 3);
+}
+
+@media (max-width: 1100px) {
+  .rationale-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ConfidenceMeter */
+
+.meter {
+  display: flex;
+  align-items: center;
+  gap: var(--space);
+}
+
+.meter-track {
+  position: relative;
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--faint);
+}
+
+.meter-fill-cleared {
+  background: var(--accent);
+}
+
+.meter-threshold {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--line-strong);
+}
+
+.meter-value {
+  font-size: 0.8rem;
+  color: var(--muted);
+  min-width: 3.5rem;
+  text-align: right;
+}
+
+/* LevelScale */
+
+.level-scale-track {
+  position: relative;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--win);
+  margin-bottom: var(--space);
+}
+
+.level-scale-risk {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px 0 0 3px;
+  background: var(--loss);
+}
+
+.level-scale-entry {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--ink);
+}
+
+.level-scale-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+}
+
+.level-scale-legend {
+  margin-top: calc(var(--space) / 2);
+}
+
+.level-scale-warning {
+  margin-top: var(--space);
+  color: var(--caution);
+  font-size: 0.8rem;
+}
+
+.level-scale-empty {
   color: var(--muted);
   font-size: 0.8rem;
 }

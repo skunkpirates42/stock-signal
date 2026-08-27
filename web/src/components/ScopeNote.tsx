@@ -6,8 +6,8 @@ export interface ScopeNoteProps {
 
 export default function ScopeNote({ children }: ScopeNoteProps) {
   return (
-    <div className="provenance-band">
-      <p className="provenance-statement">{children}</p>
+    <div className="scope-note">
+      <p className="micro">{children}</p>
     </div>
   );
 }

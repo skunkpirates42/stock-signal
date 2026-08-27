@@ -1,5 +1,6 @@
 import type { Direction, Signal, Trade } from "@/lib/types";
-import { formatPercent, formatTimestamp } from "@/lib/format";
+import { formatTimestamp } from "@/lib/format";
+import ConfidenceMeter from "@/components/ConfidenceMeter";
 import RationalePanel from "@/components/RationalePanel";
 
 export interface SignalRowProps {
@@ -34,13 +35,13 @@ export default function SignalRow({ signal, outcome, expanded, onToggle }: Signa
         <span className={`signal-badge ${directionClass(signal.direction)}`}>
           {signal.direction}
         </span>
-        <span className="signal-row-confidence">{formatPercent(signal.confidence)}</span>
-        <span className="signal-row-timestamp">
+        <ConfidenceMeter confidence={signal.confidence} />
+        <span className="signal-row-outcome">
+          {outcome && <span className={`signal-badge ${outcomeClass(outcome)}`}>{outcome}</span>}
+        </span>
+        <span className="signal-row-timestamp num">
           {formatTimestamp(signal.bar_timestamp ?? signal.created_at)}
         </span>
-        {outcome && (
-          <span className={`signal-badge ${outcomeClass(outcome)}`}>{outcome}</span>
-        )}
       </button>
       {expanded && (
         <div className="signal-row-detail">

@@ -26,8 +26,11 @@ export default async function SignalsPage({
   }
 
   return (
-    <main className="page-content">
-      <h1>Signals</h1>
+    <main className="canvas">
+      <div className="page-head">
+        <h1>Signals</h1>
+        <span className="micro">{signals.length} signals</span>
+      </div>
       <ScopeNote>
         {scope === "live"
           ? `Showing ${signals.length} live signals. Backtest replay signals are excluded from this view.`
