@@ -133,19 +133,26 @@ def equity_curve(trades, starting_capital: float = None):
     return points
 
 
-def load_closed_trades(db_path: str = None):
-    """Load all trades from SQLite as dicts, ordered by close time (then id)."""
+def load_closed_trades(db_path: str = None, source: str = None):
+    """Load all trades from SQLite as dicts, ordered by close time (then id).
+
+    `source` optionally restricts to "live" or "backtest" rows; omitted, all rows load
+    (unchanged from before the source column existed).
+    """
     conn = sqlite3.connect(db_path or config.DB_PATH)
     conn.row_factory = sqlite3.Row
     # Join each trade to its signal to carry the market regime tagged at signal time.
-    rows = conn.execute(
-        """
+    sql = """
         SELECT t.*, s.regime AS regime
           FROM trades t
           LEFT JOIN signals s ON t.signal_id = s.id
-         ORDER BY t.closed_at IS NULL, t.closed_at, t.id
         """
-    ).fetchall()
+    params = []
+    if source:
+        sql += " WHERE t.source = ?"
+        params.append(source)
+    sql += " ORDER BY t.closed_at IS NULL, t.closed_at, t.id"
+    rows = conn.execute(sql, params).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 

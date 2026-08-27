@@ -44,6 +44,34 @@ def test_metrics_endpoint(tmp_path):
     assert m["equity"][-1]["equity"] == config.STARTING_CAPITAL + 40.0
 
 
+def test_metrics_endpoint_filters_by_source(tmp_path):
+    db = str(tmp_path / "d.db")
+    _seed(db)
+    log_trade_open(
+        {"signal_id": None, "ticker": "CCC", "direction": "LONG", "entry": 10, "stop": 9,
+         "target": 12, "shares": 5, "entry_bar": 1},
+        db_path=db, source="backtest",
+    )
+    close_trade(
+        # the trade above is the 3rd row inserted into a fresh db (id=3)
+        3, {"exit_price": 12, "outcome": "WIN", "pnl": 500.0, "exit_bar": 5, "bars_held": 4},
+        db_path=db,
+    )
+    c = create_app(db_path=db).test_client()
+
+    live = c.get("/api/metrics?source=live").get_json()
+    backtest = c.get("/api/metrics?source=backtest").get_json()
+    unfiltered = c.get("/api/metrics").get_json()
+
+    assert live["n_closed"] == 1
+    assert live["total_pnl"] == 40.0
+    assert backtest["n_closed"] == 1
+    assert backtest["total_pnl"] == 500.0
+    # no source filter still blends live + backtest, same as before this endpoint had one
+    assert unfiltered["n_closed"] == 2
+    assert unfiltered["total_pnl"] == 540.0
+
+
 def test_open_trades_endpoint(tmp_path):
     data = _client(tmp_path).get("/api/open").get_json()
     assert len(data) == 1 and data[0]["ticker"] == "BBB"
@@ -63,3 +91,33 @@ def test_empty_db_does_not_error(tmp_path):
     m = c.get("/api/metrics").get_json()
     assert m["n_closed"] == 0
     assert c.get("/api/trades").get_json() == []
+
+
+def test_signals_endpoint_respects_limit(tmp_path):
+    db = str(tmp_path / "d.db")
+    _seed(db)
+    for _ in range(5):
+        log_signal({"ticker": "CCC", "direction": "WAIT", "confidence": 0.5,
+                    "entry": 10, "indicators_json": "{}"}, db_path=db)
+    c = create_app(db_path=db).test_client()
+    assert len(c.get("/api/signals?limit=3").get_json()) == 3
+    assert len(c.get("/api/signals").get_json()) == 6
+
+
+def test_signals_endpoint_filters_by_source(tmp_path):
+    db = str(tmp_path / "d.db")
+    _seed(db)
+    log_signal({"ticker": "OLD", "direction": "LONG", "confidence": 0.7,
+                "entry": 10, "indicators_json": "{}"}, db_path=db, source="backtest")
+    c = create_app(db_path=db).test_client()
+    live = c.get("/api/signals?source=live").get_json()
+    backtest = c.get("/api/signals?source=backtest").get_json()
+    assert len(live) == 1 and live[0]["ticker"] == "AAA"
+    assert len(backtest) == 1 and backtest[0]["ticker"] == "OLD"
+
+
+def test_signals_endpoint_rejects_bad_limit(tmp_path):
+    db = str(tmp_path / "d.db")
+    _seed(db)
+    c = create_app(db_path=db).test_client()
+    assert c.get("/api/signals?limit=notanumber").status_code == 400

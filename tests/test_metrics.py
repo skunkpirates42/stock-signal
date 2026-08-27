@@ -3,7 +3,8 @@
 Hand-built closed trades with known outcomes pin the math.
 """
 
-from analytics.metrics import compute_metrics
+from analytics.metrics import compute_metrics, load_closed_trades
+from db.logger import close_trade, init_db, log_trade_open
 
 
 def _t(outcome, pnl, entry=100.0, stop=98.0, shares=10, bars_held=5, ticker="AAA",
@@ -83,3 +84,30 @@ def test_empty_trades():
     m = compute_metrics([], starting_capital=10_000.0)
     assert m["n_closed"] == 0
     assert m["win_rate"] == 0.0
+
+
+def _seed_live_and_backtest_trade(db):
+    init_db(db)
+    live = {"ticker": "AAA", "direction": "LONG", "entry": 100, "stop": 98,
+            "target": 104, "shares": 10, "entry_bar": 1}
+    backtest = {"ticker": "BBB", "direction": "SHORT", "entry": 50, "stop": 51,
+                "target": 48, "shares": 20, "entry_bar": 1}
+    live_id = log_trade_open(live, db_path=db, source="live")
+    backtest_id = log_trade_open(backtest, db_path=db, source="backtest")
+    close_trade(live_id, {**live, "exit_price": 104, "outcome": "WIN", "pnl": 40.0,
+                          "exit_bar": 5, "bars_held": 4}, db_path=db)
+    close_trade(backtest_id, {**backtest, "exit_price": 47, "outcome": "WIN", "pnl": 60.0,
+                              "exit_bar": 5, "bars_held": 4}, db_path=db)
+
+
+def test_load_closed_trades_filters_by_source(tmp_path):
+    db = str(tmp_path / "d.db")
+    _seed_live_and_backtest_trade(db)
+
+    live = load_closed_trades(db, source="live")
+    backtest = load_closed_trades(db, source="backtest")
+    unfiltered = load_closed_trades(db)
+
+    assert [t["ticker"] for t in live] == ["AAA"]
+    assert [t["ticker"] for t in backtest] == ["BBB"]
+    assert len(unfiltered) == 2

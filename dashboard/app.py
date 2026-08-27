@@ -10,7 +10,7 @@ Run:  python3 run_dashboard.py   (then open http://127.0.0.1:8000)
 
 import sqlite3
 
-from flask import Flask, jsonify, render_template
+from flask import Flask, abort, jsonify, render_template, request
 
 import config
 from alerts.feed import build_alert_events
@@ -25,18 +25,32 @@ def create_app(db_path: str = None) -> Flask:
     def _db():
         return app.config["DB_PATH"]
 
-    def _recent(table: str, limit: int = 50):
+    def _recent(table: str, limit: int = 50, source: str = None):
         conn = sqlite3.connect(_db())
         conn.row_factory = sqlite3.Row
+        sql = "SELECT * FROM %s" % table
+        params = []
+        if source:
+            sql += " WHERE source = ?"
+            params.append(source)
+        sql += " ORDER BY id DESC LIMIT ?"
+        params.append(limit)
         try:
-            rows = conn.execute(
-                f"SELECT * FROM {table} ORDER BY id DESC LIMIT ?", (limit,)
-            ).fetchall()
+            rows = conn.execute(sql, params).fetchall()
         except sqlite3.OperationalError:
             return []  # table not created yet
         finally:
             conn.close()
         return [dict(r) for r in rows]
+
+    def _query_params(default_limit: int):
+        raw = request.args.get("limit")
+        if raw is None:
+            return default_limit, request.args.get("source")
+        try:
+            return int(raw), request.args.get("source")
+        except ValueError:
+            abort(400, "limit must be an integer")
 
     @app.route("/")
     def index():
@@ -44,18 +58,20 @@ def create_app(db_path: str = None) -> Flask:
 
     @app.route("/api/metrics")
     def api_metrics():
-        trades = load_closed_trades(_db())
+        trades = load_closed_trades(_db(), source=request.args.get("source"))
         m = compute_metrics(trades)
         m["equity"] = equity_curve(trades)
         return jsonify(m)
 
     @app.route("/api/trades")
     def api_trades():
-        return jsonify(_recent("trades", 100))
+        limit, source = _query_params(100)
+        return jsonify(_recent("trades", limit, source))
 
     @app.route("/api/signals")
     def api_signals():
-        return jsonify(_recent("signals", 100))
+        limit, source = _query_params(100)
+        return jsonify(_recent("signals", limit, source))
 
     @app.route("/api/open")
     def api_open():

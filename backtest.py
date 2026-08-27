@@ -69,10 +69,10 @@ def run_ticker(broker: PaperBroker, ticker: str, df, regimes) -> None:
         if signal["direction"] not in ("LONG", "SHORT"):
             continue
 
-        signal_id = log_signal(signal, bar_timestamp=bar["timestamp"])
+        signal_id = log_signal(signal, bar_timestamp=bar["timestamp"], source="backtest")
         position = broker.open_position(signal, entry_bar=i, signal_id=signal_id)
         if position is not None:
-            position["db_id"] = log_trade_open(position)
+            position["db_id"] = log_trade_open(position, source="backtest")
 
 
 def print_summary(broker: PaperBroker) -> None:

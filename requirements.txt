@@ -6,6 +6,7 @@
 numpy<2
 pandas>=1.5,<2.2
 anthropic>=0.39
+openai>=1.0
 python-dotenv>=1.0
 alpaca-py>=0.20
 flask>=2.2,<4

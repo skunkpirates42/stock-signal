@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS signals (
     indicators_json TEXT,
     reasoning       TEXT,
     regime          TEXT,
+    source          TEXT,
+    synthesis_source TEXT,
     created_at      TEXT    NOT NULL
 );
 """
@@ -31,6 +33,9 @@ CREATE TABLE IF NOT EXISTS signals (
 # Columns added after the original schema shipped; applied to pre-existing DBs on init.
 _MIGRATIONS = [
     "ALTER TABLE signals ADD COLUMN regime TEXT",
+    "ALTER TABLE signals ADD COLUMN source TEXT",
+    "ALTER TABLE signals ADD COLUMN synthesis_source TEXT",
+    "ALTER TABLE trades ADD COLUMN source TEXT",
 ]
 
 _TRADES_SCHEMA = """
@@ -50,7 +55,8 @@ CREATE TABLE IF NOT EXISTS trades (
     exit_bar    INTEGER,
     bars_held   INTEGER,
     created_at  TEXT    NOT NULL,   -- when the trade was opened
-    closed_at   TEXT                -- when the trade was closed (null while OPEN)
+    closed_at   TEXT,               -- when the trade was closed (null while OPEN)
+    source      TEXT
 );
 """
 
@@ -71,15 +77,16 @@ def init_db(db_path: str = None) -> None:
                 pass  # column already exists
 
 
-def log_signal(signal: dict, bar_timestamp=None, db_path: str = None) -> int:
+def log_signal(signal: dict, bar_timestamp=None, db_path: str = None,
+               source: str = "live") -> int:
     """Insert one signal row. Returns the new row id."""
     with _connect(db_path) as conn:
         cur = conn.execute(
             """
             INSERT INTO signals
                 (ticker, bar_timestamp, direction, confidence, entry, stop, target,
-                 rr, indicators_json, reasoning, regime, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 rr, indicators_json, reasoning, regime, source, synthesis_source, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 signal["ticker"],
@@ -93,21 +100,23 @@ def log_signal(signal: dict, bar_timestamp=None, db_path: str = None) -> int:
                 signal.get("indicators_json"),
                 signal.get("reasoning"),
                 signal.get("regime"),
+                source,
+                signal.get("synthesis_source"),
                 datetime.now(timezone.utc).isoformat(),
             ),
         )
         return cur.lastrowid
 
 
-def log_trade_open(position: dict, db_path: str = None) -> int:
+def log_trade_open(position: dict, db_path: str = None, source: str = "live") -> int:
     """Insert a newly opened trade (outcome OPEN, exit fields null). Returns row id."""
     with _connect(db_path) as conn:
         cur = conn.execute(
             """
             INSERT INTO trades
                 (signal_id, ticker, direction, entry, stop, target, shares,
-                 outcome, entry_bar, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'OPEN', ?, ?)
+                 outcome, entry_bar, source, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'OPEN', ?, ?, ?)
             """,
             (
                 position.get("signal_id"),
@@ -118,6 +127,7 @@ def log_trade_open(position: dict, db_path: str = None) -> int:
                 position["target"],
                 position["shares"],
                 position["entry_bar"],
+                source,
                 datetime.now(timezone.utc).isoformat(),
             ),
         )
@@ -161,10 +171,17 @@ def load_open_positions(db_path: str = None) -> list:
     return [dict(r) for r in rows]
 
 
-def realized_pnl(db_path: str = None) -> float:
-    """Sum of P&L over all closed (WIN/LOSS) trades. Used to rebuild account capital."""
+def realized_pnl(db_path: str = None, source: str = None) -> float:
+    """Sum of P&L over all closed (WIN/LOSS) trades. Used to rebuild account capital.
+
+    `source` optionally restricts to "live" or "backtest" rows; omitted, all rows count
+    (unchanged from before the source column existed).
+    """
+    sql = "SELECT COALESCE(SUM(pnl), 0) FROM trades WHERE outcome IN ('WIN', 'LOSS')"
+    params = []
+    if source:
+        sql += " AND source = ?"
+        params.append(source)
     with _connect(db_path) as conn:
-        (total,) = conn.execute(
-            "SELECT COALESCE(SUM(pnl), 0) FROM trades WHERE outcome IN ('WIN', 'LOSS')"
-        ).fetchone()
+        (total,) = conn.execute(sql, params).fetchone()
     return float(total)
