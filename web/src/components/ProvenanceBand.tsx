@@ -1,6 +1,5 @@
 import Link from "next/link";
-
-const PROVISIONAL_FLOOR = 50;
+import { PROVISIONAL_FLOOR, isProvisional } from "@/lib/provenance";
 
 export interface ProvenanceBandProps {
   source: "live" | "all";
@@ -9,7 +8,6 @@ export interface ProvenanceBandProps {
 
 export default function ProvenanceBand({ source, nClosed }: ProvenanceBandProps) {
   const isLive = source === "live";
-  const isProvisional = nClosed < PROVISIONAL_FLOOR;
 
   return (
     <div className="provenance-band">
@@ -26,10 +24,11 @@ export default function ProvenanceBand({ source, nClosed }: ProvenanceBandProps)
           </>
         )}
       </p>
-      {isProvisional && (
+      {isProvisional(nClosed) && (
         <p className="provenance-warning">
           Provisional: only {nClosed} closed trades. The project&apos;s evaluation floor is
-          50 closed trades — no conclusion should be drawn from this sample yet.
+          {" "}{PROVISIONAL_FLOOR} closed trades — no conclusion should be drawn from this
+          sample yet.
         </p>
       )}
     </div>
