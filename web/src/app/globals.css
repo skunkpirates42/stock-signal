@@ -183,6 +183,22 @@ html {
   font-size: 0.85rem;
 }
 
+/* EquityCurve */
+
+.equity-curve {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1.5rem 0;
+}
+
+.equity-curve-empty {
+  color: var(--muted);
+  text-align: center;
+  padding: 2rem 0;
+}
+
 /* BreakdownTable */
 
 .breakdown-table {

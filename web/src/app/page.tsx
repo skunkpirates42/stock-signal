@@ -4,6 +4,7 @@ import ProvenanceBand from "@/components/ProvenanceBand";
 import StatTile from "@/components/StatTile";
 import CostAdjustedExpectancy from "@/components/CostAdjustedExpectancy";
 import BreakdownTable from "@/components/BreakdownTable";
+import EquityCurve from "@/components/EquityCurve";
 
 export default async function OverviewPage({
   searchParams,
@@ -42,6 +43,8 @@ export default async function OverviewPage({
         <StatTile label="Closed trades" value={String(metrics.n_closed)} />
         <StatTile label="Open positions" value={String(metrics.n_open)} />
       </div>
+
+      <EquityCurve points={metrics.equity} />
 
       <CostAdjustedExpectancy grossExpectancy={metrics.expectancy} />
 
