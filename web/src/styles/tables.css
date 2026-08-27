@@ -1,43 +1,59 @@
 /* BreakdownTable */
 
-.breakdown-table {
-  margin: 1.5rem 0;
+.breakdown-table h2 {
+  margin-bottom: var(--space);
 }
 
-.breakdown-table h2 {
-  margin-bottom: 0.5rem;
-  font-size: 1.1rem;
+.table-scroll {
+  overflow-x: auto;
 }
 
 .breakdown-table table {
   width: 100%;
   border-collapse: collapse;
   border: 1px solid var(--line);
-  background: var(--surface);
-  border-radius: 8px;
+  border-radius: var(--radius);
+  background: linear-gradient(to bottom, var(--surface-2), var(--surface));
   overflow: hidden;
 }
 
 .breakdown-table th,
 .breakdown-table td {
   text-align: left;
-  padding: 0.5rem 0.75rem;
+  padding: calc(var(--space) * 0.75) var(--space);
   border-bottom: 1px solid var(--line);
 }
 
 .breakdown-table th {
-  color: var(--muted);
-  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--faint);
+  font-size: 0.7rem;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.18em;
 }
 
-.breakdown-table td.positive {
-  color: var(--win);
+.breakdown-table tr:last-child td {
+  border-bottom: none;
 }
 
-.breakdown-table td.negative {
-  color: var(--loss);
+.breakdown-table td:last-child,
+.fills-table td.pnl-cell {
+  position: relative;
+  isolation: isolate;
+}
+
+.cell-bar {
+  position: absolute;
+  inset: 2px auto 2px 0;
+  z-index: -1;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.14;
+}
+
+.cell-value {
+  position: relative;
 }
 
 .breakdown-empty {
