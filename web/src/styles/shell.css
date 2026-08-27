@@ -156,8 +156,38 @@
   width: 100%;
 }
 
-.error-detail {
+/* Error boundary */
+
+.button {
+  padding: calc(var(--space) * 0.75) calc(var(--space) * 2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 150ms, color 150ms;
+}
+
+.button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.error-message {
+  margin-top: var(--space);
+  max-width: 68ch;
+  line-height: 1.6;
   color: var(--muted);
+}
+
+.error-detail {
+  margin-top: calc(var(--space) * 1.5);
+  color: var(--faint);
   font-size: 0.85rem;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
+}
+
+.error-actions {
+  margin-top: calc(var(--space) * 2);
 }
