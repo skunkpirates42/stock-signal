@@ -228,6 +228,37 @@
   padding: calc(var(--space) * 4) 0;
 }
 
+/* OpenPositions / PositionCard */
+
+.position-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: calc(var(--space) * 2);
+}
+
+.position-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space);
+  margin-bottom: calc(var(--space) * 2);
+}
+
+.position-card-ticker {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.position-card-age {
+  margin-left: auto;
+}
+
+.positions-note {
+  color: var(--caution);
+  font-size: 0.85rem;
+  max-width: 72ch;
+  margin: var(--space) 0 calc(var(--space) * 2);
+}
+
 /* Tone helpers (shared by SignalRow, VoteTable, RationalePanel) */
 
 .tone-positive {

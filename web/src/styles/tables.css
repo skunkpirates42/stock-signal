@@ -61,60 +61,60 @@
   text-align: center;
 }
 
-/* PositionsTable */
+/* FillsTable */
 
-.positions-table,
 .fills-table {
   margin: 1.5rem 0;
 }
 
-.positions-table h2,
 .fills-table h2 {
   margin-bottom: 0.5rem;
   font-size: 1.1rem;
 }
 
-.positions-note {
-  color: var(--muted);
-  font-size: 0.85rem;
-  margin-bottom: 0.75rem;
-}
-
-.positions-table table,
 .fills-table table {
   width: 100%;
   border-collapse: collapse;
   border: 1px solid var(--line);
-  background: var(--surface);
-  border-radius: 8px;
+  background: linear-gradient(to bottom, var(--surface-2), var(--surface));
+  border-radius: var(--radius);
   overflow: hidden;
 }
 
-.positions-table th,
-.positions-table td,
 .fills-table th,
 .fills-table td {
   text-align: left;
-  padding: 0.5rem 0.75rem;
+  padding: calc(var(--space) * 0.75) var(--space);
   border-bottom: 1px solid var(--line);
 }
 
-.positions-table th,
 .fills-table th {
-  color: var(--muted);
-  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--faint);
+  font-size: 0.7rem;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.18em;
+}
+
+.fills-table td {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+}
+
+.fills-table tr:last-child td {
+  border-bottom: none;
 }
 
 .positions-stale-badge {
   margin-left: 0.5rem;
-  color: var(--muted);
+  color: var(--caution);
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  border: 1px solid var(--line);
+  border: 1px solid var(--caution);
   border-radius: 4px;
   padding: 0.1rem 0.35rem;
 }
