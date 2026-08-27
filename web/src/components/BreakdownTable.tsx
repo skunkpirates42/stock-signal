@@ -1,4 +1,5 @@
 import type { Breakdown } from "@/lib/types";
+import { breakdownRows } from "@/lib/breakdowns";
 import { formatCurrency, formatPercent } from "@/lib/format";
 
 export interface BreakdownTableProps {
@@ -7,40 +8,43 @@ export interface BreakdownTableProps {
 }
 
 export default function BreakdownTable({ title, rows }: BreakdownTableProps) {
-  const sorted = Object.entries(rows).sort(([, a], [, b]) => b.pnl - a.pnl);
+  const tableRows = breakdownRows(rows);
 
   return (
-    <div className="breakdown-table">
-      <h2>{title}</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>N</th>
-            <th>Win %</th>
-            <th>P&amp;L</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map(([name, breakdown]) => (
-            <tr key={name}>
-              <td>{name}</td>
-              <td>{breakdown.n}</td>
-              <td>{formatPercent(breakdown.win_rate)}</td>
-              <td className={breakdown.pnl >= 0 ? "positive" : "negative"}>
-                {formatCurrency(breakdown.pnl)}
-              </td>
-            </tr>
-          ))}
-          {sorted.length === 0 && (
+    <section className="breakdown-table">
+      <h2 className="micro">{title}</h2>
+      <div className="table-scroll">
+        <table>
+          <thead>
             <tr>
-              <td colSpan={4} className="breakdown-empty">
-                No rows.
-              </td>
+              <th>Name</th>
+              <th>N</th>
+              <th>Win %</th>
+              <th>P&amp;L</th>
             </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {tableRows.map((row) => (
+              <tr key={row.name}>
+                <td>{row.name}</td>
+                <td className="num">{row.n}</td>
+                <td className="num">{formatPercent(row.win_rate)}</td>
+                <td className={`num ${row.pnl >= 0 ? "tone-positive" : "tone-negative"}`}>
+                  <span className="cell-bar" style={{ width: `${row.share * 100}%` }} aria-hidden="true" />
+                  <span className="cell-value">{formatCurrency(row.pnl)}</span>
+                </td>
+              </tr>
+            ))}
+            {tableRows.length === 0 && (
+              <tr>
+                <td colSpan={4} className="breakdown-empty">
+                  No rows.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

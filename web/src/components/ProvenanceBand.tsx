@@ -14,8 +14,8 @@ export default function ProvenanceBand({ source, nClosed, nLiveClosed }: Provena
   const nBacktestClosed = nClosed - nLiveClosed;
 
   return (
-    <div className="provenance-band">
-      <p className="provenance-statement">
+    <div className="provenance">
+      <p className="provenance-statement micro">
         {isLive ? (
           <>
             Showing {nClosed} live trades. Backtest rows excluded.{" "}
@@ -30,13 +30,14 @@ export default function ProvenanceBand({ source, nClosed, nLiveClosed }: Provena
       </p>
       {isLive && isProvisional(nClosed) && (
         <p className="provenance-warning">
-          Provisional: only {nClosed} closed trades. The project&apos;s evaluation floor is
-          {" "}{PROVISIONAL_FLOOR} closed trades — no conclusion should be drawn from this
-          sample yet.
+          <span aria-hidden="true">⚠ </span>
+          Provisional: only {nClosed} closed trades. The project&apos;s evaluation floor is{" "}
+          {PROVISIONAL_FLOOR} closed trades — no conclusion should be drawn from this sample yet.
         </p>
       )}
       {!isLive && (
         <p className="provenance-warning">
+          <span aria-hidden="true">⚠ </span>
           Only {nLiveClosed} of these {nClosed} closed trades are live; the other{" "}
           {nBacktestClosed} are backtest replay of a different period. These blended figures
           are not a live track record — switch to the live-only view above for the real sample.

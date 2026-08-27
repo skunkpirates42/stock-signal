@@ -1,0 +1,25 @@
+:root {
+  --ground: #04060b;
+  --surface: rgba(150, 180, 255, 0.05);
+  --surface-2: rgba(150, 180, 255, 0.08);
+  --line: rgba(150, 180, 255, 0.13);
+  --line-strong: rgba(150, 180, 255, 0.26);
+
+  --ink: #e9effa;
+  --muted: #91a0ba;
+  --faint: #77859f;
+
+  --accent: #35e8d2;
+  --caution: #ffb454;
+  --win: #4ade80;
+  --loss: #ff6b6b;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --space: 8px;
+
+  --rail-width: 200px;
+  --canvas: 1400px;
+
+  color-scheme: dark;
+}

@@ -1,5 +1,6 @@
 import type { Direction } from "@/lib/types";
 import type { SignalCriteria } from "@/lib/filters";
+import Segmented from "@/components/Segmented";
 
 export interface FilterBarProps {
   criteria: SignalCriteria;
@@ -7,13 +8,11 @@ export interface FilterBarProps {
   onChange: (criteria: SignalCriteria) => void;
 }
 
-const DIRECTIONS: Direction[] = ["LONG", "SHORT", "WAIT"];
-
 export default function FilterBar({ criteria, tickers, onChange }: FilterBarProps) {
   return (
     <div className="filter-bar">
       <label className="filter-field">
-        Ticker
+        <span className="micro">Ticker</span>
         <select
           value={criteria.ticker ?? ""}
           onChange={(e) => onChange({ ...criteria, ticker: e.target.value || undefined })}
@@ -27,28 +26,23 @@ export default function FilterBar({ criteria, tickers, onChange }: FilterBarProp
         </select>
       </label>
 
-      <label className="filter-field">
-        Direction
-        <select
-          value={criteria.direction ?? ""}
-          onChange={(e) =>
-            onChange({
-              ...criteria,
-              direction: (e.target.value || undefined) as Direction | undefined,
-            })
-          }
-        >
-          <option value="">Any</option>
-          {DIRECTIONS.map((direction) => (
-            <option key={direction} value={direction}>
-              {direction}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="filter-field">
+        <span className="micro">Direction</span>
+        <Segmented
+          label="Direction"
+          value={criteria.direction}
+          onChange={(direction) => onChange({ ...criteria, direction })}
+          options={[
+            { value: undefined, label: "Any" },
+            { value: "LONG" as Direction, label: "Long" },
+            { value: "SHORT" as Direction, label: "Short" },
+            { value: "WAIT" as Direction, label: "Wait" },
+          ]}
+        />
+      </div>
 
       <label className="filter-field">
-        Min confidence: {(criteria.minConfidence ?? 0).toFixed(2)}
+        <span className="micro">Min confidence: {(criteria.minConfidence ?? 0).toFixed(2)}</span>
         <input
           type="range"
           min={0}
@@ -60,7 +54,7 @@ export default function FilterBar({ criteria, tickers, onChange }: FilterBarProp
       </label>
 
       <label className="filter-field">
-        From
+        <span className="micro">From</span>
         <input
           type="date"
           value={criteria.from ?? ""}
@@ -69,7 +63,7 @@ export default function FilterBar({ criteria, tickers, onChange }: FilterBarProp
       </label>
 
       <label className="filter-field">
-        To
+        <span className="micro">To</span>
         <input
           type="date"
           value={criteria.to ?? ""}

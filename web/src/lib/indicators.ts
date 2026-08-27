@@ -110,3 +110,7 @@ export function atrArithmetic(direction: LevelDirection, atr: number): AtrArithm
     targetOperator: direction === "LONG" ? "+" : "-",
   };
 }
+
+// Mirrors config.CONFIDENCE_THRESHOLD in the Python engine (config.py), which compares
+// with >=. Kept in sync by hand; the engine is the authority.
+export const CONFIDENCE_THRESHOLD = 0.62;

@@ -8,16 +8,18 @@ export default function Error({
   retry: () => void;
 }) {
   return (
-    <main className="page-content">
+    <main>
       <h1>Something went wrong</h1>
-      <p>
+      <p className="error-message">
         This dashboard could not reach its data API. The most likely cause is that the Flask
         server on port 8000 is not running — start it and try again.
       </p>
       <p className="error-detail">{error.message}</p>
-      <button type="button" onClick={() => retry()}>
-        Try again
-      </button>
+      <p className="error-actions">
+        <button type="button" className="button" onClick={() => retry()}>
+          Try again
+        </button>
+      </p>
     </main>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { netExpectancy } from "@/lib/costs";
+import { breakEvenCost, netExpectancy } from "@/lib/costs";
 
 describe("netExpectancy", () => {
   it("subtracts the round-trip cost from a positive edge", () => {
@@ -16,5 +16,19 @@ describe("netExpectancy", () => {
 
   it("returns gross when the cost is zero", () => {
     expect(netExpectancy(-14.79, 0)).toBe(-14.79);
+  });
+});
+
+describe("breakEvenCost", () => {
+  it("is the gross edge itself when the edge is positive", () => {
+    expect(breakEvenCost(3.05)).toBeCloseTo(3.05);
+  });
+
+  it("reports zero for an edge that is already negative", () => {
+    expect(breakEvenCost(-14.79)).toBe(0);
+  });
+
+  it("reports zero for a flat edge", () => {
+    expect(breakEvenCost(0)).toBe(0);
   });
 });
