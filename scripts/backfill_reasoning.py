@@ -30,13 +30,25 @@ from signals.llm_synthesis import _prompt_for, _template_reasoning
 
 load_dotenv()
 
+_COLUMNS = "id, ticker, direction, confidence, entry, stop, target, rr, indicators_json"
+
 SELECT_BLANK = """
-    SELECT id, ticker, direction, confidence, entry, stop, target, rr, indicators_json
+    SELECT %s
       FROM signals
      WHERE source = 'live'
        AND (reasoning IS NULL OR reasoning = '')
      ORDER BY id
-"""
+""" % _COLUMNS
+
+# Rows that already carry template text written before synthesis_source existed. Selecting
+# these overwrites real history, so it is behind an explicit flag rather than the default.
+SELECT_TEMPLATE = """
+    SELECT %s
+      FROM signals
+     WHERE source = 'live'
+       AND synthesis_source = 'template'
+     ORDER BY id
+""" % _COLUMNS
 
 
 def _signal_from_row(row):
@@ -54,10 +66,10 @@ def _signal_from_row(row):
     }
 
 
-def load_blank(db_path, limit=None):
+def load_blank(db_path, limit=None, sql=SELECT_BLANK):
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-    rows = conn.execute(SELECT_BLANK).fetchall()
+    rows = conn.execute(sql).fetchall()
     conn.close()
     rows = list(rows)
     return rows[:limit] if limit else rows
@@ -162,6 +174,8 @@ def main():
     ap.add_argument("--provider", default=config.LLM_PROVIDER, choices=["anthropic", "groq"])
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--resynthesize-template", action="store_true",
+                    help="regenerate rows whose synthesis_source is 'template', overwriting them")
     args = ap.parse_args()
 
     # argparse's `choices` only validates a value the user actually typed, not the
@@ -173,8 +187,12 @@ def main():
             "'anthropic' or 'groq'; pass --provider explicitly" % args.provider
         )
 
-    rows = load_blank(args.db, args.limit)
-    print("%d live signals with blank reasoning" % len(rows))
+    if args.resynthesize_template:
+        rows = load_blank(args.db, args.limit, SELECT_TEMPLATE)
+        print("%d live signals with template reasoning (will be OVERWRITTEN)" % len(rows))
+    else:
+        rows = load_blank(args.db, args.limit)
+        print("%d live signals with blank reasoning" % len(rows))
     if not rows:
         return 0
 
