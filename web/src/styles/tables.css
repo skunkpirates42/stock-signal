@@ -1,0 +1,144 @@
+/* BreakdownTable */
+
+.breakdown-table {
+  margin: 1.5rem 0;
+}
+
+.breakdown-table h2 {
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
+}
+
+.breakdown-table table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.breakdown-table th,
+.breakdown-table td {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.breakdown-table th {
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.breakdown-table td.positive {
+  color: var(--green);
+}
+
+.breakdown-table td.negative {
+  color: var(--red);
+}
+
+.breakdown-empty {
+  color: var(--muted);
+  text-align: center;
+}
+
+/* PositionsTable */
+
+.positions-table,
+.fills-table {
+  margin: 1.5rem 0;
+}
+
+.positions-table h2,
+.fills-table h2 {
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
+}
+
+.positions-note {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.positions-table table,
+.fills-table table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.positions-table th,
+.positions-table td,
+.fills-table th,
+.fills-table td {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.positions-table th,
+.fills-table th {
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.positions-stale-badge {
+  margin-left: 0.5rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+}
+
+.positions-empty,
+.fills-empty {
+  color: var(--muted);
+  text-align: center;
+}
+
+/* VoteTable */
+
+.vote-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.vote-table th,
+.vote-table td {
+  text-align: left;
+  padding: 0.4rem 0.65rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.vote-table th {
+  color: var(--muted);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.vote-table-detail {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.vote-table-empty {
+  color: var(--muted);
+  font-size: 0.85rem;
+}

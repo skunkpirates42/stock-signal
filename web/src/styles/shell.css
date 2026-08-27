@@ -1,0 +1,34 @@
+/* Nav */
+
+.nav {
+  display: flex;
+  gap: 1.5rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.nav-link {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.nav-link:hover {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+/* Page */
+
+.page-content {
+  padding: 1.5rem;
+  max-width: 960px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.error-detail {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-family: var(--font-geist-mono, monospace);
+}
