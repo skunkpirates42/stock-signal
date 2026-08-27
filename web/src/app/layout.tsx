@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Space_Grotesk, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
-import Nav from "@/components/Nav";
+import SideRail from "@/components/SideRail";
 import "./globals.css";
 
 const display = Space_Grotesk({
@@ -29,8 +30,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
       <body>
-        <Nav />
-        {children}
+        <Suspense fallback={<aside className="rail" />}>
+          <SideRail />
+        </Suspense>
+        <div className="canvas">{children}</div>
       </body>
     </html>
   );

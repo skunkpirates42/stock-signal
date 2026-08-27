@@ -3,13 +3,20 @@ import type { Trade } from "@/lib/types";
 import SignalList from "@/components/SignalList";
 import ScopeNote from "@/components/ScopeNote";
 
-export default async function SignalsPage() {
+export default async function SignalsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ source?: string }>;
+}) {
+  const { source } = await searchParams;
+  const scope = source === "all" ? undefined : "live";
+
   // Live volume today is 269 signals. Filtering client-side after a single fetch is the
   // right call at this scale; it stops being right somewhere around a few thousand rows,
   // at which point ticker/direction/confidence/date filtering belongs in the Flask query
   // instead of in the browser.
-  const signals = await getSignals({ source: "live", limit: 500 });
-  const trades = await getTrades({ source: "live", limit: 500 });
+  const signals = await getSignals({ source: scope, limit: 500 });
+  const trades = await getTrades({ source: scope, limit: 500 });
 
   const outcomeBySignalId: Record<number, Trade["outcome"]> = {};
   for (const trade of trades) {
@@ -22,8 +29,9 @@ export default async function SignalsPage() {
     <main className="page-content">
       <h1>Signals</h1>
       <ScopeNote>
-        Showing {signals.length} live signals. Backtest replay signals are excluded from this
-        view.
+        {scope === "live"
+          ? `Showing ${signals.length} live signals. Backtest replay signals are excluded from this view.`
+          : `Showing ${signals.length} signals, live and backtest replay combined. Replay signals come from a different period.`}
       </ScopeNote>
       <SignalList signals={signals} outcomeBySignalId={outcomeBySignalId} />
     </main>
