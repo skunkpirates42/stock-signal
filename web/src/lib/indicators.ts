@@ -14,8 +14,13 @@ const LABELS: Record<string, string> = {
 };
 
 function detailFor(indicator: string, values: Record<string, number>): string {
-  const n = (key: string, digits = 2) =>
-    values[key] === undefined ? "—" : values[key].toFixed(digits);
+  const n = (key: string, digits = 2) => {
+    const v = values[key];
+    if (typeof v === "number" && Number.isFinite(v)) {
+      return v.toFixed(digits);
+    }
+    return "—";
+  };
   switch (indicator) {
     case "rsi": return `${n("rsi")}  (bull <45, bear >55)`;
     case "price_vs_sma20": return `${n("close")} vs ${n("sma20")}`;
@@ -36,7 +41,7 @@ export function parseIndicators(json: string | null | undefined): VoteRow[] {
     return [];
   }
   const votes = parsed.votes;
-  if (!votes) return [];
+  if (!votes || typeof votes !== "object") return [];
   const values = parsed.values ?? {};
   return ORDER.filter((key) => key in votes).map((key) => ({
     indicator: key,
