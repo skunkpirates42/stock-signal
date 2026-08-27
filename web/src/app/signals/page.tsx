@@ -1,6 +1,7 @@
 import { getSignals, getTrades } from "@/lib/api";
 import type { Trade } from "@/lib/types";
 import SignalList from "@/components/SignalList";
+import ScopeNote from "@/components/ScopeNote";
 
 export default async function SignalsPage() {
   // Live volume today is 269 signals. Filtering client-side after a single fetch is the
@@ -20,6 +21,10 @@ export default async function SignalsPage() {
   return (
     <main className="page-content">
       <h1>Signals</h1>
+      <ScopeNote>
+        Showing {signals.length} live signals. Backtest replay signals are excluded from this
+        view.
+      </ScopeNote>
       <SignalList signals={signals} outcomeBySignalId={outcomeBySignalId} />
     </main>
   );
