@@ -13,11 +13,14 @@ export default async function OverviewPage({
 }) {
   const { source } = await searchParams;
   const scope = source === "all" ? undefined : "live";
-  const metrics = await getMetrics(scope);
+  const bandSource = scope === undefined ? "all" : "live";
+
+  const [metrics, liveMetrics] = await Promise.all([getMetrics(scope), getMetrics("live")]);
+  const nLiveClosed = bandSource === "live" ? metrics.n_closed : liveMetrics.n_closed;
 
   return (
     <main className="page-content">
-      <ProvenanceBand source={scope === undefined ? "all" : "live"} nClosed={metrics.n_closed} />
+      <ProvenanceBand source={bandSource} nClosed={metrics.n_closed} nLiveClosed={nLiveClosed} />
 
       <div className="stat-grid">
         <StatTile
