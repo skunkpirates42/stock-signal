@@ -425,6 +425,13 @@ html {
   font-weight: 600;
 }
 
+.rationale-atr-note {
+  margin-top: 0.75rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
 /* PositionsTable */
 
 .positions-table,

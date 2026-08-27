@@ -1,4 +1,4 @@
-import type { Vote, VoteRow } from "@/lib/types";
+import type { Direction, Vote, VoteRow } from "@/lib/types";
 
 const ORDER = [
   "rsi", "price_vs_sma20", "sma20_vs_sma50", "price_vs_vwap", "macd", "bb",
@@ -13,13 +13,38 @@ const LABELS: Record<string, string> = {
   bb: "BB %B",
 };
 
-function detailFor(indicator: string, values: Record<string, number>): string {
+const STOP_ATR_MULTIPLIER = 1.5;
+const TARGET_ATR_MULTIPLIER = 3.0;
+
+interface ParsedSignalJson {
+  votes: unknown;
+  values: Record<string, unknown>;
+}
+
+function parseSignalJson(json: string | null | undefined): ParsedSignalJson | null {
+  if (!json) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return null;
+  }
+  if (parsed === null || typeof parsed !== "object") return null;
+  const obj = parsed as { votes?: unknown; values?: unknown };
+  const values =
+    obj.values && typeof obj.values === "object" ? (obj.values as Record<string, unknown>) : {};
+  return { votes: obj.votes, values };
+}
+
+function numericValue(values: Record<string, unknown>, key: string): number | null {
+  const v = values[key];
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+function detailFor(indicator: string, values: Record<string, unknown>): string {
   const n = (key: string, digits = 2) => {
-    const v = values[key];
-    if (typeof v === "number" && Number.isFinite(v)) {
-      return v.toFixed(digits);
-    }
-    return "—";
+    const v = numericValue(values, key);
+    return v === null ? "—" : v.toFixed(digits);
   };
   switch (indicator) {
     case "rsi": return `${n("rsi")}  (bull <45, bear >55)`;
@@ -33,22 +58,16 @@ function detailFor(indicator: string, values: Record<string, number>): string {
 }
 
 export function parseIndicators(json: string | null | undefined): VoteRow[] {
-  if (!json) return [];
-  let parsed: { votes?: Record<string, Vote>; values?: Record<string, number> };
-  try {
-    parsed = JSON.parse(json);
-  } catch {
-    return [];
-  }
-  if (parsed === null || typeof parsed !== "object") return [];
+  const parsed = parseSignalJson(json);
+  if (!parsed) return [];
   const votes = parsed.votes;
   if (!votes || typeof votes !== "object") return [];
-  const values = parsed.values ?? {};
-  return ORDER.filter((key) => key in votes).map((key) => ({
+  const voteMap = votes as Record<string, Vote>;
+  return ORDER.filter((key) => key in voteMap).map((key) => ({
     indicator: key,
     label: LABELS[key] ?? key,
-    vote: votes[key],
-    detail: detailFor(key, values),
+    vote: voteMap[key],
+    detail: detailFor(key, parsed.values),
   }));
 }
 
@@ -57,5 +76,32 @@ export function voteTally(rows: VoteRow[]) {
     bull: rows.filter((r) => r.vote === "bull").length,
     bear: rows.filter((r) => r.vote === "bear").length,
     neutral: rows.filter((r) => r.vote === "neutral").length,
+  };
+}
+
+export function parseAtr(json: string | null | undefined): number | null {
+  const parsed = parseSignalJson(json);
+  return parsed ? numericValue(parsed.values, "atr") : null;
+}
+
+export type LevelDirection = Exclude<Direction, "WAIT">;
+
+export interface AtrArithmetic {
+  atr: number;
+  stopMultiplier: number;
+  targetMultiplier: number;
+  stopOperator: "+" | "-";
+  targetOperator: "+" | "-";
+}
+
+// Mirrors the Python engine: stop = entry -/+ (ATR * 1.5), target = entry +/- (ATR * 3.0),
+// with the sign flipped between LONG and SHORT.
+export function atrArithmetic(direction: LevelDirection, atr: number): AtrArithmetic {
+  return {
+    atr,
+    stopMultiplier: STOP_ATR_MULTIPLIER,
+    targetMultiplier: TARGET_ATR_MULTIPLIER,
+    stopOperator: direction === "LONG" ? "-" : "+",
+    targetOperator: direction === "LONG" ? "+" : "-",
   };
 }

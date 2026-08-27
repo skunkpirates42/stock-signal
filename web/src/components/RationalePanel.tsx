@@ -1,5 +1,5 @@
 import type { Signal } from "@/lib/types";
-import { parseIndicators, voteTally } from "@/lib/indicators";
+import { atrArithmetic, parseAtr, parseIndicators, voteTally } from "@/lib/indicators";
 import { formatPrice, formatRatio } from "@/lib/format";
 import VoteTable from "@/components/VoteTable";
 
@@ -14,6 +14,9 @@ function provenanceLabel(source: string | null): string {
 export default function RationalePanel({ signal }: RationalePanelProps) {
   const rows = parseIndicators(signal.indicators_json);
   const tally = voteTally(rows);
+  const atr = parseAtr(signal.indicators_json);
+  const arithmetic =
+    atr !== null && signal.direction !== "WAIT" ? atrArithmetic(signal.direction, atr) : null;
 
   return (
     <div className="rationale-panel">
@@ -54,6 +57,18 @@ export default function RationalePanel({ signal }: RationalePanelProps) {
               <dd>{formatRatio(signal.rr)}</dd>
             </div>
           </dl>
+        )}
+        {arithmetic && signal.entry !== null && (
+          <p className="rationale-atr-note">
+            Stop = entry {arithmetic.stopOperator} (ATR × {arithmetic.stopMultiplier.toFixed(1)})
+            {" "}= {formatPrice(signal.entry)} {arithmetic.stopOperator} (
+            {formatPrice(arithmetic.atr)} × {arithmetic.stopMultiplier.toFixed(1)})
+            <br />
+            Target = entry {arithmetic.targetOperator} (ATR ×{" "}
+            {arithmetic.targetMultiplier.toFixed(1)}) = {formatPrice(signal.entry)}{" "}
+            {arithmetic.targetOperator} ({formatPrice(arithmetic.atr)} ×{" "}
+            {arithmetic.targetMultiplier.toFixed(1)})
+          </p>
         )}
       </div>
     </div>

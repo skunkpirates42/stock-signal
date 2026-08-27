@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseIndicators, voteTally } from "@/lib/indicators";
+import { atrArithmetic, parseAtr, parseIndicators, voteTally } from "@/lib/indicators";
 
 const REAL = JSON.stringify({
   votes: { rsi: "neutral", price_vs_sma20: "bear", sma20_vs_sma50: "bear",
@@ -94,6 +94,45 @@ describe("parseIndicators", () => {
 
   it("handles top-level number without throwing", () => {
     expect(parseIndicators("42")).toEqual([]);
+  });
+});
+
+describe("parseAtr", () => {
+  it("reads the atr value out of the raw values blob", () => {
+    expect(parseAtr(REAL)).toBeCloseTo(0.745, 3);
+  });
+
+  it("returns null for null", () => {
+    expect(parseAtr(null)).toBeNull();
+  });
+
+  it("returns null for malformed JSON", () => {
+    expect(parseAtr("{not json")).toBeNull();
+  });
+
+  it("returns null when atr is missing", () => {
+    expect(parseAtr(JSON.stringify({ votes: {}, values: {} }))).toBeNull();
+  });
+
+  it("returns null when atr is non-numeric", () => {
+    expect(parseAtr(JSON.stringify({ votes: {}, values: { atr: "oops" } }))).toBeNull();
+  });
+});
+
+describe("atrArithmetic", () => {
+  it("subtracts for the stop and adds for the target on a LONG", () => {
+    const result = atrArithmetic("LONG", 0.75);
+    expect(result.stopOperator).toBe("-");
+    expect(result.targetOperator).toBe("+");
+    expect(result.stopMultiplier).toBe(1.5);
+    expect(result.targetMultiplier).toBe(3.0);
+    expect(result.atr).toBe(0.75);
+  });
+
+  it("inverts the signs on a SHORT", () => {
+    const result = atrArithmetic("SHORT", 0.75);
+    expect(result.stopOperator).toBe("+");
+    expect(result.targetOperator).toBe("-");
   });
 });
 
