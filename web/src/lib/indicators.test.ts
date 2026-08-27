@@ -83,6 +83,18 @@ describe("parseIndicators", () => {
     expect(rows.map((r) => r.indicator)).toEqual(["rsi", "macd", "bb"]);
     expect(rows).toHaveLength(3);
   });
+
+  it("handles top-level null without throwing", () => {
+    expect(parseIndicators("null")).toEqual([]);
+  });
+
+  it("handles top-level array without throwing", () => {
+    expect(parseIndicators("[1,2]")).toEqual([]);
+  });
+
+  it("handles top-level number without throwing", () => {
+    expect(parseIndicators("42")).toEqual([]);
+  });
 });
 
 describe("voteTally", () => {

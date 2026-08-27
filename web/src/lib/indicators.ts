@@ -40,6 +40,7 @@ export function parseIndicators(json: string | null | undefined): VoteRow[] {
   } catch {
     return [];
   }
+  if (parsed === null || typeof parsed !== "object") return [];
   const votes = parsed.votes;
   if (!votes || typeof votes !== "object") return [];
   const values = parsed.values ?? {};
