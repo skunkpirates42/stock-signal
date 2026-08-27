@@ -255,6 +255,12 @@ html {
   width: 100%;
 }
 
+.error-detail {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-family: var(--font-geist-mono, monospace);
+}
+
 /* Tone helpers (shared by SignalRow, VoteTable, RationalePanel) */
 
 .tone-positive {
