@@ -8,7 +8,7 @@ export interface BreakdownTableProps {
 }
 
 export default function BreakdownTable({ title, rows }: BreakdownTableProps) {
-  const sorted = breakdownRows(rows);
+  const tableRows = breakdownRows(rows);
 
   return (
     <section className="breakdown-table">
@@ -24,7 +24,7 @@ export default function BreakdownTable({ title, rows }: BreakdownTableProps) {
             </tr>
           </thead>
           <tbody>
-            {sorted.map((row) => (
+            {tableRows.map((row) => (
               <tr key={row.name}>
                 <td>{row.name}</td>
                 <td className="num">{row.n}</td>
@@ -35,7 +35,7 @@ export default function BreakdownTable({ title, rows }: BreakdownTableProps) {
                 </td>
               </tr>
             ))}
-            {sorted.length === 0 && (
+            {tableRows.length === 0 && (
               <tr>
                 <td colSpan={4} className="breakdown-empty">
                   No rows.

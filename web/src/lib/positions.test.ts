@@ -21,7 +21,7 @@ describe("distanceToStop", () => {
   });
 
   it("keeps its sign when rendered as the signed dollar delta it is", () => {
-    // PositionsTable renders this column with formatCurrency, not formatPrice — the
+    // PositionCard renders this column with formatCurrency, not formatPrice — the
     // malformed-data signal above must survive to render, not get Math.abs'd away.
     const result = distanceToStop({ direction: "LONG", entry: 100, stop: 102 });
     expect(formatCurrency(result.dollars)).toBe("-$2.00");
