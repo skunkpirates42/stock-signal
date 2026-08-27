@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { formatCurrency, formatPercent, formatR, formatTimestamp } from "@/lib/format";
+import {
+  formatCurrency,
+  formatPercent,
+  formatPrice,
+  formatR,
+  formatRatio,
+  formatTimestamp,
+} from "@/lib/format";
 
 describe("formatCurrency", () => {
   it("signs positive values", () => expect(formatCurrency(51.05)).toBe("+$51.05"));
@@ -7,6 +14,21 @@ describe("formatCurrency", () => {
   it("renders zero unsigned", () => expect(formatCurrency(0)).toBe("$0.00"));
   it("groups thousands", () => expect(formatCurrency(99778.11)).toBe("+$99,778.11"));
   it("renders null as a dash", () => expect(formatCurrency(null)).toBe("—"));
+});
+
+describe("formatPrice", () => {
+  it("renders positives with no sign prefix", () => expect(formatPrice(51.05)).toBe("$51.05"));
+  it("renders zero unsigned", () => expect(formatPrice(0)).toBe("$0.00"));
+  it("groups thousands", () => expect(formatPrice(99778.11)).toBe("$99,778.11"));
+  it("renders null as a dash", () => expect(formatPrice(null)).toBe("—"));
+  it("does not crash on a negative input", () => expect(formatPrice(-31.25)).toBe("$31.25"));
+});
+
+describe("formatRatio", () => {
+  it("renders a plain decimal with no sign or suffix", () => expect(formatRatio(2)).toBe("2.00"));
+  it("does not add a sign prefix beyond the number's own", () =>
+    expect(formatRatio(-0.4)).toBe("-0.40"));
+  it("renders null as a dash", () => expect(formatRatio(null)).toBe("—"));
 });
 
 describe("formatPercent", () => {

@@ -1,6 +1,6 @@
 import type { Signal } from "@/lib/types";
 import { parseIndicators, voteTally } from "@/lib/indicators";
-import { formatCurrency, formatR } from "@/lib/format";
+import { formatPrice, formatRatio } from "@/lib/format";
 import VoteTable from "@/components/VoteTable";
 
 export interface RationalePanelProps {
@@ -39,19 +39,19 @@ export default function RationalePanel({ signal }: RationalePanelProps) {
           <dl className="rationale-level-grid">
             <div>
               <dt>Entry</dt>
-              <dd>{formatCurrency(signal.entry)}</dd>
+              <dd>{formatPrice(signal.entry)}</dd>
             </div>
             <div>
               <dt>Stop</dt>
-              <dd>{formatCurrency(signal.stop)}</dd>
+              <dd>{formatPrice(signal.stop)}</dd>
             </div>
             <div>
               <dt>Target</dt>
-              <dd>{formatCurrency(signal.target)}</dd>
+              <dd>{formatPrice(signal.target)}</dd>
             </div>
             <div>
               <dt>R:R</dt>
-              <dd>{formatR(signal.rr)}</dd>
+              <dd>{formatRatio(signal.rr)}</dd>
             </div>
           </dl>
         )}

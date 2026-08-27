@@ -1,5 +1,5 @@
 import type { Trade } from "@/lib/types";
-import { formatCurrency, formatTimestamp } from "@/lib/format";
+import { formatCurrency, formatPrice, formatTimestamp } from "@/lib/format";
 
 export interface FillsTableProps {
   trades: Trade[];
@@ -35,8 +35,8 @@ export default function FillsTable({ trades }: FillsTableProps) {
             <tr key={trade.id}>
               <td>{trade.ticker}</td>
               <td>{trade.direction}</td>
-              <td>{formatCurrency(trade.entry)}</td>
-              <td>{formatCurrency(trade.exit_price)}</td>
+              <td>{formatPrice(trade.entry)}</td>
+              <td>{formatPrice(trade.exit_price)}</td>
               <td className={outcomeClass(trade.outcome)}>{trade.outcome}</td>
               <td className={trade.pnl !== null && trade.pnl >= 0 ? "tone-positive" : "tone-negative"}>
                 {formatCurrency(trade.pnl)}
