@@ -35,7 +35,7 @@ export default function CostAdjustedExpectancy({ grossExpectancy }: CostAdjusted
             step="0.25"
             min="0"
             value={costPerTrade}
-            onChange={(e) => setCostPerTrade(Number(e.target.value))}
+            onChange={(e) => setCostPerTrade(Number(e.target.value) || 0)}
           />
         </label>
       </div>
