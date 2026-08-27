@@ -36,7 +36,7 @@ export default async function OverviewPage({
         />
         <StatTile
           label="Max drawdown"
-          value={`${formatCurrency(metrics.max_drawdown)} (${formatPercent(metrics.max_drawdown_pct)})`}
+          value={`${formatCurrency(-metrics.max_drawdown)} (${formatPercent(metrics.max_drawdown_pct)})`}
           tone="negative"
         />
         <StatTile label="Closed trades" value={String(metrics.n_closed)} />
