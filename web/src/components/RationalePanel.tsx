@@ -1,5 +1,11 @@
 import type { Signal } from "@/lib/types";
-import { atrArithmetic, parseAtr, parseIndicators, voteTally } from "@/lib/indicators";
+import {
+  atrArithmetic,
+  parseAtr,
+  parseIndicators,
+  parseVolumeRatio,
+  voteTally,
+} from "@/lib/indicators";
 import { formatPrice, formatRatio } from "@/lib/format";
 import VoteTable from "@/components/VoteTable";
 
@@ -17,6 +23,7 @@ export default function RationalePanel({ signal }: RationalePanelProps) {
   const atr = parseAtr(signal.indicators_json);
   const arithmetic =
     atr !== null && signal.direction !== "WAIT" ? atrArithmetic(signal.direction, atr) : null;
+  const volumeRatio = parseVolumeRatio(signal.indicators_json);
 
   return (
     <div className="rationale-panel">
@@ -30,6 +37,12 @@ export default function RationalePanel({ signal }: RationalePanelProps) {
           Votes — {tally.bull} bull / {tally.bear} bear / {tally.neutral} neutral
         </h3>
         <VoteTable rows={rows} />
+        {volumeRatio !== null && (
+          <p className="rationale-volume-note">
+            Confidence also factors in a volume modifier (volume ratio{" "}
+            {volumeRatio.toFixed(2)}×) beyond these six directional votes.
+          </p>
+        )}
       </div>
 
       <div className="rationale-levels">

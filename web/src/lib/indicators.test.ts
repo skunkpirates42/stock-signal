@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { atrArithmetic, parseAtr, parseIndicators, voteTally } from "@/lib/indicators";
+import {
+  atrArithmetic,
+  parseAtr,
+  parseIndicators,
+  parseVolumeRatio,
+  voteTally,
+} from "@/lib/indicators";
 
 const REAL = JSON.stringify({
   votes: { rsi: "neutral", price_vs_sma20: "bear", sma20_vs_sma50: "bear",
@@ -116,6 +122,20 @@ describe("parseAtr", () => {
 
   it("returns null when atr is non-numeric", () => {
     expect(parseAtr(JSON.stringify({ votes: {}, values: { atr: "oops" } }))).toBeNull();
+  });
+});
+
+describe("parseVolumeRatio", () => {
+  it("reads the volume_ratio value out of the raw values blob", () => {
+    expect(parseVolumeRatio(REAL)).toBeCloseTo(2.637, 3);
+  });
+
+  it("returns null for null", () => {
+    expect(parseVolumeRatio(null)).toBeNull();
+  });
+
+  it("returns null when volume_ratio is missing", () => {
+    expect(parseVolumeRatio(JSON.stringify({ votes: {}, values: {} }))).toBeNull();
   });
 });
 

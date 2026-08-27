@@ -84,6 +84,11 @@ export function parseAtr(json: string | null | undefined): number | null {
   return parsed ? numericValue(parsed.values, "atr") : null;
 }
 
+export function parseVolumeRatio(json: string | null | undefined): number | null {
+  const parsed = parseSignalJson(json);
+  return parsed ? numericValue(parsed.values, "volume_ratio") : null;
+}
+
 export type LevelDirection = Exclude<Direction, "WAIT">;
 
 export interface AtrArithmetic {

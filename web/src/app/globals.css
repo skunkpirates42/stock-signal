@@ -432,6 +432,12 @@ html {
   line-height: 1.5;
 }
 
+.rationale-volume-note {
+  margin-top: 0.5rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
 /* PositionsTable */
 
 .positions-table,
