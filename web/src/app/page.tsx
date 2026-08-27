@@ -15,8 +15,11 @@ export default async function OverviewPage({
   const scope = source === "all" ? undefined : "live";
   const bandSource = scope === undefined ? "all" : "live";
 
-  const [metrics, liveMetrics] = await Promise.all([getMetrics(scope), getMetrics("live")]);
-  const nLiveClosed = bandSource === "live" ? metrics.n_closed : liveMetrics.n_closed;
+  const [metrics, liveMetrics] = await Promise.all([
+    getMetrics(scope),
+    bandSource === "live" ? Promise.resolve(null) : getMetrics("live"),
+  ]);
+  const nLiveClosed = liveMetrics === null ? metrics.n_closed : liveMetrics.n_closed;
 
   return (
     <main className="page-content">
