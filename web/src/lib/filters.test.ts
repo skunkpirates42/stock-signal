@@ -52,4 +52,22 @@ describe("filterSignals", () => {
   it("returns empty when nothing matches", () => {
     expect(filterSignals(all, { ticker: "TSLA" })).toEqual([]);
   });
+
+  it("filters by upper date bound (to)", () => {
+    const newer = signal({ id: 5, bar_timestamp: "2026-08-01 10:00:00+00:00" });
+    const result = filterSignals([...all, newer], { to: "2026-07-31" });
+    expect(result.map((s) => s.id)).toEqual([1, 2, 3]);
+  });
+
+  it("includes signals on the from date (inclusive lower bound)", () => {
+    const exact = signal({ id: 6, bar_timestamp: "2026-07-15 09:30:00+00:00" });
+    const result = filterSignals([exact], { from: "2026-07-15" });
+    expect(result.map((s) => s.id)).toEqual([6]);
+  });
+
+  it("includes signals on the to date (inclusive upper bound)", () => {
+    const exact = signal({ id: 7, bar_timestamp: "2026-07-15 09:30:00+00:00" });
+    const result = filterSignals([exact], { to: "2026-07-15" });
+    expect(result.map((s) => s.id)).toEqual([7]);
+  });
 });

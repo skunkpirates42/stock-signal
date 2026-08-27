@@ -45,6 +45,44 @@ describe("parseIndicators", () => {
   it("returns empty when the votes key is missing", () => {
     expect(parseIndicators(JSON.stringify({ values: {} }))).toEqual([]);
   });
+
+  it("returns empty when votes is not an object", () => {
+    expect(parseIndicators(JSON.stringify({ votes: "oops" }))).toEqual([]);
+  });
+
+  it("handles null values without throwing", () => {
+    const withNull = JSON.stringify({
+      votes: { rsi: "bull" },
+      values: { rsi: null },
+    });
+    const rows = parseIndicators(withNull);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.indicator).toBe("rsi");
+    expect(rows[0]?.vote).toBe("bull");
+    expect(rows[0]?.detail).toContain("—");
+  });
+
+  it("handles non-numeric values without throwing", () => {
+    const withString = JSON.stringify({
+      votes: { rsi: "bull" },
+      values: { rsi: "invalid" },
+    });
+    const rows = parseIndicators(withString);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.indicator).toBe("rsi");
+    expect(rows[0]?.vote).toBe("bull");
+    expect(rows[0]?.detail).toContain("—");
+  });
+
+  it("returns only present indicators in ORDER", () => {
+    const partial = JSON.stringify({
+      votes: { rsi: "bull", macd: "bear", bb: "neutral" },
+      values: { rsi: 30, macd: -0.1, bb_pct: 0.5 },
+    });
+    const rows = parseIndicators(partial);
+    expect(rows.map((r) => r.indicator)).toEqual(["rsi", "macd", "bb"]);
+    expect(rows).toHaveLength(3);
+  });
 });
 
 describe("voteTally", () => {
