@@ -12,10 +12,15 @@
 
 ## Branch
 
-Phase 1 depends on the `?source=` query parameters delivered in Phase 0, which live on `nextjs-dashboard` (PR #1, open, unmerged). **Branch from `nextjs-dashboard`, not `main`:**
+Phase 0 merged to `main` via PR #1 (merge commit `ec5d052`, full history preserved), so the
+`?source=` query parameters this phase depends on are already there. Work happens on
+`nextjs-frontend`, branched from `main`.
+
+Verify before starting:
 
 ```bash
-git checkout nextjs-dashboard && git pull && git checkout -b nextjs-frontend
+git log --oneline -1 origin/main        # expect ec5d052 or later
+source .venv/bin/activate && python3 -m pytest -q   # expect 87 passed
 ```
 
 ## Global Constraints
