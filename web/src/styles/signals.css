@@ -97,6 +97,31 @@
   text-align: right;
 }
 
+@media (max-width: 700px) {
+  .signal-row-summary {
+    grid-template-columns: 4.5rem 4.5rem 1fr;
+    row-gap: var(--space);
+    padding: calc(var(--space) * 1.25) calc(var(--space) * 1.25);
+  }
+
+  .signal-row-summary .meter {
+    grid-row: 2;
+    grid-column: 1 / -1;
+  }
+
+  .signal-row-outcome {
+    grid-row: 1;
+    grid-column: 3;
+    justify-self: end;
+  }
+
+  .signal-row-timestamp {
+    grid-row: 3;
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+}
+
 .signal-row-detail {
   border-top: 1px solid var(--line);
   padding: 1rem;
@@ -245,6 +270,30 @@
   display: flex;
   justify-content: space-between;
   font-size: 0.8rem;
+}
+
+.level-scale-entry-label {
+  position: relative;
+  height: 1.3em;
+  font-size: 0.8rem;
+}
+
+.level-scale-entry-label span {
+  position: absolute;
+  top: 0;
+  white-space: nowrap;
+}
+
+.level-scale-entry-label-start {
+  transform: translateX(0);
+}
+
+.level-scale-entry-label-middle {
+  transform: translateX(-50%);
+}
+
+.level-scale-entry-label-end {
+  transform: translateX(-100%);
 }
 
 .level-scale-legend {

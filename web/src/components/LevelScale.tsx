@@ -1,5 +1,5 @@
 import type { Direction } from "@/lib/types";
-import { entryFraction } from "@/lib/levels";
+import { entryFraction, entryLabelAnchor } from "@/lib/levels";
 import { formatPrice } from "@/lib/format";
 
 export interface LevelScaleProps {
@@ -26,8 +26,15 @@ export default function LevelScale({ stop, entry, target, direction }: LevelScal
       </div>
       <div className="level-scale-labels">
         <span className="tone-negative num">{formatPrice(stop)}</span>
-        <span className="num">{formatPrice(entry)}</span>
         <span className="tone-positive num">{formatPrice(target)}</span>
+      </div>
+      <div className="level-scale-entry-label">
+        <span
+          className={`num level-scale-entry-label-${entryLabelAnchor(offset)}`}
+          style={{ left: `${offset * 100}%` }}
+        >
+          {formatPrice(entry)}
+        </span>
       </div>
       <p className="micro level-scale-legend">
         Stop · Entry · Target ({direction})

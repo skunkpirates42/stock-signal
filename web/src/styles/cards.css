@@ -69,6 +69,12 @@
   max-width: 80ch;
 }
 
+.scope-note p {
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
 /* Layout grids */
 
 .grid-8-4,

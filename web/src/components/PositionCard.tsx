@@ -33,11 +33,11 @@ export default function PositionCard({ position, stale }: PositionCardProps) {
       <dl className="pair-grid">
         <div>
           <dt className="micro">To stop</dt>
-          <dd className="num tone-negative">{formatCurrency(toStop.dollars)}</dd>
+          <dd className="num">{formatCurrency(toStop.dollars)}</dd>
         </div>
         <div>
           <dt className="micro">To target</dt>
-          <dd className="num tone-positive">{formatCurrency(toTarget.dollars)}</dd>
+          <dd className="num">{formatCurrency(toTarget.dollars)}</dd>
         </div>
         <div>
           <dt className="micro">Shares</dt>

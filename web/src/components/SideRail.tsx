@@ -39,12 +39,14 @@ export default function SideRail() {
           <Link
             href={pathname}
             className={`segmented-option${scope === "live" ? " segmented-option-active" : ""}`}
+            aria-current={scope === "live" ? "true" : undefined}
           >
             Live
           </Link>
           <Link
             href={`${pathname}?source=all`}
             className={`segmented-option${scope === "all" ? " segmented-option-active" : ""}`}
+            aria-current={scope === "all" ? "true" : undefined}
           >
             All
           </Link>
