@@ -1,5 +1,5 @@
 import type { Trade } from "@/lib/types";
-import { formatPrice, formatTimestamp } from "@/lib/format";
+import { formatCurrency, formatPrice, formatTimestamp } from "@/lib/format";
 import { distanceToStop, distanceToTarget, isStale } from "@/lib/positions";
 
 export interface PositionsTableProps {
@@ -51,8 +51,8 @@ export default function PositionsTable({ positions, now }: PositionsTableProps) 
                 <td>{formatPrice(position.target)}</td>
                 <td>{position.shares}</td>
                 <td>{formatTimestamp(position.created_at)}</td>
-                <td>{formatPrice(stopDistance.dollars)}</td>
-                <td>{formatPrice(targetDistance.dollars)}</td>
+                <td>{formatCurrency(stopDistance.dollars)}</td>
+                <td>{formatCurrency(targetDistance.dollars)}</td>
               </tr>
             );
           })}
