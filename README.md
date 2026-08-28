@@ -29,7 +29,8 @@ logged record rather than on memory.
 | Market data | `data/` | Alpaca IEX bars: REST for history, websocket for live, aggregated to 5-minute. Seeded synthetic fallback so it runs fully offline. |
 | Execution | `trades/` | Local fill simulator by default; real Alpaca paper orders with `BROKER=alpaca`. Restart-safe. |
 | Backtest | `backtest.py` | Replays months of real bars through the identical engine, executor and exit logic as the live path. |
-| Dashboard | `dashboard/` | Flask app: equity curve, expectancy, drawdown, breakdowns by ticker and regime. |
+| Dashboard API | `dashboard/` | Flask app exposing `/api/metrics`, `/api/signals`, `/api/trades`, `/api/open`, `/api/alerts` over `analytics/metrics.py` and SQLite. Also still serves a legacy templated page at `/`. |
+| Dashboard UI | `web/` | Next.js 16 / React 19 app ("Instrument") — Overview, Signals and Positions pages, reading the Flask API. Dark, mono-numeral instrument-panel design; equity curve, win/loss, cost-adjusted expectancy, R-multiples, by-ticker/regime breakdowns. This is the primary dashboard going forward. |
 | Alerts | `alerts/` | Live alert feed with browser and native macOS notifications. |
 | Persistence | `db/` | SQLite log of every signal and trade. |
 
@@ -39,6 +40,8 @@ runs different code from the live path measures the wrong thing.
 
 ## Running it
 
+Backend (signal engine, backtest, dashboard API):
+
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
@@ -46,13 +49,22 @@ python3 -m venv .venv
 cp .env.example .env          # optional: only needed for real data and LLM rationales
 .venv/bin/python poc.py       # runs fully offline against synthetic data
 .venv/bin/python backtest.py  # replay historical bars
-.venv/bin/python run_dashboard.py
+.venv/bin/python run_dashboard.py   # serves the JSON API on http://127.0.0.1:8000
+```
+
+Dashboard frontend (separate process, talks to the Flask API above):
+
+```bash
+cd web
+pnpm install
+pnpm dev   # http://localhost:3000 (set FLASK_API_URL if the API isn't on the default port)
 ```
 
 Tests:
 
 ```bash
-.venv/bin/python -m pytest tests/ -q
+.venv/bin/python -m pytest tests/ -q   # backend
+cd web && pnpm test                    # frontend (vitest)
 ```
 
 ## Findings
