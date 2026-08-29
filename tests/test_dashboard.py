@@ -2,8 +2,12 @@
 temp DB seeded with one closed + one open trade. No server/browser needed.
 """
 
+import json
+import sqlite3
+
 import config
 from dashboard.app import create_app
+from signals import llm_synthesis
 from db.logger import close_trade, init_db, log_signal, log_trade_open
 
 
@@ -121,3 +125,78 @@ def test_signals_endpoint_rejects_bad_limit(tmp_path):
     _seed(db)
     c = create_app(db_path=db).test_client()
     assert c.get("/api/signals?limit=notanumber").status_code == 400
+
+
+def _one_signal_db(tmp_path, **overrides):
+    db = str(tmp_path / "e.db")
+    init_db(db)
+    signal = {"ticker": "NVDA", "direction": "LONG", "confidence": 0.83, "entry": 100,
+              "stop": 98, "target": 104, "rr": 2.0,
+              "indicators_json": json.dumps({"votes": {"rsi": "bull", "macd": "bull"},
+                                             "tally": {"bull": 5, "bear": 1, "neutral": 0}}),
+              "reasoning": "template text", "synthesis_source": "template"}
+    signal.update(overrides)
+    sid = log_signal(signal, bar_timestamp="2026-06-10T14:30:00", db_path=db)
+    return create_app(db_path=db).test_client(), db, sid
+
+
+def _stored(db, sid):
+    conn = sqlite3.connect(db)
+    row = conn.execute(
+        "SELECT reasoning, synthesis_source FROM signals WHERE id = ?", (sid,)
+    ).fetchone()
+    conn.close()
+    return row
+
+
+def test_explain_synthesizes_and_persists(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "LLM_PROVIDER", "anthropic")
+    monkeypatch.setattr(llm_synthesis, "_anthropic_reasoning",
+                        lambda s: ("five of six lean bullish", "anthropic:test-model"))
+    client, db, sid = _one_signal_db(tmp_path)
+
+    body = client.post("/api/signals/%d/explain" % sid).get_json()
+
+    assert body["reasoning"] == "five of six lean bullish"
+    assert body["synthesis_source"] == "anthropic:test-model"
+    assert body["cached"] is False
+    assert _stored(db, sid) == ("five of six lean bullish", "anthropic:test-model")
+
+
+def test_explain_second_call_is_cached_and_costs_nothing(tmp_path, monkeypatch):
+    calls = []
+
+    def counted(signal):
+        calls.append(signal)
+        return "generated once", "anthropic:test-model"
+
+    monkeypatch.setattr(config, "LLM_PROVIDER", "anthropic")
+    monkeypatch.setattr(llm_synthesis, "_anthropic_reasoning", counted)
+    client, _, sid = _one_signal_db(tmp_path)
+
+    client.post("/api/signals/%d/explain" % sid)
+    body = client.post("/api/signals/%d/explain" % sid).get_json()
+
+    assert len(calls) == 1, "a cached row must not hit the provider again"
+    assert body["cached"] is True
+    assert body["reasoning"] == "generated once"
+
+
+def test_explain_does_not_persist_a_provider_failure(tmp_path, monkeypatch):
+    def boom(signal):
+        raise RuntimeError("api down")
+
+    monkeypatch.setattr(config, "LLM_PROVIDER", "anthropic")
+    monkeypatch.setattr(llm_synthesis, "_anthropic_reasoning", boom)
+    client, db, sid = _one_signal_db(tmp_path)
+
+    body = client.post("/api/signals/%d/explain" % sid).get_json()
+
+    assert body["synthesis_source"].startswith("template (fell back from anthropic")
+    # Row is untouched, so the next request retries rather than caching the failure.
+    assert _stored(db, sid) == ("template text", "template")
+
+
+def test_explain_unknown_signal_is_404(tmp_path):
+    client, _, _ = _one_signal_db(tmp_path)
+    assert client.post("/api/signals/9999/explain").status_code == 404

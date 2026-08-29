@@ -16,6 +16,7 @@ import config
 from alerts.feed import build_alert_events
 from analytics.metrics import compute_metrics, equity_curve, load_closed_trades
 from db.logger import load_open_positions
+from signals.llm_synthesis import signal_from_row, synthesize
 
 
 def create_app(db_path: str = None) -> Flask:
@@ -76,6 +77,45 @@ def create_app(db_path: str = None) -> Flask:
     @app.route("/api/open")
     def api_open():
         return jsonify(load_open_positions(_db()))
+
+    @app.route("/api/signals/<int:signal_id>/explain", methods=["POST"])
+    def api_explain(signal_id):
+        # The live loop stores free template text for every signal; a real LLM call happens
+        # only here, when someone actually asks to read one. Already-synthesized rows are
+        # returned as-is so a second request costs nothing.
+        conn = sqlite3.connect(_db())
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute(
+                "SELECT * FROM signals WHERE id = ?", (signal_id,)
+            ).fetchone()
+        except sqlite3.OperationalError:
+            row = None
+        finally:
+            conn.close()
+        if row is None:
+            abort(404, "no signal %d" % signal_id)
+
+        existing = row["synthesis_source"] or ""
+        if existing and not existing.startswith("template"):
+            return jsonify({"id": signal_id, "reasoning": row["reasoning"],
+                            "synthesis_source": existing, "cached": True})
+
+        result = synthesize(signal_from_row(row))
+        source = result["synthesis_source"]
+        # A fallback means the provider failed and the text is just the template the row
+        # already has. Don't persist that — leave the row retryable on the next request.
+        if not source.startswith("template"):
+            conn = sqlite3.connect(_db())
+            conn.execute(
+                "UPDATE signals SET reasoning = ?, synthesis_source = ? WHERE id = ?",
+                (result["reasoning"], source, signal_id),
+            )
+            conn.commit()
+            conn.close()
+
+        return jsonify({"id": signal_id, "reasoning": result["reasoning"],
+                        "synthesis_source": source, "cached": False})
 
     @app.route("/api/alerts")
     def api_alerts():
