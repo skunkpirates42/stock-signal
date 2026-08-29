@@ -14,6 +14,23 @@ import os
 import config
 
 
+def signal_from_row(row) -> dict:
+    """Rebuild the signal dict that `_prompt_for`/`_template_reasoning` consume from a
+    `signals` DB row. Votes and tally live inside indicators_json, not their own columns."""
+    parsed = json.loads(row["indicators_json"] or "{}")
+    return {
+        "ticker": row["ticker"],
+        "direction": row["direction"],
+        "confidence": row["confidence"],
+        "entry": row["entry"],
+        "stop": row["stop"],
+        "target": row["target"],
+        "rr": row["rr"],
+        "votes": parsed.get("votes", {}),
+        "vote_tally": parsed.get("tally", {"bull": 0, "bear": 0, "neutral": 0}),
+    }
+
+
 def _template_reasoning(signal: dict) -> str:
     """Deterministic, offline reasoning string assembled from the votes."""
     tally = signal["vote_tally"]

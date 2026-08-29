@@ -15,7 +15,6 @@ because Groq's batch endpoint is a paid-plan feature.
 """
 
 import argparse
-import json
 import os
 import sqlite3
 import sys
@@ -26,7 +25,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
-from signals.llm_synthesis import _prompt_for, _template_reasoning
+from signals.llm_synthesis import _prompt_for, _template_reasoning, signal_from_row
 
 load_dotenv()
 
@@ -49,21 +48,6 @@ SELECT_TEMPLATE = """
        AND synthesis_source = 'template'
      ORDER BY id
 """ % _COLUMNS
-
-
-def _signal_from_row(row):
-    parsed = json.loads(row["indicators_json"] or "{}")
-    return {
-        "ticker": row["ticker"],
-        "direction": row["direction"],
-        "confidence": row["confidence"],
-        "entry": row["entry"],
-        "stop": row["stop"],
-        "target": row["target"],
-        "rr": row["rr"],
-        "votes": parsed.get("votes", {}),
-        "vote_tally": parsed.get("tally", {"bull": 0, "bear": 0, "neutral": 0}),
-    }
 
 
 def load_blank(db_path, limit=None, sql=SELECT_BLANK):
@@ -96,7 +80,7 @@ def run_anthropic_batch(rows):
             params=MessageCreateParamsNonStreaming(
                 model=config.LLM_MODEL,
                 max_tokens=300,
-                messages=[{"role": "user", "content": _prompt_for(_signal_from_row(r))}],
+                messages=[{"role": "user", "content": _prompt_for(signal_from_row(r))}],
             ),
         )
         for r in rows
@@ -143,7 +127,7 @@ def run_groq_sequential(rows, db_path, max_retries=5):
 
     updates = []
     for i, row in enumerate(rows, 1):
-        signal = _signal_from_row(row)
+        signal = signal_from_row(row)
         for attempt in range(max_retries):
             try:
                 text, source = _groq_reasoning(signal)
@@ -203,9 +187,9 @@ def main():
 
     if args.dry_run:
         print("\n--- sample prompt (id=%d) ---" % rows[0]["id"])
-        print(_prompt_for(_signal_from_row(rows[0])))
+        print(_prompt_for(signal_from_row(rows[0])))
         print("\n--- template fallback for comparison ---")
-        print(_template_reasoning(_signal_from_row(rows[0])))
+        print(_template_reasoning(signal_from_row(rows[0])))
         return 0
 
     print("provider: %s" % args.provider)
