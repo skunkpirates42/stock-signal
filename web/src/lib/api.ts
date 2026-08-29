@@ -1,9 +1,9 @@
 import type { Metrics, Signal, Trade } from "@/lib/types";
 
-const BASE = process.env.FLASK_API_URL ?? "http://127.0.0.1:8000";
+export const API_BASE = process.env.FLASK_API_URL ?? "http://127.0.0.1:8000";
 
 async function get<T>(path: string): Promise<T> {
-  const response = await fetch(`${BASE}${path}`, { cache: "no-store" });
+  const response = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`${path} responded ${response.status}`);
   }

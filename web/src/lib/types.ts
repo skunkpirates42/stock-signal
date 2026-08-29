@@ -83,3 +83,10 @@ export interface VoteRow {
   vote: Vote;
   detail: string;
 }
+
+export interface ExplainResult {
+  id: number;
+  reasoning: string;
+  synthesis_source: string;
+  cached: boolean;
+}
