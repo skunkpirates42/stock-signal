@@ -3,9 +3,12 @@ filtering, and restart reconstruction from the DB. (Signal/exit/entry math is co
 the engine/executor/tracker tests and the end-to-end backtest.)
 """
 
-from datetime import datetime, timezone
+import sqlite3
+from collections import deque
+from datetime import datetime, timedelta, timezone
 
 import config
+from signals import llm_synthesis
 from db.logger import init_db, log_signal, log_trade_open, close_trade
 from live.trader import LiveTrader, floor_5min, in_regular_hours
 
@@ -83,3 +86,49 @@ def test_reconstructs_capital_and_open_positions(tmp_path):
     assert trader.broker.has_open("BBB")
     assert not trader.broker.has_open("AAA")
     assert trader.broker.open_positions["BBB"]["shares"] == 20
+
+
+def _seed_window(trader, symbol, n=60):
+    """Fill a symbol's rolling window with enough varied bars for indicators to compute."""
+    base = datetime(2026, 6, 10, 13, 0, tzinfo=timezone.utc)
+    for i in range(n):
+        close = 100 + (i % 7) - 3
+        trader.windows[symbol].append({
+            "timestamp": base + timedelta(minutes=5 * i),
+            "open": close - 0.5, "high": close + 1.0, "low": close - 1.0,
+            "close": close, "volume": 1000 + 10 * (i % 5),
+        })
+
+
+def test_bar_close_never_calls_a_paid_llm_provider(tmp_path, monkeypatch):
+    """A bar close must cost nothing: synthesis is pinned to the offline template.
+
+    The distinction that matters is `synthesis_source == "template"` exactly — a fallback
+    would read "template (fell back from groq: ...)" and would mean a request was attempted.
+    """
+    def boom(signal):
+        raise AssertionError("live loop must not call a paid provider on bar close")
+
+    monkeypatch.setattr(config, "LLM_PROVIDER", "groq")
+    monkeypatch.setattr(llm_synthesis, "_groq_reasoning", boom)
+    monkeypatch.setattr(llm_synthesis, "_anthropic_reasoning", boom)
+
+    trader, db = _trader(tmp_path)
+    trader.windows["AAA"] = deque(trader.windows["AAA"], maxlen=120)
+    _seed_window(trader, "AAA")
+
+    bar = {"timestamp": RTH, "open": 100.0, "high": 101.0, "low": 99.0,
+           "close": 100.5, "volume": 1500}
+    signal = trader._on_bar_close("AAA", bar)
+
+    assert signal is not None, "expected a signal once the window is warm"
+    assert signal["synthesis_source"] == "template"
+    assert signal["reasoning"]
+
+    conn = sqlite3.connect(db)
+    stored = conn.execute(
+        "SELECT reasoning, synthesis_source FROM signals ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    conn.close()
+    assert stored[1] == "template"
+    assert stored[0], "every signal is logged with reasoning, WAIT included"

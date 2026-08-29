@@ -3,9 +3,10 @@
 Turns a rule-based signal into a human-readable reasoning blurb for journaling/alerts.
 This is *presentation only* — it never changes the decision (per CLAUDE.md).
 
-Provider is chosen by config.LLM_PROVIDER ('anthropic', 'groq', or 'template'). Any
-provider failure (missing key, network, SDK error) falls back to a deterministic template
-built from the votes, so the pipeline always produces reasoning and can run fully offline.
+Provider defaults to config.LLM_PROVIDER ('anthropic', 'groq', or 'template') and can be
+overridden per call — the live loop pins 'template' so a bar close never costs an API
+call. Any provider failure (missing key, network, SDK error) falls back to a
+deterministic template, so the pipeline always produces reasoning and runs fully offline.
 """
 
 import json
@@ -120,13 +121,14 @@ def _groq_reasoning(signal: dict):
     return text, "groq:%s" % config.GROQ_MODEL
 
 
-def synthesize(signal: dict) -> dict:
+def synthesize(signal: dict, provider: str = None) -> dict:
     """Attach `reasoning` and `synthesis_source` to the signal.
 
     Presentation only — never changes the decision. Any provider failure degrades to the
-    offline template so the trading loop cannot be blocked by an API outage.
+    offline template so the trading loop cannot be blocked by an API outage. Pass
+    provider="template" to guarantee no network call and no spend.
     """
-    provider = config.LLM_PROVIDER
+    provider = provider if provider is not None else config.LLM_PROVIDER
     try:
         if provider == "anthropic":
             text, source = _anthropic_reasoning(signal)

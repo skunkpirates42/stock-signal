@@ -203,8 +203,10 @@ class LiveTrader:
         # 2) Generate + log the signal (every bar, per CLAUDE.md).
         signal = generate_signal(symbol, compute_indicators(pd.DataFrame(list(self.windows[symbol]))))
         signal["regime"] = self._current_regime()
-        if signal["direction"] != "WAIT":
-            synthesize(signal)  # LLM fires only on a trigger, not every bar
+        # Template only: a bar close must never make a network call. Real LLM reasoning is
+        # generated on demand from the dashboard, so we pay per signal actually read
+        # rather than per signal produced.
+        synthesize(signal, provider="template")
         signal_id = log_signal(signal, bar_timestamp=bar5["timestamp"], db_path=self.db_path)
         self._emit("signal", signal)
 
