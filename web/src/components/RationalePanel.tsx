@@ -8,14 +8,11 @@ import {
 } from "@/lib/indicators";
 import { formatPrice, formatRatio } from "@/lib/format";
 import LevelScale from "@/components/LevelScale";
+import SignalReasoning from "@/components/SignalReasoning";
 import VoteTable from "@/components/VoteTable";
 
 export interface RationalePanelProps {
   signal: Signal;
-}
-
-function provenanceLabel(source: string | null): string {
-  return source ?? "provenance not recorded";
 }
 
 export default function RationalePanel({ signal }: RationalePanelProps) {
@@ -29,10 +26,11 @@ export default function RationalePanel({ signal }: RationalePanelProps) {
   return (
     <div className="rationale-panel">
       <div className="rationale-columns">
-        <div className="rationale-reasoning">
-          <p>{signal.reasoning ?? "No reasoning recorded for this signal."}</p>
-          <p className="rationale-provenance">Source: {provenanceLabel(signal.synthesis_source)}</p>
-        </div>
+        <SignalReasoning
+          signalId={signal.id}
+          reasoning={signal.reasoning}
+          synthesisSource={signal.synthesis_source}
+        />
 
         <div className="rationale-votes">
           <h3>

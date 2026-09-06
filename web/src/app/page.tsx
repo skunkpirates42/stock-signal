@@ -27,7 +27,7 @@ export default async function OverviewPage({
   return (
     <main>
       <HeroStat
-        label="Total P&L"
+        label="Closed-trade net P&L"
         value={formatCurrency(metrics.total_pnl)}
         tone={metrics.total_pnl >= 0 ? "positive" : "negative"}
         qualifier={
@@ -41,11 +41,13 @@ export default async function OverviewPage({
         <ProvenanceBand source={bandSource} nClosed={metrics.n_closed} nLiveClosed={nLiveClosed} />
       </HeroStat>
 
+      <p className="micro">{metrics.metric_basis}</p>
       <div className="grid-8-4">
         <EquityCurve points={metrics.equity} />
         <WinLossCard
           nWins={metrics.n_wins}
           nLosses={metrics.n_losses}
+          nBreakeven={metrics.n_breakeven}
           winRate={metrics.win_rate}
           avgWin={metrics.avg_win}
           avgLoss={metrics.avg_loss}
@@ -72,7 +74,7 @@ export default async function OverviewPage({
       </div>
 
       <div className="grid-6-6">
-        <CostAdjustedExpectancy grossExpectancy={metrics.expectancy} />
+        <CostAdjustedExpectancy recordedExpectancy={metrics.expectancy} />
         <RMultipleCard
           avgR={metrics.avg_r_multiple}
           avgWinR={metrics.avg_win_r}

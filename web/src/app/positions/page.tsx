@@ -11,10 +11,12 @@ export default async function PositionsPage({
   const { source } = await searchParams;
   const scope = source === "all" ? undefined : "live";
 
-  const [positions, trades] = await Promise.all([
-    getOpenPositions(),
+  const [scopedPositions, unknownPositions, trades] = await Promise.all([
+    getOpenPositions(scope ?? "all"),
+    scope === "live" ? getOpenPositions("unknown") : Promise.resolve([]),
     getTrades({ source: scope, limit: 50 }),
   ]);
+  const positions = [...scopedPositions, ...unknownPositions];
   const closedTrades = trades.filter((trade) => trade.outcome !== "OPEN");
   const now = new Date();
 
@@ -26,8 +28,8 @@ export default async function PositionsPage({
       </div>
       <ScopeNote>
         {scope === "live"
-          ? "Showing live open positions and live closed trades only. Backtest replay rows are excluded from this view."
-          : `Showing live open positions and ${closedTrades.length} closed trades, live and backtest replay combined. Open positions are always live; replay closed trades come from a different period.`}
+          ? "Showing live and unknown historical open positions, with live closed trades. Unknown exposure may block trading and requires reconciliation. Backtest replay rows are excluded."
+          : `Showing all sources, including replay and unknown historical positions. ${closedTrades.length} recent closed trades.`}
       </ScopeNote>
       <OpenPositions positions={positions} now={now} />
       <FillsTable trades={closedTrades} />

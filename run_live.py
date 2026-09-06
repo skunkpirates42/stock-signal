@@ -12,15 +12,14 @@ arrive *after* a signal, so realized R:R will start to diverge from the theoreti
 
 import sys
 
-from dotenv import load_dotenv
 
 import config
 from alerts.desktop import notify_event
 from data.alpaca_stream import BarStream, market_clock
 from data.source import using_alpaca
 from live.trader import LiveTrader
+from live.worker import TradingWorker
 
-load_dotenv()
 
 
 def on_event(kind: str, payload) -> None:
@@ -69,11 +68,15 @@ def main() -> None:
     trader.seed()
     print("Seeded. Subscribing to 1-min IEX bars, aggregating to 5-min. Ctrl-C to stop.\n")
 
-    stream = BarStream(config.WATCHLIST, trader.on_minute_bar)
+    worker = TradingWorker(trader)
+    worker.start()
+    stream = BarStream(config.WATCHLIST, worker.on_minute_bar)
     try:
         stream.run()
     except KeyboardInterrupt:
         print("\nStopping. Open positions remain OPEN in the DB; run report.py for metrics.")
+    finally:
+        worker.stop()
 
 
 if __name__ == "__main__":

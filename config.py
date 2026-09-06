@@ -5,6 +5,10 @@ magic numbers. Values mirror the spec in CLAUDE.md.
 """
 
 import os
+import math
+from dotenv import load_dotenv
+
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=False)
 
 # --- Watchlist -------------------------------------------------------------
 # SPY and QQQ double as market-regime context for filtering individual names later.
@@ -63,8 +67,7 @@ BACKTEST_BARS = int(os.environ.get("BACKTEST_BARS", 300))   # bars to replay per
 BACKTEST_LOOKBACK = 120
 
 # --- Storage ---------------------------------------------------------------
-# DB_PATH is env-overridable so a backtest can write to its own file (e.g.
-# `DB_PATH=backtest.db python backtest.py`) without polluting the live DB.
+# Live and replay storage have independent environment overrides.
 DB_PATH = os.environ.get("DB_PATH") or os.path.join(os.path.dirname(__file__), "papertrader.db")
 
 # --- Dashboard -------------------------------------------------------------
@@ -84,3 +87,26 @@ LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "groq").lower()
 LLM_MODEL = os.environ.get("LLM_MODEL", "claude-haiku-4-5")
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "qwen/qwen3.6-27b")
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+
+# Execution policies. Spread is round-trip basis points; slippage applies per fill.
+ACCOUNT_NAMESPACE = os.environ.get("ACCOUNT_NAMESPACE", "local")
+SESSION_POLICY = os.environ.get("SESSION_POLICY", "overnight")
+SPREAD_BPS = float(os.environ.get("SPREAD_BPS", "0"))
+SLIPPAGE_BPS = float(os.environ.get("SLIPPAGE_BPS", "0"))
+FEE_PER_SHARE = float(os.environ.get("FEE_PER_SHARE", "0"))
+BAR_LATENESS_SECONDS = float(os.environ.get("BAR_LATENESS_SECONDS", "35"))
+BACKTEST_DB_PATH = os.environ.get("BACKTEST_DB_PATH") or os.path.join(os.path.dirname(__file__), "backtest.db")
+if BROKER not in {"local", "alpaca"}:
+    raise ValueError("BROKER must be local or alpaca")
+if LLM_PROVIDER not in {"template", "groq", "anthropic"}:
+    raise ValueError("LLM_PROVIDER must be template, groq, or anthropic")
+if SESSION_POLICY not in {"overnight", "flatten"}:
+    raise ValueError("SESSION_POLICY must be overnight or flatten")
+if BACKTEST_BARS < WARMUP_BARS or not 0 < DASHBOARD_PORT < 65536:
+    raise ValueError("Invalid BACKTEST_BARS or DASHBOARD_PORT")
+if any(not math.isfinite(v) or v < 0 for v in (SPREAD_BPS, SLIPPAGE_BPS, FEE_PER_SHARE, BAR_LATENESS_SECONDS)):
+    raise ValueError("Execution costs and lateness must be nonnegative")
+
+def validate_live():
+    if not (os.environ.get("ALPACA_API_KEY") and os.environ.get("ALPACA_SECRET_KEY")):
+        raise ValueError("Live data requires ALPACA_API_KEY and ALPACA_SECRET_KEY")

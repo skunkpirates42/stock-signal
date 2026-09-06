@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Space_Grotesk, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
+import LiveStatus from "@/components/LiveStatus";
 import SideRail from "@/components/SideRail";
 import "./globals.css";
 
@@ -33,7 +34,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Suspense fallback={<aside className="rail" />}>
           <SideRail />
         </Suspense>
-        <div className="canvas">{children}</div>
+        <div className="canvas"><Suspense fallback={null}><LiveStatus /></Suspense>{children}</div>
       </body>
     </html>
   );

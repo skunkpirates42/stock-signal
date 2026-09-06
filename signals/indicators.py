@@ -37,7 +37,9 @@ def _rsi(close: pd.Series, length: int) -> pd.Series:
     avg_gain = _rma(gain, length)
     avg_loss = _rma(loss, length)
     rs = avg_gain / avg_loss.replace(0, np.nan)
-    return 100 - (100 / (1 + rs))
+    result = 100 - (100 / (1 + rs))
+    result = result.mask((avg_loss == 0) & (avg_gain > 0), 100.0)
+    return result.mask((avg_loss == 0) & (avg_gain == 0), 50.0)
 
 
 def _macd_line(close: pd.Series, fast: int, slow: int) -> pd.Series:
@@ -51,7 +53,8 @@ def _bb_percent(close: pd.Series, length: int, std: float) -> pd.Series:
     sd = close.rolling(length).std(ddof=0)
     upper = mid + std * sd
     lower = mid - std * sd
-    return (close - lower) / (upper - lower).replace(0, np.nan)
+    width = upper - lower
+    return ((close - lower) / width.replace(0, np.nan)).mask(width == 0, 0.5)
 
 
 def _atr(df: pd.DataFrame, length: int) -> pd.Series:

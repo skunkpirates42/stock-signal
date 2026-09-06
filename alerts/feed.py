@@ -15,7 +15,7 @@ tell new alerts from ones it has already shown/notified.
 """
 
 ACTIONABLE = ("LONG", "SHORT")
-CLOSED = ("WIN", "LOSS")
+CLOSED = ("WIN", "LOSS", "BREAKEVEN")
 
 
 def build_alert_events(signals, trades, limit: int = 80) -> list:

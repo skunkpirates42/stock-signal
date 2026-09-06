@@ -9,6 +9,7 @@ confirmation modifier that nudges the final confidence up or down.
 """
 
 import json
+import math
 
 import config
 
@@ -76,6 +77,14 @@ def generate_signal(ticker: str, ind: dict) -> dict:
     ticker, direction, confidence, entry, stop, target, rr, indicators_json
     (plus `votes` and `indicators` for human-readable output).
     """
+    invalid = [k for k, v in ind.items() if not isinstance(v, (int, float)) or not math.isfinite(v)]
+    if invalid:
+        values = {k: v if isinstance(v, (int, float)) and math.isfinite(v) else None for k,v in ind.items()}
+        tally = {"bull":0,"bear":0,"neutral":6}
+        return {"ticker":ticker,"direction":"WAIT","confidence":0.0,"entry":values.get("close"),
+                "stop":None,"target":None,"rr":None,"votes":{},"vote_tally":tally,
+                "indicators":values,"skip_reason":"invalid_indicators",
+                "indicators_json":json.dumps({"votes":{},"values":values,"tally":tally,"invalid":invalid},allow_nan=False)}
     votes = vote(ind)
     n_directional = 6  # the 6 voting indicators (volume is a modifier, not a vote)
     bull = sum(1 for v in votes.values() if v == BULL)

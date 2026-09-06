@@ -11,7 +11,6 @@ Signals are logged with source="poc" so they're never mistaken for live trading 
 Run:  python3 poc.py
 """
 
-from dotenv import load_dotenv
 
 import config
 from data.source import active_source_name, get_bars
@@ -21,7 +20,6 @@ from signals.indicators import compute_indicators
 from signals.llm_synthesis import synthesize
 from signals.regime import classify
 
-load_dotenv()  # picks up ANTHROPIC_API_KEY / Alpaca keys if a .env exists
 
 
 def _print_signal(sig: dict) -> None:

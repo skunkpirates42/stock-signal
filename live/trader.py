@@ -1,39 +1,18 @@
-"""Live trading orchestrator.
+"""Shared chronological bar pipeline and live minute aggregation.
 
-Owns the in-memory state of the live loop and turns a stream of 1-minute bars into the same
-pipeline the backtest runs:
-
-    1-min bars --aggregate--> 5-min bar --indicators--> signal --> (exit mgmt + entry) --> DB
-
-Responsibilities:
-- Aggregate 1-minute bars into 5-minute bars per symbol (a bar is "closed" when the first
-  bar of the next 5-minute bucket arrives).
-- Maintain a rolling window of recent 5-min bars per symbol (seeded from REST history so
-  indicators are valid from the first live bar).
-- On each closed 5-min bar (regular hours only): manage any open position (stop/target),
-  log the signal, and open a new paper position when actionable and flat.
-- Reconstruct open positions and account capital from the DB on startup, so restarts don't
-  double-open or lose realized P&L.
-
-Network only happens in `seed()` (REST history); everything else is pure and unit-tested.
+Local fills use the next observed completed five-minute bar's close. This deliberately
+models a five-minute execution delay, never an already-observed signal close or touched
+threshold. Alpaca executes asynchronously at confirmed market fills.
 """
-
+import json
 from collections import deque
-from datetime import datetime, time, timezone
-from zoneinfo import ZoneInfo
-
+from datetime import datetime, timezone
 import pandas as pd
-
 import config
+from data.sessions import utc, in_regular_hours, flatten_due, session_bounds
 from data.source import get_bars
-from db.logger import (
-    close_trade,
-    init_db,
-    load_open_positions,
-    log_signal,
-    log_trade_open,
-    realized_pnl,
-)
+from db.logger import (init_db, load_open_positions, realized_pnl, log_signal, log_trade_open,
+                       close_trade, save_position, set_status, _connect)
 from signals.engine import generate_signal
 from signals.indicators import compute_indicators
 from signals.llm_synthesis import synthesize
@@ -41,200 +20,299 @@ from signals.regime import classify
 from trades.executor import PaperBroker
 from trades.tracker import check_exit
 
-ET = ZoneInfo("America/New_York")
-RTH_OPEN = time(9, 30)
-RTH_CLOSE = time(16, 0)
 
-
-def floor_5min(ts: datetime) -> datetime:
-    """Start of the 5-minute bucket containing `ts`."""
-    return ts.replace(minute=(ts.minute // 5) * 5, second=0, microsecond=0)
-
-
-def in_regular_hours(ts: datetime) -> bool:
-    """True if `ts` falls within US equity regular trading hours (9:30–16:00 ET, weekday)."""
-    et = ts.astimezone(ET)
-    if et.weekday() >= 5:  # Sat/Sun
-        return False
-    return RTH_OPEN <= et.time() < RTH_CLOSE
+def floor_5min(ts):
+    return ts.replace(minute=ts.minute // 5 * 5, second=0, microsecond=0)
 
 
 class LiveTrader:
-    def __init__(self, symbols, db_path: str = None, window_size: int = 120):
-        self.symbols = list(symbols)
-        self.db_path = db_path
+    def __init__(self, symbols, db_path=None, window_size=120, source='live', broker=None,
+                 run_id=None, gate=None, evaluation_start=None):
+        self.symbols = sorted(symbols)
+        self.db_path = db_path or config.DB_PATH
         self.window_size = window_size
+        self.source = source
+        self.run_id = run_id
+        self.gate = gate
+        self.evaluation_start = utc(evaluation_start) if evaluation_start else None
         self.windows = {s: deque(maxlen=window_size) for s in self.symbols}
-        self.buckets = {s: None for s in self.symbols}   # in-progress 5-min bucket
-        self.bar_count = {s: 0 for s in self.symbols}     # closed 5-min bars seen this run
-        self.on_event = None  # optional callback(kind, payload) for alerts/printing
-
+        self.buckets = {s: None for s in self.symbols}
+        self.bar_count = {s: 0 for s in self.symbols}
+        self.last_minute = {}
+        self.last_closed = {}
+        self.pending = {}
+        self.ready = {}
+        self.processed = {}
+        self.watermark = None
+        self.worker_error = None
+        self.on_event = None
         init_db(self.db_path)
-        self.broker = self._rebuild_broker()
+        self.broker = broker or self._rebuild_broker()
+        self.scope = f'{source}:{"alpaca" if self.is_alpaca else "local"}:{self.broker.account}'
+        if source == 'live' and not self.is_alpaca:
+            with _connect(self.db_path) as conn:
+                self.pending = {r['ticker']:json.loads(r['payload_json']) for r in conn.execute(
+                    'SELECT * FROM local_pending WHERE scope=?', (self.scope,))}
+        self.legacy_blocked = self.broker.blocked if self.broker.blocked and 'Legacy' in self.broker.blocked else None
 
-    # --- startup ----------------------------------------------------------
+    @property
+    def is_alpaca(self):
+        return hasattr(self.broker, 'reconcile')
+
     def _rebuild_broker(self):
-        """Reconstruct the broker and any open positions from the DB.
-
-        The stop/target/signal_id/entry_bar bookkeeping always comes from our DB (Alpaca
-        doesn't know our planned levels). Only the capital source differs: the local broker
-        derives it from starting capital + realized P&L, while the Alpaca broker reads real
-        account equity.
-        """
-        if config.BROKER == "alpaca":
+        if config.BROKER == 'alpaca' and self.source == 'live':
             from trades.alpaca_broker import AlpacaBroker
-
-            broker = AlpacaBroker()
+            broker = AlpacaBroker(db_path=self.db_path)
+            broker.reconcile()
         else:
-            broker = PaperBroker(
-                starting_capital=config.STARTING_CAPITAL
-                + realized_pnl(self.db_path, source="live")
-            )
-
-        for row in load_open_positions(self.db_path):
-            broker.open_positions[row["ticker"]] = {
-                "signal_id": row["signal_id"],
-                "ticker": row["ticker"],
-                "direction": row["direction"],
-                "entry": row["entry"],
-                "stop": row["stop"],
-                "target": row["target"],
-                "shares": row["shares"],
-                "entry_bar": row["entry_bar"],
-                "status": "OPEN",
-                "db_id": row["id"],
-                "entry_ts": datetime.fromisoformat(row["created_at"]),
-            }
-
-        # With the Alpaca broker, our DB and the real account can drift (a fill or a manual
-        # close outside this loop). Surface any mismatch loudly rather than trading on stale state.
-        if config.BROKER == "alpaca":
-            self._warn_position_drift(broker)
-
+            broker = PaperBroker(starting_capital=config.STARTING_CAPITAL + realized_pnl(
+                self.db_path, self.source, 'local', config.ACCOUNT_NAMESPACE))
+            for row in load_open_positions(self.db_path, self.source, 'local', config.ACCOUNT_NAMESPACE):
+                if row['ticker'] in broker.open_positions:
+                    raise RuntimeError('Duplicate scoped open positions require reconciliation')
+                row.update(db_id=row['id'], status='OPEN', pending_exit=json.loads(row['state_json'] or 'null'))
+                broker.open_positions[row['ticker']] = row
+        ambiguous = [p for p in load_open_positions(self.db_path) if
+                     p['source'] in (None, 'live') and (not p['backend'] or not p['account'])]
+        if ambiguous:
+            broker.blocked = 'Legacy open positions have unknown execution scope; reconcile explicitly'
         return broker
 
-    def _warn_position_drift(self, broker) -> None:
-        """Compare our reconstructed open positions against Alpaca's actual positions."""
-        ours = set(broker.open_positions)
-        theirs = broker.alpaca_open_symbols()
-        if ours != theirs:
-            print(
-                "  WARN broker/DB position mismatch — "
-                f"ours={sorted(ours) or '[]'} alpaca={sorted(theirs) or '[]'}. "
-                "Reconcile before trading (a fill or close may have happened outside this loop).",
-                flush=True,
-            )
-
-    def seed(self) -> None:
-        """Fill each rolling window with recent 5-min bars from REST history."""
+    def seed(self):
+        cutoff = utc(datetime.now(timezone.utc)) - pd.Timedelta(seconds=config.BAR_LATENESS_SECONDS)
         for s in self.symbols:
             df = get_bars(s, self.window_size)
-            self.windows[s] = deque(
-                (df[["timestamp", "open", "high", "low", "close", "volume"]]
-                 .to_dict("records")),
-                maxlen=self.window_size,
-            )
+            records = [r for r in df.to_dict('records') if in_regular_hours(r['timestamp']) and
+                       utc(r['timestamp']) + pd.Timedelta(minutes=5) <= cutoff]
+            self.windows[s] = deque(records, maxlen=self.window_size)
+            if records:
+                self.last_closed[s] = utc(records[-1]['timestamp'])
 
-    def _emit(self, kind: str, payload) -> None:
+    def _emit(self, kind, payload):
         if self.on_event:
             self.on_event(kind, payload)
 
-    # --- aggregation ------------------------------------------------------
     def on_minute_bar(self, symbol, ts, open_, high, low, close, volume):
-        """Feed one 1-minute bar. Returns the finalized 5-min bar dict when a bucket closes."""
+        ts = utc(ts)
+        if symbol not in self.buckets or not in_regular_hours(ts):
+            return None
+        if ts <= self.last_minute.get(symbol, pd.Timestamp.min.tz_localize('UTC')):
+            return None
+        self.last_minute[symbol] = ts
         start = floor_5min(ts)
+        if start <= self.last_closed.get(symbol, pd.Timestamp.min.tz_localize('UTC')):
+            return None
+        previous = self.buckets[symbol]
+        result = None
+        if previous and start != previous['start']:
+            result = self._finish(symbol)
+            previous = None
+        if previous is None:
+            self.buckets[symbol] = {'start': start, 'open': open_, 'high': high, 'low': low,
+                                    'close': close, 'volume': volume, 'minutes': {ts.minute}}
+        else:
+            previous['high'] = max(previous['high'], high)
+            previous['low'] = min(previous['low'], low)
+            previous['close'] = close
+            previous['volume'] += volume
+            previous['minutes'].add(ts.minute)
+        return result
+
+    def _finish(self, symbol):
         b = self.buckets[symbol]
-
-        if b is None:
-            self.buckets[symbol] = self._new_bucket(start, open_, high, low, close, volume)
+        self.buckets[symbol] = None
+        self.last_closed[symbol] = b['start']
+        if len(b['minutes']) != 5:
+            set_status(self.scope, 'incomplete', f'{symbol}: incomplete five-minute bucket', b['start'], self.db_path)
             return None
+        bar = {k: b[k] for k in ('open', 'high', 'low', 'close', 'volume')}
+        bar['timestamp'] = b['start']
+        self.ready.setdefault(b["start"], {})[symbol] = bar
+        self._drain_ready()
+        return bar
 
-        if start != b["start"]:
-            finalized = self._finalize(b)
-            self.buckets[symbol] = self._new_bucket(start, open_, high, low, close, volume)
-            self._on_bar_close(symbol, finalized)
-            return finalized
+    def _drain_ready(self, force=False):
+        for ts in sorted(list(self.ready)):
+            if force or set(self.ready[ts]) == set(self.symbols):
+                self.process_batch(self.ready.pop(ts))
+            else:
+                break
 
-        # Same bucket: extend it.
-        b["high"] = max(b["high"], high)
-        b["low"] = min(b["low"], low)
-        b["close"] = close
-        b["volume"] += volume
-        return None
+    def recover_worker_error(self):
+        """Clear worker failures only after restoring durable execution state."""
+        if not self.worker_error:
+            return
+        if self.is_alpaca:
+            self.broker._restore()
+            if not self.broker.reconcile():
+                return
+        else:
+            self.broker = self._rebuild_broker()
+            with _connect(self.db_path) as conn:
+                self.pending = {r['ticker']: json.loads(r['payload_json']) for r in conn.execute(
+                    'SELECT * FROM local_pending WHERE scope=?', (self.scope,))}
+        if self.legacy_blocked:
+            self.broker.blocked = self.legacy_blocked
+        self.worker_error = None
+
+    def tick(self, ts=None):
+        ts = utc(ts or datetime.now(timezone.utc))
+        for s, b in list(self.buckets.items()):
+            if b and ts >= b['start'] + pd.Timedelta(minutes=5, seconds=config.BAR_LATENESS_SECONDS):
+                self._finish(s)
+        self._drain_ready(force=True)
+        if self.is_alpaca:
+            self.broker.reconcile()
+            if self.legacy_blocked:
+                self.broker.blocked = self.legacy_blocked
+            if config.SESSION_POLICY == 'flatten' and flatten_due(ts):
+                for s, pos in list(self.broker.open_positions.items()):
+                    self.broker.close_position(s, pos['entry'], 'session_close', self.bar_count.get(s, 0),
+                                               exit_reason='session_close')
+        if not self.is_alpaca and config.SESSION_POLICY == 'flatten' and flatten_due(ts):
+            for pos in self.broker.open_positions.values():
+                pos['pending_exit'] = {'reason': 'session_close'}
+                save_position(pos, self.db_path)
+        if self.worker_error:
+            self.broker.blocked = self.worker_error
+        self._broker_events()
+        waiting = any(p.get('pending_exit', {}).get('reason') == 'session_close'
+                      for p in self.broker.open_positions.values() if p.get('pending_exit'))
+        if waiting and not self.broker.blocked:
+            set_status(self.scope, 'unresolved', 'Session flatten awaiting an observed executable price',
+                       db_path=self.db_path)
+            return
+        set_status(self.scope, 'blocked' if self.broker.blocked else 'running',
+                   self.broker.blocked or 'Worker heartbeat; data freshness is separate', db_path=self.db_path)
+
+    def _broker_events(self):
+        if self.is_alpaca:
+            while self.broker.events:
+                kind, payload = self.broker.events.pop(0)
+                self._emit(kind, payload)
+
+    def _regime(self, decision_at):
+        values = {}
+        for sym in ('SPY', 'QQQ'):
+            window = [b for b in self.windows.get(sym, []) if utc(b['timestamp']) + pd.Timedelta(minutes=5) <= decision_at]
+            if len(window) < config.WARMUP_BARS or decision_at - utc(window[-1]['timestamp']) > pd.Timedelta(minutes=10):
+                if sym == 'SPY':
+                    return None
+                values[sym] = None
+                continue
+            values[sym] = compute_indicators(pd.DataFrame(window))
+        return classify(values['SPY'], values['QQQ'])
+
+    def process_batch(self, bars):
+        """All bars in a batch have the same start timestamp; exits precede entries."""
+        bars = {s:b for s,b in bars.items() if s not in self.processed or utc(b['timestamp']) > self.processed[s]}
+        if not bars:
+            return {}
+        times = {utc(b['timestamp']) for b in bars.values()}
+        if len(times) != 1:
+            raise ValueError('Batch timestamps differ')
+        ts = times.pop()
+        if not in_regular_hours(ts):
+            return {}
+        if self.watermark is not None and ts <= self.watermark:
+            return {}
+        self.watermark = ts
+        decision_at = ts + pd.Timedelta(minutes=5)
+        for s, bar in sorted(bars.items()):
+            self.processed[s] = ts
+            self.windows[s].append({**bar, 'timestamp': ts})
+            self.bar_count[s] += 1
+        if self.evaluation_start is not None and ts < self.evaluation_start:
+            return {}
+        executable = decision_at < session_bounds(ts)[1]
+        exited = set()
+        # Execute previously queued exits at the newly observed close, before allocation.
+        for s, bar in sorted(bars.items()):
+            pos = self.broker.open_positions.get(s)
+            if not pos:
+                continue
+            pos['observed_bars'] = (pos.get('observed_bars') or 0) + 1
+            pending_exit = pos.get('pending_exit')
+            flatten = config.SESSION_POLICY == 'flatten' and flatten_due(decision_at)
+            if not self.is_alpaca and executable and (pending_exit or flatten):
+                reason = pending_exit['reason'] if pending_exit else 'session_close'
+                trade = self.broker.close_position(s, float(bar['close']), reason, self.bar_count[s],
+                    bars_held=pos['observed_bars'], exit_reason=reason, exit_at=decision_at.isoformat())
+                close_trade(pos['db_id'], trade, self.db_path)
+                self._emit('close', trade)
+                exited.add(s)
+                continue
+            trigger = check_exit(pos, bar)
+            if trigger:
+                if self.is_alpaca:
+                    trade = self.broker.close_position(s, trigger['exit_price'], trigger['outcome'], self.bar_count[s],
+                                                       exit_reason=trigger['reason'])
+                    self._broker_events()
+                    exited.add(s)
+                else:
+                    pos['pending_exit'] = trigger
+            save_position(pos, self.db_path)
+        # Execute prior candidates only on a later observation, with deterministic sizing.
+        for s, bar in sorted(bars.items()):
+            pending = self.pending.pop(s, None)
+            if self.source == 'live' and not self.is_alpaca:
+                with _connect(self.db_path) as conn:
+                    conn.execute('DELETE FROM local_pending WHERE scope=? AND ticker=?', (self.scope,s))
+            if pending and executable and not self.broker.has_open(s) and s not in exited and not self.broker.blocked:
+                same_session = utc(pending['decision_at']).date() == ts.date()
+                if same_session and pd.Timedelta(0) < decision_at - utc(pending['decision_at']) <= pd.Timedelta(minutes=10) and not (
+                        config.SESSION_POLICY == 'flatten' and decision_at >= session_bounds(ts)[1] - pd.Timedelta(minutes=5)):
+                    fill = {**pending, 'entry': float(bar['close']), 'entry_at': decision_at.isoformat()}
+                    pos = self.broker.open_position(fill, self.bar_count[s], pending['signal_id'])
+                    if pos:
+                        pos['db_id'] = log_trade_open(pos, self.db_path, self.source)
+                        self._emit('open', pos)
+        results = {}
+        for s, bar in sorted(bars.items()):
+            if len(self.windows[s]) < config.WARMUP_BARS:
+                continue
+            signal = generate_signal(s, compute_indicators(pd.DataFrame(list(self.windows[s]))))
+            signal.update(regime=self._regime(decision_at), decision_at=decision_at.isoformat(), run_id=self.run_id,
+                          backend="alpaca" if self.is_alpaca else "local", account=self.broker.account)
+            reason = signal.get('skip_reason') or ('wait' if signal['direction'] == 'WAIT' else None)
+            if not executable:
+                reason = 'session_closed'
+            if self.broker.has_open(s):
+                reason = 'position_or_order_open'
+            elif s in exited:
+                reason = 'exited_this_bar'
+            elif self.broker.blocked:
+                reason = 'execution_unresolved'
+            elif config.SESSION_POLICY == 'flatten' and decision_at >= session_bounds(ts)[1] - pd.Timedelta(minutes=10):
+                reason = 'session_closing'
+            if self.gate and not reason:
+                accepted, detail = self.gate(s, self.windows, decision_at, signal['direction'])
+                signal['gate_json'] = json.dumps(detail)
+                if not accepted:
+                    reason = 'quality_gate'
+            signal['skip_reason'] = reason
+            synthesize(signal, provider='template')
+            sid = log_signal(signal, ts, self.db_path, self.source)
+            self._emit('signal', signal)
+            if not reason:
+                if self.is_alpaca:
+                    pos = self.broker.open_position(signal, self.bar_count[s], sid)
+                    self._broker_events()
+                else:
+                    self.pending[s] = {**signal, 'signal_id': sid}
+                    if self.source == 'live':
+                        with _connect(self.db_path) as conn:
+                            conn.execute('INSERT OR REPLACE INTO local_pending VALUES (?,?,?)',
+                                         (self.scope,s,json.dumps(self.pending[s])))
+            results[s] = signal
+        set_status(self.scope, 'blocked' if self.broker.blocked else 'running', self.broker.blocked or '',
+                   decision_at, self.db_path)
+        return results
+
+    def _on_bar_close(self, symbol, bar):
+        return self.process_batch({symbol: bar}).get(symbol)
 
     @staticmethod
-    def _new_bucket(start, open_, high, low, close, volume):
-        return {"start": start, "open": open_, "high": high, "low": low,
-                "close": close, "volume": volume}
-
-    @staticmethod
-    def _finalize(b) -> dict:
-        return {"timestamp": b["start"], "open": b["open"], "high": b["high"],
-                "low": b["low"], "close": b["close"], "volume": b["volume"]}
-
-    # --- pipeline on a closed 5-min bar -----------------------------------
-    def _on_bar_close(self, symbol, bar5):
-        """Run exit management + signal + entry for one closed 5-min bar."""
-        if not in_regular_hours(bar5["timestamp"]):
-            return None  # market hours only
-
-        self.windows[symbol].append(bar5)
-        self.bar_count[symbol] += 1
-
-        # 1) Manage an open position against this bar's range.
-        closed_this_bar = False
-        if self.broker.has_open(symbol):
-            pos = self.broker.open_positions[symbol]
-            exit_ = check_exit(pos, bar5)
-            if exit_:
-                bars_held = self._bars_between(pos.get("entry_ts"), bar5["timestamp"])
-                trade = self.broker.close_position(
-                    symbol, exit_["exit_price"], exit_["outcome"],
-                    exit_bar=self.bar_count[symbol], bars_held=bars_held,
-                )
-                close_trade(pos["db_id"], trade, self.db_path)
-                self._emit("close", trade)
-                closed_this_bar = True
-
-        # Need enough history to compute indicators.
-        if len(self.windows[symbol]) < config.WARMUP_BARS:
-            return None
-
-        # 2) Generate + log the signal (every bar, per CLAUDE.md).
-        signal = generate_signal(symbol, compute_indicators(pd.DataFrame(list(self.windows[symbol]))))
-        signal["regime"] = self._current_regime()
-        if signal["direction"] != "WAIT":
-            synthesize(signal)  # LLM fires only on a trigger, not every bar
-        signal_id = log_signal(signal, bar_timestamp=bar5["timestamp"], db_path=self.db_path)
-        self._emit("signal", signal)
-
-        # 3) Open a paper position if actionable, flat, and we didn't just exit this bar.
-        if (signal["direction"] in ("LONG", "SHORT")
-                and not self.broker.has_open(symbol)
-                and not closed_this_bar):
-            pos = self.broker.open_position(signal, entry_bar=self.bar_count[symbol], signal_id=signal_id)
-            if pos is not None:
-                pos["entry_ts"] = bar5["timestamp"]
-                pos["db_id"] = log_trade_open(pos, self.db_path)
-                self._emit("open", pos)
-
-        return signal
-
-    def _current_regime(self):
-        """Classify the market regime from the latest SPY/QQQ windows (None if unavailable)."""
-        def latest_ind(sym):
-            w = self.windows.get(sym)
-            if not w or len(w) < config.WARMUP_BARS:
-                return None
-            return compute_indicators(pd.DataFrame(list(w)))
-        spy = latest_ind("SPY")
-        if spy is None:
-            return None
-        return classify(spy, latest_ind("QQQ"))
-
-    @staticmethod
-    def _bars_between(entry_ts, exit_ts) -> int:
-        """Number of 5-min bars between two timestamps (restart-safe bars_held)."""
-        if entry_ts is None:
-            return None
-        return max(0, round((exit_ts - entry_ts).total_seconds() / 300))
+    def _bars_between(entry_ts, exit_ts):
+        # Kept for consumers needing elapsed duration; persisted bars use observed counts.
+        return max(0, round((exit_ts-entry_ts).total_seconds()/300)) if entry_ts else None

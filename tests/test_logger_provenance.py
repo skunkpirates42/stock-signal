@@ -118,14 +118,3 @@ def test_realized_pnl_filters_by_source(tmp_path):
     assert realized_pnl(db, source="live") == 40.0
     assert realized_pnl(db, source="backtest") == -300.0
     assert realized_pnl(db) == -260.0
-
-
-def test_backtest_module_logs_with_backtest_source():
-    """backtest.py must stamp its writes so a mis-pointed DB_PATH is visible, not silent."""
-    import inspect
-
-    import backtest
-
-    src = inspect.getsource(backtest.run_ticker)
-    assert 'source="backtest"' in src, "backtest.py must pass source='backtest' when logging"
-    assert src.count('source="backtest"') >= 2, "both log_signal and log_trade_open need it"

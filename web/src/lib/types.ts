@@ -30,7 +30,13 @@ export interface Trade {
   target: number;
   shares: number;
   exit_price: number | null;
-  outcome: "OPEN" | "WIN" | "LOSS";
+  outcome: "OPEN" | "WIN" | "LOSS" | "BREAKEVEN";
+  backend?: string | null;
+  account?: string | null;
+  remaining_shares?: number;
+  entry_at?: string | null;
+  exit_at?: string | null;
+  costs?: number | null;
   pnl: number | null;
   entry_bar: number | null;
   exit_bar: number | null;
@@ -54,6 +60,10 @@ export interface EquityPoint {
 }
 
 export interface Metrics {
+  metric_basis?: string;
+  gross_pnl?: number;
+  costs?: number;
+  n_breakeven?: number;
   n_closed: number;
   n_open: number;
   n_wins: number;
@@ -82,4 +92,11 @@ export interface VoteRow {
   label: string;
   vote: Vote;
   detail: string;
+}
+
+export interface ExplainResult {
+  id: number;
+  reasoning: string;
+  synthesis_source: string;
+  cached: boolean;
 }

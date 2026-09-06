@@ -1,150 +1,188 @@
-"""Tests for AlpacaBroker using an injected fake client (no network)."""
-
+"""Fault injection against durable orders; no external orders or credentials."""
+from types import SimpleNamespace as NS
+from datetime import datetime, timezone
 import pytest
-
 from trades.alpaca_broker import AlpacaBroker
+from db.logger import _connect
 
-
-class FakeOrder:
-    def __init__(self, id, status="filled", filled_avg_price=None, filled_qty=None):
-        self.id = id
-        self.status = status
-        self.filled_avg_price = filled_avg_price
-        self.filled_qty = filled_qty
-
-
-class FakeAccount:
-    def __init__(self, equity):
-        self.equity = str(equity)
-
-
-class FakePosition:
-    def __init__(self, symbol):
-        self.symbol = symbol
+LONG = {'ticker':'NVDA','direction':'LONG','entry':100.,'stop':98.,'target':104.}
 
 
 class FakeClient:
-    """Fills every order immediately at the configured price/qty."""
-
-    def __init__(self, equity=100_000.0, entry_fill=100.5, exit_fill=104.0,
-                 submit_status="accepted", poll_status="filled", positions=()):
-        self.equity = equity
-        self.entry_fill = entry_fill
-        self.exit_fill = exit_fill
-        self.submit_status = submit_status
-        self.poll_status = poll_status
+    def __init__(self):
+        self.orders = {}
+        self.positions = {}
         self.submitted = []
-        self._orders = {}
-        self._n = 0
-        self.positions = list(positions)
+        self.fail = None
+        self.next_state = 'filled'
+        self.next_price = 100.5
+        self.partial_qty = None
 
     def get_account(self):
-        return FakeAccount(self.equity)
+        return NS(id='test-account', equity='100000')
 
-    def submit_order(self, order_data=None):
-        self._n += 1
-        oid = f"o{self._n}"
-        self.submitted.append(order_data)
-        self._orders[oid] = FakeOrder(oid, self.poll_status, str(self.entry_fill),
-                                      str(order_data.qty))
-        return FakeOrder(oid, self.submit_status)
+    def submit_order(self, order_data):
+        if self.fail == 'before':
+            raise TimeoutError('request uncertain')
+        key = order_data.client_order_id
+        self.submitted.append(key)
+        assert key not in self.orders
+        qty = self.partial_qty if self.partial_qty is not None else (order_data.qty if self.next_state == 'filled' else 0)
+        order = NS(id=key, status=self.next_state, filled_qty=str(qty),
+                   filled_avg_price=str(self.next_price) if qty else None,
+                   filled_at=datetime.now(timezone.utc), symbol=order_data.symbol,
+                   sign=1 if order_data.side.value == 'buy' else -1)
+        self.orders[key] = order
+        self.positions[order.symbol] = self.positions.get(order.symbol, 0) + qty * order.sign
+        if self.fail == 'after':
+            raise TimeoutError('accepted but response lost')
+        return order
 
-    def close_position(self, symbol):
-        self._n += 1
-        oid = f"c{self._n}"
-        self._orders[oid] = FakeOrder(oid, "filled", str(self.exit_fill), "1")
-        return FakeOrder(oid, "accepted")
+    def get_order_by_id(self, key):
+        return self.orders[key]
 
-    def get_order_by_id(self, oid):
-        return self._orders[oid]
+    get_order_by_client_id = get_order_by_id
 
     def get_all_positions(self):
-        return self.positions
+        if self.fail == 'positions':
+            raise ConnectionError('positions unavailable')
+        return [NS(symbol=s, qty=str(q)) for s,q in self.positions.items() if q]
+
+    def fill(self, key, qty, price, status='filled'):
+        o = self.orders[key]
+        self.positions[o.symbol] += (qty - float(o.filled_qty)) * o.sign
+        o.filled_qty, o.filled_avg_price, o.status = str(qty), str(price), status
 
 
-def _broker(client):
-    return AlpacaBroker(client=client, fill_timeout=0.0, poll_interval=0)
+def broker(tmp_path, client=None):
+    return AlpacaBroker(client=client or FakeClient(), db_path=str(tmp_path/'orders.db'))
 
 
-LONG = {"ticker": "NVDA", "direction": "LONG", "entry": 100.0, "stop": 98.0, "target": 104.0}
-SHORT = {"ticker": "TSLA", "direction": "SHORT", "entry": 100.0, "stop": 102.0, "target": 94.0}
+def test_confirmed_entry_exit_and_outcome_from_fill(tmp_path):
+    c=FakeClient(); b=broker(tmp_path,c)
+    p=b.open_position(LONG,0,1)
+    assert p['entry']==100.5 and p['shares']==100
+    c.next_price=99
+    t=b.close_position('NVDA',104,'WIN',3,exit_reason='target')
+    assert t['outcome']=='LOSS' and t['pnl']==-150 and t['exit_reason']=='target'
+    assert not b.has_open('NVDA')
 
 
-def test_open_uses_real_fill_not_signal_entry():
-    b = _broker(FakeClient(equity=100_000, entry_fill=100.5))
-    pos = b.open_position(LONG, entry_bar=5, signal_id=1)
-    assert pos["entry"] == 100.5             # real fill, not the 100.0 bar-close plan
-    assert pos["shares"] == 100              # 10% of 100k / 100.0
-    assert pos["stop"] == 98.0 and pos["target"] == 104.0  # planned levels stay absolute
-    assert b.has_open("NVDA")
+@pytest.mark.parametrize('failure', ['before','after'])
+def test_uncertain_close_preserves_exposure_and_reconciles_without_resubmit(tmp_path,failure):
+    c=FakeClient(); b=broker(tmp_path,c); b.open_position(LONG,0)
+    c.fail=failure
+    assert b.close_position('NVDA',104,'WIN',2) is None
+    assert b.has_open('NVDA')
+    restarted=broker(tmp_path,c)
+    c.fail=None
+    restarted.reconcile()
+    if failure=='after':
+        assert not restarted.has_open('NVDA')
+    else:
+        assert restarted.has_open('NVDA') and restarted.blocked
+    assert len(c.submitted)==(2 if failure=='after' else 1)
 
 
-def test_open_short_submits_sell_side():
-    from alpaca.trading.enums import OrderSide
-
-    client = FakeClient()
-    b = _broker(client)
-    b.open_position(SHORT, entry_bar=0)
-    assert client.submitted[-1].side == OrderSide.SELL
-
-
-def test_close_long_uses_real_exit_fill_and_pnl():
-    b = _broker(FakeClient(entry_fill=100.5, exit_fill=104.0))
-    b.open_position(LONG, entry_bar=1)
-    trade = b.close_position("NVDA", exit_price=104.0, outcome="WIN", exit_bar=7)
-    assert trade["exit_price"] == 104.0
-    assert trade["pnl"] == pytest.approx((104.0 - 100.5) * 100)
-    assert trade["outcome"] == "WIN"          # our logic decides WIN/LOSS, not Alpaca
-    assert trade["bars_held"] == 6
-    assert not b.has_open("NVDA")
+def test_entry_acceptance_response_lost_restart_adopts_once(tmp_path):
+    c=FakeClient(); c.fail='after'; b=broker(tmp_path,c)
+    assert b.open_position(LONG,0) is None
+    c.fail=None
+    b=broker(tmp_path,c)
+    assert b.reconcile()
+    b.reconcile()
+    assert b.open_positions['NVDA']['shares']==100
+    assert len(c.submitted)==1
+    with _connect(b.db_path) as conn:
+        assert conn.execute('SELECT count(*) FROM trades').fetchone()[0]==1
 
 
-def test_close_short_pnl_direction():
-    b = _broker(FakeClient(entry_fill=100.0, exit_fill=98.0))
-    b.open_position(SHORT, entry_bar=0)
-    trade = b.close_position("TSLA", exit_price=98.0, outcome="WIN", exit_bar=3)
-    # short profits when price falls: (entry - exit) * shares
-    assert trade["pnl"] == pytest.approx((100.0 - 98.0) * trade["shares"])
+def test_partial_exit_cumulative_prices_apply_once(tmp_path):
+    c=FakeClient(); b=broker(tmp_path,c); b.open_position(LONG,0)
+    c.next_state='partially_filled'; c.partial_qty=40; c.next_price=102
+    assert b.close_position('NVDA',104,'WIN',2) is None
+    assert b.open_positions['NVDA']['remaining_shares']==60
+    assert b.open_positions['NVDA']['pnl']==60
+    key=c.submitted[-1]
+    b.reconcile(); b.reconcile()
+    assert b.open_positions['NVDA']['pnl']==60
+    c.fill(key,100,103)
+    b.reconcile(); b.reconcile()
+    assert not b.has_open('NVDA')
+    with _connect(b.db_path) as conn:
+        t=conn.execute('SELECT * FROM trades').fetchone()
+        assert t['pnl']==250 and t['outcome']=='WIN'
 
 
-def test_no_second_position_same_ticker():
-    b = _broker(FakeClient())
-    assert b.open_position(LONG, entry_bar=0) is not None
-    assert b.open_position(LONG, entry_bar=1) is None
+def test_partial_entry_and_cancellation_preserve_filled_exposure(tmp_path):
+    c=FakeClient(); c.next_state='partially_filled'; c.partial_qty=25
+    b=broker(tmp_path,c); b.open_position(LONG,0)
+    assert b.open_positions['NVDA']['shares']==25
+    assert b.open_position(LONG,1) is None
+    c.orders[c.submitted[-1]].status='canceled'
+    assert b.reconcile()
+    assert b.open_positions['NVDA']['remaining_shares']==25
 
 
-def test_position_too_small_returns_none():
-    b = _broker(FakeClient(equity=5.0))   # 10% of $5 can't afford a $100 share
-    assert b.open_position(LONG, entry_bar=0) is None
+def test_rejected_exit_does_not_close_trade(tmp_path):
+    c=FakeClient(); b=broker(tmp_path,c); b.open_position(LONG,0)
+    c.next_state='rejected'
+    assert b.close_position('NVDA',104,'WIN',2) is None
+    assert b.open_positions['NVDA']['remaining_shares']==100
 
 
-def test_wait_signal_never_opens():
-    b = _broker(FakeClient())
-    assert b.open_position({**LONG, "direction": "WAIT"}, entry_bar=0) is None
+def test_reconciliation_failure_is_not_empty_account(tmp_path):
+    c=FakeClient(); b=broker(tmp_path,c); c.fail='positions'
+    assert not b.reconcile()
+    assert 'unavailable' in b.blocked
+    assert b.open_position(LONG,0) is None
 
 
-def test_await_fill_times_out_when_never_filled():
-    b = _broker(FakeClient(poll_status="accepted"))   # order stays unfilled
-    with pytest.raises(TimeoutError):
-        b.open_position(LONG, entry_bar=0)
+def test_quantity_and_direction_drift_blocks_entries(tmp_path):
+    c=FakeClient(); b=broker(tmp_path,c); b.open_position(LONG,0)
+    c.positions['NVDA']=-100
+    assert not b.reconcile()
+    assert 'mismatch' in b.blocked
 
 
-def test_await_fill_raises_on_reject():
-    b = _broker(FakeClient(poll_status="rejected"))
-    with pytest.raises(RuntimeError):
-        b.open_position(LONG, entry_bar=0)
+def test_missing_confirmed_price_remains_unresolved(tmp_path):
+    c=FakeClient(); c.next_price=None; b=broker(tmp_path,c)
+    assert b.open_position(LONG,0) is None
+    assert b.has_open('NVDA')
+    assert b.blocked
 
 
-def test_close_falls_back_to_theoretical_on_error():
-    client = FakeClient()
-    b = _broker(client)
-    b.open_position(LONG, entry_bar=0)
-    client.close_position = lambda symbol: (_ for _ in ()).throw(RuntimeError("api down"))
-    trade = b.close_position("NVDA", exit_price=104.0, outcome="WIN", exit_bar=2)
-    assert trade["exit_price"] == 104.0   # fell back to the passed theoretical level
-    assert trade["status"] == "CLOSED"
+def test_persisted_intent_before_submission_recovers_once(tmp_path):
+    c=FakeClient(); b=broker(tmp_path,c)
+    b._intent('NVDA','entry',100,{**LONG,'entry_bar':0})
+    b=broker(tmp_path,c)
+    assert b.reconcile()
+    b.reconcile()
+    assert len(c.submitted)==1 and b.open_positions['NVDA']['shares']==100
 
 
-def test_alpaca_open_symbols_reconciliation():
-    b = _broker(FakeClient(positions=[FakePosition("AAPL"), FakePosition("MSFT")]))
-    assert b.alpaca_open_symbols() == {"AAPL", "MSFT"}
+def test_sdk_requests_are_bounded_and_never_automatically_retried(monkeypatch):
+    monkeypatch.setenv('ALPACA_API_KEY','test-key')
+    monkeypatch.setenv('ALPACA_SECRET_KEY','test-secret')
+    from alpaca.trading.client import TradingClient
+    calls=[]
+    monkeypatch.setattr(TradingClient,'_one_request',lambda self,method,url,opts,retry: calls.append((opts,retry)))
+    client=AlpacaBroker._build_client()
+    client._one_request('GET','https://example.invalid',{},5)
+    assert calls==[({'timeout':(3,10)},0)]
+    assert client._retry==0
+
+
+def test_worker_failure_clears_only_after_successful_recovery(tmp_path):
+    from live.trader import LiveTrader
+    c = FakeClient(); b = broker(tmp_path,c)
+    t = LiveTrader(['NVDA'],b.db_path,broker=b)
+    t.worker_error = b.blocked = 'worker failed'
+    t.tick('2026-06-10T14:00Z')
+    assert b.blocked == 'worker failed'
+    c.fail = 'positions'
+    t.recover_worker_error()
+    assert t.worker_error and b.blocked
+    c.fail = None
+    t.recover_worker_error()
+    assert t.worker_error is None and b.blocked is None
