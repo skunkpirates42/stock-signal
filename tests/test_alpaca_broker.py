@@ -171,3 +171,18 @@ def test_sdk_requests_are_bounded_and_never_automatically_retried(monkeypatch):
     client._one_request('GET','https://example.invalid',{},5)
     assert calls==[({'timeout':(3,10)},0)]
     assert client._retry==0
+
+
+def test_worker_failure_clears_only_after_successful_recovery(tmp_path):
+    from live.trader import LiveTrader
+    c = FakeClient(); b = broker(tmp_path,c)
+    t = LiveTrader(['NVDA'],b.db_path,broker=b)
+    t.worker_error = b.blocked = 'worker failed'
+    t.tick('2026-06-10T14:00Z')
+    assert b.blocked == 'worker failed'
+    c.fail = 'positions'
+    t.recover_worker_error()
+    assert t.worker_error and b.blocked
+    c.fail = None
+    t.recover_worker_error()
+    assert t.worker_error is None and b.blocked is None

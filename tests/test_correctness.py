@@ -270,3 +270,89 @@ def test_minute_aggregation_matches_portfolio_replay(tmp_path,monkeypatch):
     a=[{k:t[k] for k in keys} for t in replay['trades'] if t['outcome']!='OPEN']
     b=[{k:t[k] for k in keys} for t in live.broker.closed_trades]
     assert a==b
+
+
+@pytest.mark.parametrize('direction,stop,target,fill', [
+    ('LONG',99,102,98.5), ('LONG',99,102,99), ('LONG',99,102,102),
+    ('SHORT',101,98,101.5), ('SHORT',101,98,101), ('SHORT',101,98,98),
+])
+def test_delayed_fill_rejects_crossed_risk_levels(tmp_path, direction, stop, target, fill):
+    t = LiveTrader(['AAA'], str(tmp_path/'fill.db'))
+    t.pending['AAA'] = dict(ticker='AAA', direction=direction, entry=100, stop=stop,
+        target=target, decision_at='2026-06-10T14:05Z', signal_id=None)
+    t.process_batch({'AAA': bar('2026-06-10T14:05Z', fill)})
+    assert not t.broker.open_positions
+    assert not load_open_positions(t.db_path)
+    assert not t.pending
+
+
+@pytest.mark.parametrize('qqq', ['absent', 'short', 'stale', 'future'])
+def test_regime_falls_back_to_fresh_spy(tmp_path, monkeypatch, qqq):
+    monkeypatch.setattr(config, 'WARMUP_BARS', 2)
+    monkeypatch.setattr('live.trader.compute_indicators', lambda df: dict(close=103,sma20=102,sma50=101))
+    t = LiveTrader(['SPY','QQQ'], str(tmp_path/'regime.db'))
+    t.windows['SPY'].extend([bar('2026-06-10T14:00Z'), bar('2026-06-10T14:05Z')])
+    rows = {'absent': [], 'short': [bar('2026-06-10T14:05Z')],
+            'stale': [bar('2026-06-10T13:30Z')]*2, 'future': [bar('2026-06-10T15:00Z')]*2}
+    t.windows['QQQ'].extend(rows[qqq])
+    assert t._regime(utc('2026-06-10T14:10Z')) == 'BULL'
+    assert t._regime(utc('2026-06-10T15:10Z')) is None
+
+
+def test_forced_partial_batch_rejects_late_symbol(tmp_path):
+    t = LiveTrader(['AAA','BBB'], str(tmp_path/'late.db'))
+    t.ready[utc('2026-06-10T14:05Z')] = {'AAA': bar('2026-06-10T14:05Z')}
+    t._drain_ready(force=True)
+    for minute in range(5):
+        t.on_minute_bar('BBB', utc('2026-06-10T14:00Z')+pd.Timedelta(minutes=minute),100,101,99,100,10)
+    t.tick(utc('2026-06-10T14:11Z'))
+    assert not t.windows['BBB']
+    assert t.watermark == utc('2026-06-10T14:05Z')
+
+
+def test_worker_recovery_restores_local_durable_exposure(tmp_path):
+    t = LiveTrader(['AAA'], str(tmp_path/'recovery.db'))
+    p = t.broker.open_position(dict(ticker='AAA',direction='LONG',entry=100,stop=99,target=102),0)
+    p['db_id'] = log_trade_open(p,t.db_path)
+    t.broker.close_position('AAA',98,'stop',1)  # simulate failure before DB close commit
+    t.worker_error = t.broker.blocked = 'database is locked'
+    t.recover_worker_error()
+    assert t.worker_error is None and t.broker.blocked is None
+    assert t.broker.has_open('AAA') and t.broker.capital == config.STARTING_CAPITAL
+
+
+def test_clock_flatten_persists_exit_without_inventing_fill(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, 'SESSION_POLICY', 'flatten')
+    db = str(tmp_path/'flatten.db'); init_db(db)
+    log_trade_open(dict(ticker='AAA',direction='LONG',entry=100,stop=90,target=120,shares=10),db)
+    t = LiveTrader(['AAA'],db)
+    t.tick(utc('2026-11-27T17:55Z'))
+    with _connect(db) as conn:
+        assert conn.execute('SELECT status FROM runtime_status').fetchone()[0] == 'unresolved'
+    t = LiveTrader(['AAA'],db)
+    assert t.broker.open_positions['AAA']['pending_exit']['reason'] == 'session_close'
+    assert not t.broker.closed_trades
+    t.process_batch({'AAA':bar('2026-11-30T14:30Z',101)})
+    assert t.broker.closed_trades[-1]['exit_reason'] == 'session_close'
+
+
+def test_backtest_storage_override_is_independent(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    (tmp_path/'config.py').write_text((root/'config.py').read_text())
+    env = {**os.environ, 'PYTHONPATH':str(tmp_path), 'DB_PATH':'live.db'}
+    env.pop('BACKTEST_DB_PATH',None)
+    code = 'import config; print(config.DB_PATH, config.BACKTEST_DB_PATH)'
+    assert subprocess.check_output([sys.executable,'-c',code],cwd=tmp_path,env=env,text=True).strip() == f'live.db {tmp_path}/backtest.db'
+    env['BACKTEST_DB_PATH'] = 'replay.db'
+    assert subprocess.check_output([sys.executable,'-c',code],cwd=tmp_path,env=env,text=True).strip() == 'live.db replay.db'
+
+
+def test_worker_recovery_retains_legacy_block(tmp_path):
+    db = str(tmp_path/'legacy-recovery.db'); init_db(db)
+    with _connect(db) as conn:
+        conn.execute("INSERT INTO trades(ticker,outcome) VALUES ('OLD','OPEN')")
+    t = LiveTrader(['OLD'],db)
+    t.worker_error = t.broker.blocked = 'database is locked'
+    t.recover_worker_error()
+    assert t.worker_error is None
+    assert 'Legacy' in t.broker.blocked

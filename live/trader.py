@@ -43,6 +43,8 @@ class LiveTrader:
         self.pending = {}
         self.ready = {}
         self.processed = {}
+        self.watermark = None
+        self.worker_error = None
         self.on_event = None
         init_db(self.db_path)
         self.broker = broker or self._rebuild_broker()
@@ -136,6 +138,23 @@ class LiveTrader:
             else:
                 break
 
+    def recover_worker_error(self):
+        """Clear worker failures only after restoring durable execution state."""
+        if not self.worker_error:
+            return
+        if self.is_alpaca:
+            self.broker._restore()
+            if not self.broker.reconcile():
+                return
+        else:
+            self.broker = self._rebuild_broker()
+            with _connect(self.db_path) as conn:
+                self.pending = {r['ticker']: json.loads(r['payload_json']) for r in conn.execute(
+                    'SELECT * FROM local_pending WHERE scope=?', (self.scope,))}
+        if self.legacy_blocked:
+            self.broker.blocked = self.legacy_blocked
+        self.worker_error = None
+
     def tick(self, ts=None):
         ts = utc(ts or datetime.now(timezone.utc))
         for s, b in list(self.buckets.items()):
@@ -150,7 +169,19 @@ class LiveTrader:
                 for s, pos in list(self.broker.open_positions.items()):
                     self.broker.close_position(s, pos['entry'], 'session_close', self.bar_count.get(s, 0),
                                                exit_reason='session_close')
+        if not self.is_alpaca and config.SESSION_POLICY == 'flatten' and flatten_due(ts):
+            for pos in self.broker.open_positions.values():
+                pos['pending_exit'] = {'reason': 'session_close'}
+                save_position(pos, self.db_path)
+        if self.worker_error:
+            self.broker.blocked = self.worker_error
         self._broker_events()
+        waiting = any(p.get('pending_exit', {}).get('reason') == 'session_close'
+                      for p in self.broker.open_positions.values() if p.get('pending_exit'))
+        if waiting and not self.broker.blocked:
+            set_status(self.scope, 'unresolved', 'Session flatten awaiting an observed executable price',
+                       db_path=self.db_path)
+            return
         set_status(self.scope, 'blocked' if self.broker.blocked else 'running',
                    self.broker.blocked or 'Worker heartbeat; data freshness is separate', db_path=self.db_path)
 
@@ -165,7 +196,10 @@ class LiveTrader:
         for sym in ('SPY', 'QQQ'):
             window = [b for b in self.windows.get(sym, []) if utc(b['timestamp']) + pd.Timedelta(minutes=5) <= decision_at]
             if len(window) < config.WARMUP_BARS or decision_at - utc(window[-1]['timestamp']) > pd.Timedelta(minutes=10):
-                return None
+                if sym == 'SPY':
+                    return None
+                values[sym] = None
+                continue
             values[sym] = compute_indicators(pd.DataFrame(window))
         return classify(values['SPY'], values['QQQ'])
 
@@ -180,6 +214,9 @@ class LiveTrader:
         ts = times.pop()
         if not in_regular_hours(ts):
             return {}
+        if self.watermark is not None and ts <= self.watermark:
+            return {}
+        self.watermark = ts
         decision_at = ts + pd.Timedelta(minutes=5)
         for s, bar in sorted(bars.items()):
             self.processed[s] = ts

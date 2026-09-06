@@ -2,6 +2,7 @@
 from queue import Queue, Empty
 from threading import Thread
 import time
+import logging
 from db.logger import set_status
 
 
@@ -26,14 +27,19 @@ class TradingWorker:
             except Empty:
                 args = None
             try:
+                self.trader.recover_worker_error()
                 if args:
                     self.trader.on_minute_bar(*args)
                 if time.monotonic() >= next_tick:
                     self.trader.tick()
                     next_tick = time.monotonic() + 5
             except Exception as exc:
+                self.trader.worker_error = str(exc)
                 self.trader.broker.blocked = str(exc)
-                set_status(self.trader.scope, 'blocked', str(exc), db_path=self.trader.db_path)
+                try:
+                    set_status(self.trader.scope, 'blocked', str(exc), db_path=self.trader.db_path)
+                except Exception:
+                    logging.exception('Could not persist worker failure status')
             finally:
                 if args:
                     self.events.task_done()

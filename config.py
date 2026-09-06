@@ -67,8 +67,7 @@ BACKTEST_BARS = int(os.environ.get("BACKTEST_BARS", 300))   # bars to replay per
 BACKTEST_LOOKBACK = 120
 
 # --- Storage ---------------------------------------------------------------
-# DB_PATH is env-overridable so a backtest can write to its own file (e.g.
-# `DB_PATH=backtest.db python backtest.py`) without polluting the live DB.
+# Live and replay storage have independent environment overrides.
 DB_PATH = os.environ.get("DB_PATH") or os.path.join(os.path.dirname(__file__), "papertrader.db")
 
 # --- Dashboard -------------------------------------------------------------
@@ -96,7 +95,7 @@ SPREAD_BPS = float(os.environ.get("SPREAD_BPS", "0"))
 SLIPPAGE_BPS = float(os.environ.get("SLIPPAGE_BPS", "0"))
 FEE_PER_SHARE = float(os.environ.get("FEE_PER_SHARE", "0"))
 BAR_LATENESS_SECONDS = float(os.environ.get("BAR_LATENESS_SECONDS", "35"))
-BACKTEST_DB_PATH = os.environ.get("DB_PATH") or os.path.join(os.path.dirname(__file__), "backtest.db")
+BACKTEST_DB_PATH = os.environ.get("BACKTEST_DB_PATH") or os.path.join(os.path.dirname(__file__), "backtest.db")
 if BROKER not in {"local", "alpaca"}:
     raise ValueError("BROKER must be local or alpaca")
 if LLM_PROVIDER not in {"template", "groq", "anthropic"}:

@@ -38,10 +38,15 @@ class PaperBroker:
 
     def open_position(self, signal, entry_bar, signal_id=None):
         ticker = signal['ticker']
-        if signal['direction'] not in ('LONG', 'SHORT') or self.has_open(ticker):
+        if self.blocked or signal['direction'] not in ('LONG', 'SHORT') or self.has_open(ticker):
             return None
         entry = signal['entry']
         if not math.isfinite(entry) or entry <= 0:
+            return None
+        stop, target = signal['stop'], signal['target']
+        if not all(math.isfinite(v) and v > 0 for v in (stop, target)):
+            return None
+        if not (stop < entry < target if signal['direction'] == 'LONG' else target < entry < stop):
             return None
         budget = min(self.capital * self.position_pct, self.available)
         shares = math.floor(budget / (entry + self.policy.cost(entry, 1)))
