@@ -27,9 +27,8 @@ def _seed_for(ticker: str) -> int:
 def synthetic_bars(ticker: str, n: int = 120) -> pd.DataFrame:
     """Return ``n`` seeded synthetic 5-minute bars for ``ticker``.
 
-    A single-session geometric random walk with a mild per-ticker drift, plus volume that
-    loosely tracks absolute returns. One session keeps VWAP well-defined (VWAP resets each
-    trading day).
+    A geometric random walk with per-ticker drift and calendar-aware five-minute bars.
+    Save the generated data to freeze timestamps as well as the seeded prices.
     """
     rng = np.random.default_rng(_seed_for(ticker))
 
@@ -49,9 +48,18 @@ def synthetic_bars(ticker: str, n: int = 120) -> pd.DataFrame:
     base_vol = rng.uniform(5e5, 5e6)
     volume = (base_vol * (1 + 5 * np.abs(returns)) * rng.uniform(0.7, 1.3, size=n)).astype(int)
 
-    # Timestamps: consecutive 5-minute bars ending "now", regular-session cadence.
-    end = datetime.utcnow().replace(second=0, microsecond=0)
-    timestamps = [end - timedelta(minutes=5 * (n - 1 - i)) for i in range(n)]
+    # Calendar-aware completed bars, even when invoked on a weekend.
+    from data.sessions import session_bounds, utc
+    end = utc(datetime.utcnow()).floor('5min')
+    timestamps = []
+    day = end
+    while len(timestamps) < n:
+        pair = session_bounds(day)
+        if pair:
+            candidates = pd.date_range(pair[0], pair[1], freq='5min', inclusive='left')
+            timestamps = [ts for ts in candidates if ts + pd.Timedelta(minutes=5) <= end] + timestamps
+        day -= pd.Timedelta(days=1)
+    timestamps = timestamps[-n:]
 
     return pd.DataFrame(
         {

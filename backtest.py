@@ -1,136 +1,121 @@
-"""Paper-execution backtest runner.
-
-Replays the synthetic bar series forward for each watchlist ticker, exercising the full
-loop: at each bar we either manage the open position (check stop/target) or, if flat in
-that ticker, generate a signal and open a paper trade. Closed trades land in the `trades`
-table with WIN/LOSS/P&L/bars-held; positions still open at the end stay OPEN.
-
-This stands in for the live intraday loop (which would step bars off the Alpaca websocket
-instead of a precomputed series). The engine, executor, and tracker are identical in both.
-
-Run:  python3 backtest.py
-"""
-
-from dotenv import load_dotenv
-
+"""Chronological portfolio replay. All symbols at a timestamp share one allocation cycle."""
+import argparse
+import hashlib
+import json
+import subprocess
+from pathlib import Path
+import pandas as pd
 import config
-from data.source import active_source_name, get_bars, using_alpaca
-from db.logger import close_trade, init_db, log_signal, log_trade_open
-from signals.engine import generate_signal
-from signals.indicators import compute_indicators
-from signals.regime import classify
+from data.source import get_bars, active_source_name
+from data.sessions import utc, in_regular_hours
+from db.logger import init_db, start_run, _connect
+from live.trader import LiveTrader
 from trades.executor import PaperBroker
-from trades.tracker import check_exit
-
-load_dotenv()
+from analytics.metrics import compute_metrics, equity_curve, format_report
 
 
-def precompute_regimes(spy_df, qqq_df) -> list:
-    """Regime per bar index from the SPY/QQQ series (index-aligned across tickers).
-
-    Returns a list the length of the index series; entries before WARMUP_BARS are None.
-    Assumes the watchlist series share a bar index (true for the synthetic generator, and
-    approximately true for live REST since all are fetched with the same length/cadence).
-    """
-    if spy_df is None:
-        return []
-    n = len(spy_df)
-    regimes = [None] * n
-    lb = config.BACKTEST_LOOKBACK
-    for i in range(config.WARMUP_BARS, n):
-        lo = max(0, i - lb + 1)
-        spy_ind = compute_indicators(spy_df.iloc[lo : i + 1])
-        qqq_ind = compute_indicators(qqq_df.iloc[lo : i + 1]) if qqq_df is not None else None
-        regimes[i] = classify(spy_ind, qqq_ind)
-    return regimes
-
-
-def run_ticker(broker: PaperBroker, ticker: str, df, regimes) -> None:
-    """Walk one ticker's bars forward, opening/closing paper trades in `broker`."""
-    n = len(df)
-    for i in range(config.WARMUP_BARS, n):
-        bar = df.iloc[i]
-
-        if broker.has_open(ticker):
-            position = broker.open_positions[ticker]
-            exit_ = check_exit(position, bar)
-            if exit_:
-                trade = broker.close_position(
-                    ticker, exit_["exit_price"], exit_["outcome"], exit_bar=i
-                )
-                close_trade(position["db_id"], trade)
-            continue
-
-        # Flat in this ticker -> look for a fresh entry on this bar.
-        # Bounded trailing window (matches the live loop's rolling buffer; keeps this O(n)).
-        window = df.iloc[max(0, i - config.BACKTEST_LOOKBACK + 1) : i + 1]
-        signal = generate_signal(ticker, compute_indicators(window))
-        signal["regime"] = regimes[i] if i < len(regimes) else None
-        if signal["direction"] not in ("LONG", "SHORT"):
-            continue
-
-        signal_id = log_signal(signal, bar_timestamp=bar["timestamp"], source="backtest")
-        position = broker.open_position(signal, entry_bar=i, signal_id=signal_id)
-        if position is not None:
-            position["db_id"] = log_trade_open(position, source="backtest")
+def normalize_bars(df):
+    df = df.copy()
+    required = ['timestamp', 'open', 'high', 'low', 'close', 'volume']
+    if any(k not in df for k in required):
+        raise ValueError('Missing OHLCV columns')
+    df = df[required]
+    df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True)
+    for _, group in df.groupby('timestamp'):
+        if len(group.drop_duplicates()) > 1:
+            raise ValueError('Conflicting duplicate bar timestamps')
+    df = df.drop_duplicates('timestamp').sort_values('timestamp').reset_index(drop=True)
+    import numpy as np
+    values = df[required[1:]].to_numpy(dtype=float)
+    if not np.isfinite(values).all() or (df[['open','high','low','close']] <= 0).any().any() or (df.volume < 0).any():
+        raise ValueError('Invalid OHLCV values')
+    if ((df.high < df[['open','close','low']].max(axis=1)) | (df.low > df[['open','close','high']].min(axis=1))).any():
+        raise ValueError('Inconsistent OHLC range')
+    return df[df.timestamp.map(in_regular_hours)].reset_index(drop=True)
 
 
-def print_summary(broker: PaperBroker) -> None:
-    closed = broker.closed_trades
-    wins = [t for t in closed if t["outcome"] == "WIN"]
-    losses = [t for t in closed if t["outcome"] == "LOSS"]
-    n = len(closed)
-
-    print("=" * 64)
-    print("BACKTEST SUMMARY")
-    print("=" * 64)
-    print(f"{'TICKER':<8}{'DIR':<6}{'ENTRY':>9}{'EXIT':>9}{'OUT':>6}{'PNL':>11}{'BARS':>6}")
-    for t in closed:
-        print(
-            f"{t['ticker']:<8}{t['direction']:<6}{t['entry']:>9.2f}{t['exit_price']:>9.2f}"
-            f"{t['outcome']:>6}{t['pnl']:>11.2f}{t['bars_held']:>6}"
-        )
-    for ticker, p in broker.open_positions.items():
-        print(f"{ticker:<8}{p['direction']:<6}{p['entry']:>9.2f}{'-':>9}{'OPEN':>6}{'-':>11}{'-':>6}")
-
-    print("-" * 64)
-    total_pnl = sum(t["pnl"] for t in closed)
-    win_rate = len(wins) / n if n else 0.0
-    avg_win = sum(t["pnl"] for t in wins) / len(wins) if wins else 0.0
-    avg_loss = sum(t["pnl"] for t in losses) / len(losses) if losses else 0.0
-    expectancy = win_rate * avg_win + (1 - win_rate) * avg_loss
-
-    print(f"Closed trades:   {n}   (open at end: {len(broker.open_positions)})")
-    print(f"Win rate:        {win_rate:.0%}  ({len(wins)}W / {len(losses)}L)")
-    print(f"Avg win / loss:  {avg_win:+.2f} / {avg_loss:+.2f}")
-    print(f"Expectancy/trade:{expectancy:+.2f}")
-    print(f"Realized P&L:    {total_pnl:+.2f}")
-    print(f"Ending capital:  {broker.capital:,.2f}  "
-          f"(started {config.STARTING_CAPITAL:,.2f}, "
-          f"{(broker.capital / config.STARTING_CAPITAL - 1):+.2%})")
-    if using_alpaca():
-        print("\nNOTE: replay over a few sessions of recent IEX bars — a tiny, "
-              "single-regime sample on a partial-volume feed. Validates the live plumbing, "
-              "not signal quality. Real validation needs 50+ trades across mixed regimes "
-              "accumulated forward (see CLAUDE.md).")
-    else:
-        print("\nNOTE: synthetic random-walk data — these numbers validate the execution "
-              "plumbing only, NOT signal quality. Real validation needs live data and 50+ "
-              "closed trades across mixed regimes (see CLAUDE.md).")
-    print(f"Logged to {config.DB_PATH}")
+def manifest_for(bars, feed, gate='baseline'):
+    canonical = {s: [{**r, 'timestamp': utc(r['timestamp']).isoformat()} for r in df.to_dict('records')]
+                 for s, df in sorted(bars.items())}
+    serialized = json.dumps(canonical, sort_keys=True, separators=(',', ':'))
+    try:
+        revision = subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip()
+        diff = subprocess.check_output(['git','diff','--binary'])
+    except (OSError, subprocess.CalledProcessError):
+        revision, diff = 'unknown', b''
+    root = Path(__file__).resolve().parent
+    code_files = sorted([p for p in root.rglob('*.py') if not any(part.startswith('.') or part == 'node_modules' for part in p.relative_to(root).parts)])
+    source_hash = hashlib.sha256(b''.join(str(p.relative_to(root)).encode() + p.read_bytes() for p in code_files)).hexdigest()
+    times = [utc(r['timestamp']) for df in bars.values() for r in df.to_dict('records')]
+    settings = {k: v for k, v in vars(config).items() if k.isupper() and isinstance(v, (int,float,str,list))
+                and not any(word in k for word in ('KEY','SECRET','PATH','URL','MODEL','PROVIDER','SOUND'))}
+    return {'source':'backtest', 'backend':'local', 'account':config.ACCOUNT_NAMESPACE,
+            'revision':revision, 'source_sha256':source_hash, 'working_diff_sha256':hashlib.sha256(diff).hexdigest(),
+            'dataset_sha256':hashlib.sha256(serialized.encode()).hexdigest(), 'feed':feed,
+            'start':min(times).isoformat() if times else None, 'end':max(times).isoformat() if times else None,
+            'symbols':sorted(bars), 'settings':settings, 'gate':gate,
+            'fill_policy':'next_completed_5min_close', 'session_policy':config.SESSION_POLICY,
+            'allocation':'exit first, alphabetical symbol order, unlevered gross exposure cap',
+            'schema_version':1}
 
 
-def main() -> None:
-    print(f"Data source: {active_source_name()}\n")
-    init_db()
+def run_portfolio(bars, db_path=None, feed='fixture', gate=None, gate_name='baseline', evaluation_start=None, metadata=None):
+    db_path = db_path or config.BACKTEST_DB_PATH
+    bars = {s: normalize_bars(df) for s, df in bars.items()}
+    manifest = manifest_for(bars, feed, gate_name)
+    manifest.update(metadata or {})
+    manifest["evaluation_start"] = str(evaluation_start) if evaluation_start else None
+    init_db(db_path)
+    run_id = start_run(manifest, db_path)
     broker = PaperBroker()
-    # Fetch each ticker once; derive the per-bar regime from SPY/QQQ.
-    bars = {t: get_bars(t, n=config.BACKTEST_BARS) for t in config.WATCHLIST}
-    regimes = precompute_regimes(bars.get("SPY"), bars.get("QQQ"))
-    for ticker in config.WATCHLIST:
-        run_ticker(broker, ticker, bars[ticker], regimes)
-    print_summary(broker)
+    trader = LiveTrader(bars, db_path=db_path, source='backtest', broker=broker, run_id=run_id, gate=gate, evaluation_start=evaluation_start)
+    events = {}
+    for s, df in bars.items():
+        for bar in df.to_dict('records'):
+            events.setdefault(utc(bar['timestamp']), {})[s] = bar
+    for ts in sorted(events):
+        trader.process_batch(events[ts])
+    with _connect(db_path) as conn:
+        trades = [dict(r) for r in conn.execute('SELECT t.*, s.regime FROM trades t LEFT JOIN signals s ON s.id=t.signal_id '
+                  'WHERE t.run_id=? ORDER BY t.exit_at IS NULL,t.exit_at,t.ticker,t.id', (run_id,))]
+    metrics = compute_metrics(trades)
+    metrics['equity'] = equity_curve(trades)
+    dataset = {s:[{**r,'timestamp':utc(r['timestamp']).isoformat()} for r in df.to_dict('records')] for s,df in bars.items()}
+    return {'manifest':manifest, 'dataset':dataset, 'metrics':metrics, 'trades':trades, 'run_id':run_id,
+            'pending_candidates':len(trader.pending), 'censored_positions':len(broker.open_positions)}
 
 
-if __name__ == "__main__":
+def export_result(result, directory):
+    path = Path(directory)
+    path.mkdir(parents=True, exist_ok=True)
+    (path/'bars.json').write_text(json.dumps(result['dataset'],sort_keys=True,separators=(',',':'))+'\n')
+    (path/'bars.meta.json').write_text(json.dumps({'feed':result['manifest']['feed']})+'\n')
+    for key in ('manifest','metrics','trades'):
+        (path / (key+'.json')).write_text(json.dumps(result[key], indent=2, sort_keys=True, allow_nan=False)+'\n')
+    (path/'report.txt').write_text(format_report(result['metrics'])+'\n\n'
+        + f"Censored positions: {result['censored_positions']}; pending candidates: {result['pending_candidates']}\n"
+        + 'Fill policy: next completed five-minute close. Costs are modeled, not measured spread.\n'
+        + f"Feed: {result['manifest']['feed']}. Dataset: {result['manifest']['dataset_sha256']}\n")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--dataset', help='JSON mapping symbols to OHLCV records')
+    parser.add_argument('--output', default='research-output')
+    parser.add_argument('--db', default=config.BACKTEST_DB_PATH)
+    args = parser.parse_args()
+    if args.dataset:
+        bars = {s: pd.DataFrame(rows) for s, rows in json.loads(Path(args.dataset).read_text()).items()}
+        meta = Path(args.dataset).with_suffix('.meta.json')
+        feed = json.loads(meta.read_text())['feed'] if meta.exists() else 'saved:unknown provenance'
+    else:
+        bars = {s:get_bars(s, config.BACKTEST_BARS) for s in config.WATCHLIST}
+        feed = active_source_name()
+    result = run_portfolio(bars, args.db, feed, metadata={'command': ['backtest.py','--dataset', args.dataset, '--output',args.output]})
+    export_result(result, args.output)
+    print(format_report(result['metrics']))
+    print(f"Artifacts: {args.output}; run: {result['run_id']}")
+
+
+if __name__ == '__main__':
     main()

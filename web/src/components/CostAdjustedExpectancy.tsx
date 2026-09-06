@@ -5,26 +5,26 @@ import { DEFAULT_COST_PER_TRADE, breakEvenCost, netExpectancy } from "@/lib/cost
 import { formatCurrency, formatPrice } from "@/lib/format";
 
 export interface CostAdjustedExpectancyProps {
-  grossExpectancy: number;
+  recordedExpectancy: number;
 }
 
-export default function CostAdjustedExpectancy({ grossExpectancy }: CostAdjustedExpectancyProps) {
+export default function CostAdjustedExpectancy({ recordedExpectancy }: CostAdjustedExpectancyProps) {
   const [costPerTrade, setCostPerTrade] = useState(DEFAULT_COST_PER_TRADE);
-  const net = netExpectancy(grossExpectancy, costPerTrade);
-  const breakEven = breakEvenCost(grossExpectancy);
+  const net = netExpectancy(recordedExpectancy, costPerTrade);
+  const breakEven = breakEvenCost(recordedExpectancy);
 
   return (
     <div className="cost-adjusted-expectancy">
       <h2 className="micro">Cost-adjusted expectancy</h2>
       <div className="cost-adjusted-row">
         <div className="cost-adjusted-stat">
-          <div className="stat-tile-label">Gross</div>
-          <div className={`stat-tile-value ${grossExpectancy >= 0 ? "tone-positive" : "tone-negative"}`}>
-            {formatCurrency(grossExpectancy)}
+          <div className="stat-tile-label">Recorded net</div>
+          <div className={`stat-tile-value ${recordedExpectancy >= 0 ? "tone-positive" : "tone-negative"}`}>
+            {formatCurrency(recordedExpectancy)}
           </div>
         </div>
         <div className="cost-adjusted-stat">
-          <div className="stat-tile-label">Net</div>
+          <div className="stat-tile-label">After extra cost</div>
           <div className={`stat-tile-value ${net >= 0 ? "tone-positive" : "tone-negative"}`}>
             {formatCurrency(net)}
           </div>
@@ -36,7 +36,7 @@ export default function CostAdjustedExpectancy({ grossExpectancy }: CostAdjusted
           </div>
         </div>
         <label className="cost-adjusted-input">
-          Cost per trade
+          Additional cost per trade
           <input
             type="number"
             step="0.25"
@@ -49,11 +49,11 @@ export default function CostAdjustedExpectancy({ grossExpectancy }: CostAdjusted
       <p className="cost-adjusted-crossing">
         {breakEven > 0
           ? `Net expectancy reaches zero at ${formatPrice(breakEven)} of cost per trade. Above that, the edge is gone.`
-          : "Gross expectancy is already at or below zero, so no cost level makes this profitable."}
+          : "Recorded expectancy is already at or below zero, so no cost level makes this profitable."}
       </p>
       <p className="cost-adjusted-note">
-        Backtest analysis found the strategy&apos;s edge sits below realistic transaction
-        costs. Adjust the cost input to see where net expectancy crosses zero.
+        This is an additional hypothetical cost beyond costs already recorded. Legacy
+        trades may have no modeled costs; broker fills already include execution spread.
       </p>
     </div>
   );

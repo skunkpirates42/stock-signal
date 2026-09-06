@@ -24,7 +24,7 @@ export default function OpenPositions({ positions, now }: OpenPositionsProps) {
             <PositionCard
               key={position.id}
               position={position}
-              stale={isStale(position.created_at, now)}
+              stale={isStale(position.entry_at ?? position.created_at, now)}
             />
           ))}
         </div>

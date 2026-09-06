@@ -17,7 +17,7 @@ import sqlite3
 
 import config
 
-CLOSED = ("WIN", "LOSS")
+CLOSED = ("WIN", "LOSS", "BREAKEVEN")
 
 
 def _safe_mean(values):
@@ -83,7 +83,7 @@ def compute_metrics(trades, starting_capital: float = None) -> dict:
     win_rate = len(wins) / n if n else 0.0
     avg_win = _safe_mean([t["pnl"] for t in wins])
     avg_loss = _safe_mean([t["pnl"] for t in losses])  # negative
-    expectancy = win_rate * avg_win + (1 - win_rate) * avg_loss
+    expectancy = _safe_mean([t["pnl"] for t in closed])
 
     gross_profit = sum(t["pnl"] for t in wins)
     gross_loss = -sum(t["pnl"] for t in losses)  # positive magnitude
@@ -96,6 +96,10 @@ def compute_metrics(trades, starting_capital: float = None) -> dict:
         "n_open": n_open,
         "n_wins": len(wins),
         "n_losses": len(losses),
+        "n_breakeven": sum(t["outcome"] == "BREAKEVEN" for t in closed),
+        "gross_pnl": round(sum(t.get("gross_pnl") if t.get("gross_pnl") is not None else t["pnl"] for t in closed), 2),
+        "costs": round(sum(t.get("costs") or 0 for t in closed), 2),
+        "metric_basis": "net of recorded costs; legacy rows may have unmodeled costs",
         "win_rate": win_rate,
         "avg_win": round(avg_win, 2),
         "avg_loss": round(avg_loss, 2),
@@ -104,7 +108,7 @@ def compute_metrics(trades, starting_capital: float = None) -> dict:
         "total_pnl": round(sum(t["pnl"] for t in closed), 2),
         "max_drawdown": max_dd_abs,
         "max_drawdown_pct": max_dd_pct,
-        "avg_bars_held": round(_safe_mean([t["bars_held"] for t in closed]), 1),
+        "avg_bars_held": round(_safe_mean([t["bars_held"] for t in closed if t["bars_held"] is not None]), 1),
         "avg_r_multiple": round(_safe_mean([_r_multiple(t) for t in closed]), 3),
         "avg_win_r": round(_safe_mean([_r_multiple(t) for t in wins]), 3),
         "avg_loss_r": round(_safe_mean([_r_multiple(t) for t in losses]), 3),
@@ -128,12 +132,12 @@ def equity_curve(trades, starting_capital: float = None):
         if t["outcome"] not in CLOSED:
             continue
         equity += t["pnl"]
-        label = (t.get("closed_at") or "")[:19] or t["ticker"]
+        label = (t.get("exit_at") or t.get("closed_at") or "")[:19] or t["ticker"]
         points.append({"label": label, "equity": round(equity, 2), "pnl": t["pnl"]})
     return points
 
 
-def load_closed_trades(db_path: str = None, source: str = None):
+def load_closed_trades(db_path: str = None, source: str = None, backend=None, account=None):
     """Load all trades from SQLite as dicts, ordered by close time (then id).
 
     `source` optionally restricts to "live" or "backtest" rows; omitted, all rows load
@@ -148,10 +152,11 @@ def load_closed_trades(db_path: str = None, source: str = None):
           LEFT JOIN signals s ON t.signal_id = s.id
         """
     params = []
-    if source:
-        sql += " WHERE t.source = ?"
-        params.append(source)
-    sql += " ORDER BY t.closed_at IS NULL, t.closed_at, t.id"
+    from db.logger import scope_sql, init_db
+    clauses, params = scope_sql(source, backend, account, "t.")
+    if clauses:
+        sql += " WHERE " + " AND ".join(clauses)
+    sql += " ORDER BY COALESCE(t.exit_at,t.closed_at) IS NULL, COALESCE(t.exit_at,t.closed_at), t.id"
     rows = conn.execute(sql, params).fetchall()
     conn.close()
     return [dict(r) for r in rows]

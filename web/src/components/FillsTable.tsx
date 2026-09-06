@@ -13,7 +13,7 @@ function outcomeClass(outcome: Trade["outcome"]): string {
 }
 
 export default function FillsTable({ trades }: FillsTableProps) {
-  const sorted = [...trades].sort((a, b) => (b.closed_at ?? "").localeCompare(a.closed_at ?? ""));
+  const sorted = [...trades].sort((a, b) => (b.exit_at ?? b.closed_at ?? "").localeCompare(a.exit_at ?? a.closed_at ?? ""));
   const shares = shareOfMax(sorted.map((trade) => trade.pnl ?? 0));
 
   return (
@@ -36,7 +36,7 @@ export default function FillsTable({ trades }: FillsTableProps) {
           <tbody>
             {sorted.map((trade, index) => (
               <tr key={trade.id}>
-                <td>{trade.ticker}</td>
+                <td>{trade.ticker} <small>{trade.source ?? "unknown"} · {trade.backend ?? "unknown backend"}</small></td>
                 <td>{trade.direction}</td>
                 <td>{formatPrice(trade.entry)}</td>
                 <td>{formatPrice(trade.exit_price)}</td>
@@ -46,7 +46,7 @@ export default function FillsTable({ trades }: FillsTableProps) {
                   <span className="cell-value">{formatCurrency(trade.pnl)}</span>
                 </td>
                 <td>{trade.bars_held ?? "—"}</td>
-                <td>{formatTimestamp(trade.closed_at)}</td>
+                <td>{formatTimestamp(trade.exit_at ?? trade.closed_at)}</td>
               </tr>
             ))}
             {sorted.length === 0 && (

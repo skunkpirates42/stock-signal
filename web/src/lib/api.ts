@@ -29,6 +29,6 @@ export function getTrades(opts: { source?: string; limit?: number } = {}) {
   return get<Trade[]>(`/api/trades?${params}`);
 }
 
-export function getOpenPositions() {
-  return get<Trade[]>("/api/open");
+export function getOpenPositions(source = "live") {
+  return get<Trade[]>(`/api/open?source=${encodeURIComponent(source)}`);
 }

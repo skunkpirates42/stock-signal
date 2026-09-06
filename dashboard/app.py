@@ -15,13 +15,14 @@ from flask import Flask, abort, jsonify, render_template, request
 import config
 from alerts.feed import build_alert_events
 from analytics.metrics import compute_metrics, equity_curve, load_closed_trades
-from db.logger import load_open_positions
+from db.logger import load_open_positions, init_db, scope_sql, _connect
 from signals.llm_synthesis import signal_from_row, synthesize
 
 
 def create_app(db_path: str = None) -> Flask:
     app = Flask(__name__)
     app.config["DB_PATH"] = db_path or config.DB_PATH
+    init_db(app.config["DB_PATH"])
 
     def _db():
         return app.config["DB_PATH"]
@@ -31,15 +32,17 @@ def create_app(db_path: str = None) -> Flask:
         conn.row_factory = sqlite3.Row
         sql = "SELECT * FROM %s" % table
         params = []
-        if source:
-            sql += " WHERE source = ?"
-            params.append(source)
+        clauses, params = scope_sql(source)
+        if table in ("trades", "signals"):
+            more, values = scope_sql(backend=request.args.get("backend"), account=request.args.get("account"))
+            clauses += more
+            params += values
+        if clauses:
+            sql += " WHERE " + " AND ".join(clauses)
         sql += " ORDER BY id DESC LIMIT ?"
         params.append(limit)
         try:
             rows = conn.execute(sql, params).fetchall()
-        except sqlite3.OperationalError:
-            return []  # table not created yet
         finally:
             conn.close()
         return [dict(r) for r in rows]
@@ -49,7 +52,10 @@ def create_app(db_path: str = None) -> Flask:
         if raw is None:
             return default_limit, request.args.get("source")
         try:
-            return int(raw), request.args.get("source")
+            limit = int(raw)
+            if limit < 1 or limit > 5000:
+                abort(400, "limit must be between 1 and 5000")
+            return limit, request.args.get("source")
         except ValueError:
             abort(400, "limit must be an integer")
 
@@ -59,7 +65,8 @@ def create_app(db_path: str = None) -> Flask:
 
     @app.route("/api/metrics")
     def api_metrics():
-        trades = load_closed_trades(_db(), source=request.args.get("source"))
+        trades = load_closed_trades(_db(), source=request.args.get("source"),
+            backend=request.args.get("backend"), account=request.args.get("account"))
         m = compute_metrics(trades)
         m["equity"] = equity_curve(trades)
         return jsonify(m)
@@ -76,7 +83,8 @@ def create_app(db_path: str = None) -> Flask:
 
     @app.route("/api/open")
     def api_open():
-        return jsonify(load_open_positions(_db()))
+        return jsonify(load_open_positions(_db(), source=request.args.get("source", "live"),
+            backend=request.args.get("backend"), account=request.args.get("account")))
 
     @app.route("/api/signals/<int:signal_id>/explain", methods=["POST"])
     def api_explain(signal_id):
@@ -121,8 +129,18 @@ def create_app(db_path: str = None) -> Flask:
     def api_alerts():
         # Unified, newest-first stream of alert-worthy events (actionable signals + trade
         # opens/closes). Filtering is done client-side so the UI controls stay responsive.
-        events = build_alert_events(_recent("signals", 200), _recent("trades", 200), limit=80)
+        events = build_alert_events(_recent("signals", 200, request.args.get("source", "live")),
+                                    _recent("trades", 200, request.args.get("source", "live")), limit=80)
         return jsonify(events)
+
+    @app.route("/api/status")
+    def api_status():
+        with _connect(_db()) as conn:
+            runtime = [dict(r) for r in conn.execute("SELECT * FROM runtime_status WHERE scope LIKE 'live:%'")]
+            orders = [dict(r) for r in conn.execute("SELECT id,ticker,purpose,state,requested_qty,filled_qty,last_error,account "
+                "FROM orders WHERE state NOT IN ('filled','canceled','rejected','expired','done_for_day','suspended')")]
+            latest = conn.execute("SELECT MAX(bar_timestamp) FROM signals WHERE source='live'").fetchone()[0]
+        return jsonify(runtime=runtime, unresolved_orders=orders, latest_bar=latest)
 
     return app
 

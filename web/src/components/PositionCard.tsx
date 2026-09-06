@@ -20,9 +20,10 @@ export default function PositionCard({ position, stale }: PositionCardProps) {
           {position.direction}
         </span>
         {stale && <span className="positions-stale-badge">STALE</span>}
-        <span className="micro position-card-age">{formatTimestamp(position.created_at)}</span>
+        <span className="micro position-card-age">{formatTimestamp(position.entry_at ?? position.created_at)}</span>
       </header>
 
+      <p className="micro">{position.source ?? "unknown source"} · {position.backend ?? "unknown backend"} · {position.account ?? "unknown account"}</p>
       <LevelScale
         stop={position.stop}
         entry={position.entry}
@@ -41,7 +42,7 @@ export default function PositionCard({ position, stale }: PositionCardProps) {
         </div>
         <div>
           <dt className="micro">Shares</dt>
-          <dd className="num">{position.shares}</dd>
+          <dd className="num">{position.remaining_shares ?? position.shares}</dd>
         </div>
       </dl>
     </article>

@@ -5,10 +5,12 @@ Loads closed trades from the database and prints the metrics from CLAUDE.md.
 Run:  python3 report.py     (after running backtest.py to populate trades)
 """
 
+from db.logger import init_db
 from analytics.metrics import compute_metrics, format_report, load_closed_trades
 
 
 def main() -> None:
+    init_db()
     trades = load_closed_trades()
     metrics = compute_metrics(trades)
     print(format_report(metrics))

@@ -1,0 +1,14 @@
+[
+  {
+    "name": "development",
+    "start": "2026-06-09T13:30Z",
+    "end": "2026-06-09T20:00Z",
+    "role": "development"
+  },
+  {
+    "name": "holdout",
+    "start": "2026-06-10T13:30Z",
+    "end": "2026-06-10T20:00Z",
+    "role": "holdout"
+  }
+]
