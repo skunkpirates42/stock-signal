@@ -27,14 +27,110 @@ class PaperBroker:
         self.closed_trades = []
         self.blocked = None
         self.account = config.ACCOUNT_NAMESPACE
+        # This is a local accounting overlay, deliberately separate from ``capital``.
+        # ``capital`` remains the legacy closed-trade P&L basis so old journals and
+        # no-flow replays retain byte-for-byte trade economics.
+        self.accounting_cash = 0.0
+        self.receivables = 0.0
+        self.distribution_payables = 0.0
+        self.borrow_payables = 0.0
+        self.refund_receivables = 0.0
+        self.repayment_liabilities = 0.0
+        self.accounting_unavailable = 0
 
     def has_open(self, ticker):
         return ticker in self.open_positions
 
     @property
     def available(self):
-        return max(0, self.capital - sum(p['entry'] * p['shares'] + p.get('entry_cost', 0)
-                                       for p in self.open_positions.values()))
+        if self.accounting_unavailable:
+            return 0
+        return max(0, self.sizing_capital - self.reserved)
+
+    @property
+    def reserved(self):
+        """Existing gross-notional reservation; short proceeds never fund new entries."""
+        return sum(p['entry'] * p['shares'] + p.get('entry_cost', 0)
+                   for p in self.open_positions.values())
+
+    @property
+    def sizing_capital(self):
+        """Causal local capital policy from the accounting contract.
+
+        Settled accounting cash can fund the portfolio.  Long/refund receivables are
+        excluded until cash arrives; known short-distribution, borrow and repayment
+        obligations reserve capital immediately.  Missing required inputs freeze new
+        allocation but never invent a cover or alter a saved exit.
+        """
+        return (self.capital + self.accounting_cash - self.distribution_payables
+                - self.borrow_payables - self.repayment_liabilities)
+
+    def apply_accounting_posting(self, posting):
+        """Apply one already-deduplicated ledger posting to the local capital overlay."""
+        if posting.get('unavailable_reason'):
+            self.accounting_unavailable += 1
+            self.blocked = self.blocked or 'Accounting inputs unavailable; new allocations are frozen'
+            return
+        fields = {
+            'cash_delta': 'accounting_cash',
+            'receivable_delta': 'receivables',
+            'payable_delta': 'distribution_payables',
+            'borrow_payable_delta': 'borrow_payables',
+            'refund_receivable_delta': 'refund_receivables',
+            'repayment_liability_delta': 'repayment_liabilities',
+        }
+        for source, target in fields.items():
+            delta = float(posting.get(source, 0))
+            value = getattr(self, target) + delta
+            # The durable ledger represents corrections as explicit opposite deltas;
+            # negative balance accounts are invalid rather than silently netted.
+            if target != 'accounting_cash' and value < -1e-9:
+                raise ValueError(f'accounting posting would make {target} negative')
+            setattr(self, target, value if target == 'accounting_cash' else max(0.0, value))
+
+    def accounting_state(self):
+        """Expose the local overlay without relabeling it as broker cash or profitability."""
+        return {
+            'cash': self.accounting_cash, 'receivables': self.receivables,
+            'distribution_payables': self.distribution_payables,
+            'borrow_payables': self.borrow_payables,
+            'refund_receivables': self.refund_receivables,
+            'repayment_liabilities': self.repayment_liabilities,
+            'sizing_capital': self.sizing_capital, 'available_capital': self.available,
+            'capital_unavailable_count': self.accounting_unavailable,
+        }
+
+    def restore_accounting_state(self, summary):
+        """Rebuild the local overlay from a scoped durable ledger summary.
+
+        ``capital`` remains the separately restored legacy trade-capital basis.  The
+        caller must supply a summary for the same source/backend/account/run scope;
+        an unscoped or incomplete summary is never treated as a zero balance.
+        """
+        required = ('cash_delta', 'receivable_delta', 'payable_delta', 'borrow_payable_delta',
+                    'refund_receivable_delta', 'repayment_liability_delta', 'unavailable_count')
+        if any(key not in summary for key in required):
+            raise ValueError('cannot restore accounting overlay without a complete scoped summary')
+        fields = {
+            'cash_delta': 'accounting_cash', 'receivable_delta': 'receivables',
+            'payable_delta': 'distribution_payables', 'borrow_payable_delta': 'borrow_payables',
+            'refund_receivable_delta': 'refund_receivables',
+            'repayment_liability_delta': 'repayment_liabilities',
+        }
+        for source, target in fields.items():
+            value = float(summary[source])
+            if target != 'accounting_cash' and value < -1e-9:
+                raise ValueError(f'invalid negative restored {target}')
+            setattr(self, target, value)
+        self.accounting_unavailable = int(summary['unavailable_count'])
+        if self.accounting_unavailable:
+            self.blocked = self.blocked or 'Accounting inputs unavailable; new allocations are frozen'
+
+    def mark_accounting_unavailable(self, count=1):
+        """Freeze new allocations when a scoped accounting coverage gap is material."""
+        self.accounting_unavailable += max(0, int(count))
+        if self.accounting_unavailable:
+            self.blocked = self.blocked or 'Accounting inputs unavailable; new allocations are frozen'
 
     def open_position(self, signal, entry_bar, signal_id=None):
         ticker = signal['ticker']
@@ -48,7 +144,9 @@ class PaperBroker:
             return None
         if not (stop < entry < target if signal['direction'] == 'LONG' else target < entry < stop):
             return None
-        budget = min(self.capital * self.position_pct, self.available)
+        if self.accounting_unavailable:
+            return None
+        budget = min(self.sizing_capital * self.position_pct, self.available)
         shares = math.floor(budget / (entry + self.policy.cost(entry, 1)))
         if shares < 1:
             return None
