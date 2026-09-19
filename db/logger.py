@@ -2,6 +2,8 @@
 import json
 import sqlite3
 import uuid
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timezone
 import config
 
@@ -29,10 +31,36 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 
+_replay_connection = ContextVar('replay_connection', default=None)
+
+
+@contextmanager
 def _connect(db_path=None):
+    shared = _replay_connection.get()
+    if shared is not None and str(db_path or config.DB_PATH) == shared[0]:
+        yield shared[1]
+        return
     conn = sqlite3.connect(db_path or config.DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
+
+
+@contextmanager
+def replay_connection(db_path):
+    """Offline replay only: reuse one connection; caller commits completed sessions."""
+    conn = sqlite3.connect(db_path, timeout=30)
+    conn.row_factory = sqlite3.Row
+    token = _replay_connection.set((str(db_path), conn))
+    try:
+        with conn:
+            yield conn
+    finally:
+        _replay_connection.reset(token)
+        conn.close()
 
 
 def init_db(db_path=None):

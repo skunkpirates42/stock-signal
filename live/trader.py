@@ -27,13 +27,15 @@ def floor_5min(ts):
 
 class LiveTrader:
     def __init__(self, symbols, db_path=None, window_size=120, source='live', broker=None,
-                 run_id=None, gate=None, evaluation_start=None):
+                 run_id=None, gate=None, evaluation_start=None, indicator_cache=None):
         self.symbols = sorted(symbols)
         self.db_path = db_path or config.DB_PATH
         self.window_size = window_size
         self.source = source
         self.run_id = run_id
         self.gate = gate
+        # Optional cache scoped to one immutable research dataset and configuration.
+        self.indicator_cache = indicator_cache
         self.evaluation_start = utc(evaluation_start) if evaluation_start else None
         self.windows = {s: deque(maxlen=window_size) for s in self.symbols}
         self.buckets = {s: None for s in self.symbols}
@@ -191,6 +193,14 @@ class LiveTrader:
                 kind, payload = self.broker.events.pop(0)
                 self._emit(kind, payload)
 
+    def _indicators(self, symbol, window):
+        if self.indicator_cache is None:
+            return compute_indicators(pd.DataFrame(list(window)))
+        key = (symbol, utc(window[0]['timestamp']), utc(window[-1]['timestamp']), len(window))
+        if key not in self.indicator_cache:
+            self.indicator_cache[key] = compute_indicators(pd.DataFrame(list(window)))
+        return self.indicator_cache[key]
+
     def _regime(self, decision_at):
         values = {}
         for sym in ('SPY', 'QQQ'):
@@ -200,7 +210,7 @@ class LiveTrader:
                     return None
                 values[sym] = None
                 continue
-            values[sym] = compute_indicators(pd.DataFrame(window))
+            values[sym] = self._indicators(sym, window)
         return classify(values['SPY'], values['QQQ'])
 
     def process_batch(self, bars):
@@ -268,11 +278,12 @@ class LiveTrader:
                         pos['db_id'] = log_trade_open(pos, self.db_path, self.source)
                         self._emit('open', pos)
         results = {}
+        regime = self._regime(decision_at)
         for s, bar in sorted(bars.items()):
             if len(self.windows[s]) < config.WARMUP_BARS:
                 continue
-            signal = generate_signal(s, compute_indicators(pd.DataFrame(list(self.windows[s]))))
-            signal.update(regime=self._regime(decision_at), decision_at=decision_at.isoformat(), run_id=self.run_id,
+            signal = generate_signal(s, self._indicators(s, self.windows[s]))
+            signal.update(regime=regime, decision_at=decision_at.isoformat(), run_id=self.run_id,
                           backend="alpaca" if self.is_alpaca else "local", account=self.broker.account)
             reason = signal.get('skip_reason') or ('wait' if signal['direction'] == 'WAIT' else None)
             if not executable:
@@ -285,10 +296,12 @@ class LiveTrader:
                 reason = 'execution_unresolved'
             elif config.SESSION_POLICY == 'flatten' and decision_at >= session_bounds(ts)[1] - pd.Timedelta(minutes=10):
                 reason = 'session_closing'
-            if self.gate and not reason:
+            # Record gate context even when portfolio state prevents execution, so
+            # rejection rates compare the same raw candidates across variants.
+            if self.gate and signal['direction'] in ('LONG', 'SHORT'):
                 accepted, detail = self.gate(s, self.windows, decision_at, signal['direction'])
                 signal['gate_json'] = json.dumps(detail)
-                if not accepted:
+                if not accepted and not reason:
                     reason = 'quality_gate'
             signal['skip_reason'] = reason
             synthesize(signal, provider='template')
