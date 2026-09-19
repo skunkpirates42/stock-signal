@@ -8,7 +8,7 @@ import pandas as pd
 import config
 from data.source import get_bars, active_source_name
 from data.sessions import utc, in_regular_hours
-from db.logger import init_db, start_run, _connect
+from db.logger import init_db, start_run, _connect, replay_connection
 from live.trader import LiveTrader
 from trades.executor import PaperBroker
 from analytics.metrics import compute_metrics, equity_curve, format_report
@@ -21,7 +21,7 @@ def normalize_bars(df):
         raise ValueError('Missing OHLCV columns')
     df = df[required]
     df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True)
-    for _, group in df.groupby('timestamp'):
+    for _, group in df[df.timestamp.duplicated(keep=False)].groupby('timestamp'):
         if len(group.drop_duplicates()) > 1:
             raise ValueError('Conflicting duplicate bar timestamps')
     df = df.drop_duplicates('timestamp').sort_values('timestamp').reset_index(drop=True)
@@ -59,7 +59,7 @@ def manifest_for(bars, feed, gate='baseline'):
             'schema_version':1}
 
 
-def run_portfolio(bars, db_path=None, feed='fixture', gate=None, gate_name='baseline', evaluation_start=None, metadata=None):
+def run_portfolio(bars, db_path=None, feed='fixture', gate=None, gate_name='baseline', evaluation_start=None, metadata=None, indicator_cache=None):
     db_path = db_path or config.BACKTEST_DB_PATH
     bars = {s: normalize_bars(df) for s, df in bars.items()}
     manifest = manifest_for(bars, feed, gate_name)
@@ -68,13 +68,18 @@ def run_portfolio(bars, db_path=None, feed='fixture', gate=None, gate_name='base
     init_db(db_path)
     run_id = start_run(manifest, db_path)
     broker = PaperBroker()
-    trader = LiveTrader(bars, db_path=db_path, source='backtest', broker=broker, run_id=run_id, gate=gate, evaluation_start=evaluation_start)
+    trader = LiveTrader(bars, db_path=db_path, source='backtest', broker=broker, run_id=run_id, gate=gate, evaluation_start=evaluation_start, indicator_cache=indicator_cache)
     events = {}
     for s, df in bars.items():
         for bar in df.to_dict('records'):
             events.setdefault(utc(bar['timestamp']), {})[s] = bar
-    for ts in sorted(events):
-        trader.process_batch(events[ts])
+    with replay_connection(db_path) as conn:
+        previous_day = None
+        for ts in sorted(events):
+            if ts.date() != previous_day:
+                conn.commit()
+                previous_day = ts.date()
+            trader.process_batch(events[ts])
     with _connect(db_path) as conn:
         trades = [dict(r) for r in conn.execute('SELECT t.*, s.regime FROM trades t LEFT JOIN signals s ON s.id=t.signal_id '
                   'WHERE t.run_id=? ORDER BY t.exit_at IS NULL,t.exit_at,t.ticker,t.id', (run_id,))]
