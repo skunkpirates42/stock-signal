@@ -1,0 +1,4 @@
+[
+  {"name": "development", "start": "2026-03-01T00:00:00Z", "end": "2026-07-01T00:00:00Z", "role": "development"},
+  {"name": "holdout", "start": "2026-07-01T00:00:00Z", "end": "2026-09-01T00:00:00Z", "role": "holdout"}
+]

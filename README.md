@@ -159,7 +159,7 @@ Reproduce the synthetic fixture (no credentials or network):
 Compare optional research gates on explicitly labeled chronological windows:
 
 ```bash
-.venv/bin/python research.py --dataset tests/fixtures/bars.json --windows tests/fixtures/windows.json --output /tmp/gate-comparison
+.venv/bin/python research.py --dataset tests/fixtures/bars.json --windows tests/fixtures/windows.json --output /tmp/gate-comparison --allow-synthetic --allow-zero-costs
 ```
 
 Artifacts include configuration, dataset/code fingerprints, feed, policy, historical
@@ -167,6 +167,15 @@ trades, metrics and a report. Fixture results validate plumbing only. Real resea
 saved market data, fixed development/holdout windows, realistic cost scenarios and
 prospective validation. RVOL needs at least ten prior session observations; the small
 fixture intentionally cannot establish a volume result.
+
+For an explicit-date Alpaca IEX download, see the [market-data experiment protocol](docs/experiments/alpaca-iex-2026.md).
+For next steps and assignments suitable for smaller coding models, see the
+[research roadmap](docs/experiments/roadmap.md) and [task packets](docs/experiments/tasks/README.md).
+[Automatic delegation](docs/experiments/delegation.md) assigns the documented worker and review models when you request a task.
+`python -m data.download_history` saves bars, provenance, checksums and session coverage
+without submitting orders. `python -m analytics.research_review --comparison <output>`
+adds marked open-position equity, drawdown, exposure, turnover and paired session-block
+uncertainty to a completed comparison. Dividends and short borrow remain unmodeled.
 
 Next.js polls while visible and preserves filters/explanation state. The status band
 separates API reachability from worker heartbeat/data freshness and exposes unresolved

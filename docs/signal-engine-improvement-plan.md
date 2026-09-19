@@ -2,6 +2,11 @@
 
 Status: research and implementation proposal, separate from [pipeline correctness work](implementation-plan.md). Proposed advantages are hypotheses, not established trading results.
 
+The first four-way experiment is complete; see [results](experiments/alpaca-iex-2026-results.md).
+Continue with the [staged roadmap](experiments/roadmap.md) and its
+[bounded coding-agent tasks](experiments/tasks/README.md). The recommendations below
+describe the original hypotheses; no variant has earned promotion.
+
 ## Recommendation
 
 Start with benchmark-relative strength and time-of-day relative volume as independent quality gates. They add context the current votes do not contain and permit a clean comparison while preserving direction decisions. Then test whether separating trend-following from mean-reversion improves results. Add an execution-cost gate once realistic fills and cost accounting exist. Defer learned scoring until there is enough independently evaluated data.
