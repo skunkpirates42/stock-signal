@@ -68,8 +68,15 @@ def diagnostics(result, db, w):
         daily[day] = daily.get(day, 0.0) + t['pnl']
     total = sum(daily.values())
     tickers = result['metrics']['by_ticker']
+    expected = window_sessions(w)
+    observed = sorted({str(utc(r['timestamp']).tz_convert('America/New_York').date())
+                       for symbol in result['dataset'].values() for r in symbol})
+    incomplete = sorted(set(expected) - set(observed))
     return {
         'sessions': len(daily), 'closed_net_pnl_by_exit_session': daily,
+        'session_inventory': {'expected': expected, 'observed': observed,
+                              'incomplete': incomplete,
+                              'eligible': sorted(set(expected) - set(incomplete))},
         'net_pnl_per_session': total / len(daily) if daily else None,
         'net_pnl_without_best_session': total - max(daily.values(), default=0),
         'net_pnl_without_best_ticker': total - max((b['pnl'] for b in tickers.values()), default=0),
@@ -78,6 +85,10 @@ def diagnostics(result, db, w):
         'by_asset_group': {name: compute_metrics([t for t in closed if (t['ticker'] in ('SPY', 'QQQ')) == etf])
                            for name, etf in (('stocks', False), ('SPY_QQQ', True))},
         'pending_candidates': result['pending_candidates'],
+        'adverse_cost_loss': None,
+        'adverse_cost_loss_status': 'not_supplied; run a separately registered adverse-cost artifact',
+        'stale_data_fraction': (len(incomplete) / len(expected) if expected else None),
+        'stale_data_status': 'fraction of expected exchange sessions with no observed bars',
         'limitations': ['P&L and drawdown are realized-only; open positions are censored, not marked to market.',
                        'Window portfolios start flat; history before start only warms features.',
                        'Gate counts include directional candidates blocked by portfolio/session state.',
@@ -105,13 +116,18 @@ def run_comparison(dataset, windows_path, output, allow_synthetic=False, allow_z
     for w in windows:
         start, end = utc(w['start']), utc(w['end'])
         coverage[w['name']] = {}
+        expected_sessions = window_sessions(w)
         for s, df in bars.items():
             selected = df[(df.timestamp >= start) & (df.timestamp < end)]
             if selected.empty:
                 raise ValueError(f'No evaluation bars for {s} in {w["name"]}')
             if any((t - session_bounds(t)[0]) % pd.Timedelta(minutes=5) != pd.Timedelta(0) for t in df.timestamp):
                 raise ValueError('Expected exchange-aligned five-minute bar start timestamps')
-            coverage[w['name']][s] = {'bars': len(selected), 'sessions': selected.timestamp.dt.tz_convert('America/New_York').dt.date.nunique(),
+            observed_sessions = sorted(selected.timestamp.dt.tz_convert('America/New_York').dt.strftime('%Y-%m-%d').unique())
+            coverage[w['name']][s] = {'bars': len(selected), 'sessions': len(observed_sessions),
+                                      'observed_sessions': observed_sessions,
+                                      'expected_sessions': expected_sessions,
+                                      'incomplete_sessions': sorted(set(expected_sessions) - set(observed_sessions)),
                                       'warmup_bars': int((df.timestamp < start).sum())}
     output.mkdir(parents=True, exist_ok=True)
     population_fingerprint = hashlib.sha256(json.dumps({

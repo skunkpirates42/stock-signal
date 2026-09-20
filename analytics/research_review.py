@@ -312,7 +312,7 @@ def _decision(rows, protocol, min_sessions=60):
     windows = {w['name']: w for w in protocol.get('windows', [])}
     holdout_names = {name for name, w in windows.items() if w.get('role') == 'holdout'}
     holdout = [r for r in rows if r['window'] in holdout_names]
-    sessions = min((len(r['marked']['marked_pnl_by_session']) for r in holdout), default=0)
+    sessions = min((len(r.get('eligible_sessions', [])) for r in holdout), default=0)
     reasons = []
     required_limits = ('max_drawdown', 'max_gross_exposure', 'max_turnover',
                        'max_adverse_loss', 'max_stale_fraction')
@@ -351,12 +351,12 @@ def _decision(rows, protocol, min_sessions=60):
         for key, limit in (('max_marked_drawdown', limits.get('max_drawdown') if limits else None),
                            ('max_gross_exposure', limits.get('max_gross_exposure') if limits else None),
                            ('turnover_over_starting_capital', limits.get('max_turnover') if limits else None),
-                           ('adverse_loss', limits.get('max_adverse_loss') if limits else None),
-                           ('stale_fraction', limits.get('max_stale_fraction') if limits else None)):
-            if limit is not None and key not in marked:
+                           ('adverse_cost_loss', limits.get('max_adverse_loss') if limits else None),
+                           ('stale_data_fraction', limits.get('max_stale_fraction') if limits else None)):
+            if limit is not None and row.get(key) is None:
                 reasons.append(f'{key} risk evidence is missing')
                 risk_ok = False
-            elif limit is not None and marked.get(key, float('inf')) > limit:
+            elif limit is not None and row.get(key, float('inf')) > limit:
                 reasons.append(f'{key} exceeds registered risk limit')
                 risk_ok = False
     incomplete = any('accounting' in reason or 'registered collection' in reason
@@ -434,6 +434,8 @@ def review(root, *, min_sessions=60):
         cashflows = json.loads(cashflows_file.read_text()) if cashflows_file.exists() else ()
         marked = marked_metrics(trades, bars, row['window']['start'], row['window']['end'],
                                 manifest['settings']['STARTING_CAPITAL'], cashflows)
+        inventory = row.get('diagnostics', {}).get('session_inventory', {})
+        eligible_sessions = inventory.get('eligible', sorted(marked['marked_pnl_by_session']))
         closed = [t for t in trades if t.get('outcome') in CLOSED]
         concentration = _subgroups(trades)['ticker']
         total_abs = sum(abs(float(t.get('pnl') or 0)) for t in closed)
@@ -451,6 +453,9 @@ def review(root, *, min_sessions=60):
                                                  if closed else None),
                         'expectancy_basis': basis,
                         'accounting_coverage': {**coverage, 'status': 'complete' if coverage_complete else 'incomplete'},
+                        'eligible_sessions': eligible_sessions,
+                        'adverse_cost_loss': row.get('diagnostics', {}).get('adverse_cost_loss'),
+                        'stale_data_fraction': row.get('diagnostics', {}).get('stale_data_fraction'),
                         'accounting_basis': basis,
                         'accounting_claim_allowed': accounting_allowed,
                         'absolute_profitability': {'marked_net_pnl': marked['marked_net_pnl'],
@@ -466,19 +471,23 @@ def review(root, *, min_sessions=60):
                             'pending_candidates': row.get('diagnostics', {}).get('pending_candidates', 0),
                             'accounting_unavailable': marked['accounting_unavailable_count'],
                             'journal_conflicts': artifact['journal']['conflicts'],
-                            'incomplete_sessions': sorted(set(coverage.get('expected_sessions', [])) -
-                                                          set(marked['marked_pnl_by_session'])) +
-                                                    list(coverage.get('incomplete_sessions', [])),
-                            'excluded_sessions': coverage.get('excluded_sessions', []),
+                            'incomplete_sessions': inventory.get('incomplete', []),
+                            'excluded_sessions': sorted(set(marked['marked_pnl_by_session']) - set(eligible_sessions)),
                             'observed_sessions': sorted(marked['marked_pnl_by_session'])},
                         'removal': {'basis': basis,
-                                    'without_best_session': marked['marked_net_pnl'] - max(marked['marked_pnl_by_session'].values(), default=0)}})
+                                    'without_best_session': marked['marked_net_pnl'] - max(
+                                        (marked['marked_pnl_by_session'].get(day, 0) for day in eligible_sessions),
+                                        default=0),
+                                    'without_best_ticker': marked['marked_net_pnl'] - max(
+                                        (value['net_pnl'] for value in concentration.values()), default=0)}})
         results[-1]['journal_postings_complete'] = artifact['journal']['postings_complete']
         results[-1]['journal_unknown_or_incomplete'] = artifact['journal']['unknown_or_incomplete']
     for row in results:
         baseline = next(r for r in results if r['window'] == row['window'] and r['variant'] == 'baseline')
+        sessions = sorted(set(row['eligible_sessions']) & set(baseline['eligible_sessions']))
         row['paired_session_comparison'] = paired_interval(
-            row['marked']['marked_pnl_by_session'], baseline['marked']['marked_pnl_by_session'])
+            {day: row['marked']['marked_pnl_by_session'][day] for day in sessions},
+            {day: baseline['marked']['marked_pnl_by_session'][day] for day in sessions})
     decision = _decision(results, protocol, min_sessions=min_sessions)
     report = {'schema_version': 2, 'status': decision['status'], 'decision': decision,
               'uncertainty': {**UNCERTAINTY, 'frozen': True,
