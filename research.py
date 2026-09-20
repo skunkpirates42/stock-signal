@@ -19,6 +19,28 @@ __path__ = [str(Path(__file__).with_name('research'))]
 
 QUALITY_VARIANTS = ('baseline', 'strength', 'rvol', 'both')
 REGIME_VARIANTS = ('baseline', 'regime')
+REGIME_REGISTRATION_VERSION = 't07_regime_v1'
+
+
+def validate_regime_registration(registration, windows):
+    """Validate the frozen T07 period before any regime result is produced."""
+    if not isinstance(registration, dict) or registration.get('status') != 'registered':
+        raise ValueError('T07 regime experiment is blocked until a registered period is supplied')
+    if registration.get('experiment') != 'regime' or registration.get('version') != REGIME_REGISTRATION_VERSION:
+        raise ValueError('T07 registration version or experiment does not match')
+    if registration.get('variants') != list(REGIME_VARIANTS):
+        raise ValueError('T07 registration must contain baseline and regime only')
+    period = registration.get('evaluation_period')
+    if not isinstance(period, dict) or period.get('role') != 'holdout':
+        raise ValueError('T07 registration requires a holdout evaluation period')
+    start, end = period.get('start'), period.get('end')
+    if not start or not end or utc(start) >= utc(end):
+        raise ValueError('T07 registration requires a bounded evaluation period')
+    matching = [w for w in windows if w['role'] == 'holdout'
+                and utc(w['start']) == utc(start) and utc(w['end']) == utc(end)]
+    if len(matching) != 1:
+        raise ValueError('T07 registered period must exactly match the supplied holdout window')
+    return registration
 
 
 def validate_windows(windows):
@@ -60,11 +82,16 @@ def diagnostics(result, db, w):
         signals = [dict(r) for r in conn.execute(
             'SELECT ticker,direction,skip_reason,gate_json FROM signals WHERE run_id=?', (result['run_id'],))]
     reasons, checks = Counter(), Counter()
+    regime_candidates, regime_rejections = 0, Counter()
     for s in signals:
         reasons[s['skip_reason'] or 'eligible'] += 1
         if s['gate_json']:
             detail = json.loads(s['gate_json'])
             checks['accepted' if detail['accepted'] else 'rejected'] += 1
+            if detail.get('mode') == 'regime':
+                regime_candidates += 1
+                if not detail['accepted']:
+                    regime_rejections[detail.get('reason', 'unknown_context')] += 1
             for name, check in detail['checks'].items():
                 checks[name + ':' + check['reason']] += 1
     closed = [t for t in result['trades'] if t['outcome'] in CLOSED]
@@ -89,6 +116,14 @@ def diagnostics(result, db, w):
         'net_pnl_without_best_session': total - max(daily.values(), default=0),
         'net_pnl_without_best_ticker': total - max((b['pnl'] for b in tickers.values()), default=0),
         'signal_execution_reasons': dict(reasons), 'candidate_gate_checks': dict(checks),
+        'opportunity_loss': {
+            'definition': 'directional candidates rejected by the regime gate',
+            'directional_candidates': regime_candidates,
+            'rejected_candidates': sum(regime_rejections.values()),
+            'rejection_rate': (sum(regime_rejections.values()) / regime_candidates
+                               if regime_candidates else None),
+            'by_reason': dict(regime_rejections),
+        },
         'by_side': {side: compute_metrics([t for t in closed if t['direction'] == side]) for side in ('LONG', 'SHORT')},
         'by_asset_group': {name: compute_metrics([t for t in closed if (t['ticker'] in ('SPY', 'QQQ')) == etf])
                            for name, etf in (('stocks', False), ('SPY_QQQ', True))},
@@ -105,13 +140,19 @@ def diagnostics(result, db, w):
 
 
 def run_comparison(dataset, windows_path, output, allow_synthetic=False, allow_zero_costs=False,
-                   experiment='quality'):
+                   experiment='quality', registration_path=None):
     if experiment not in ('quality', 'regime'):
         raise ValueError('Unknown experiment')
     variants = QUALITY_VARIANTS if experiment == 'quality' else REGIME_VARIANTS
     dataset, windows_path, output = Path(dataset), Path(windows_path), Path(output)
     windows = json.loads(windows_path.read_text())
     validate_windows(windows)
+    registration = None
+    if experiment == 'regime':
+        if registration_path is None:
+            raise ValueError('T07 regime experiment requires --registration')
+        registration_path = Path(registration_path)
+        registration = validate_regime_registration(json.loads(registration_path.read_text()), windows)
     meta_path = dataset.with_suffix('.meta.json')
     meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
     feed = meta.get('feed', 'saved:unknown provenance')
@@ -152,6 +193,7 @@ def run_comparison(dataset, windows_path, output, allow_synthetic=False, allow_z
                 'coverage': coverage, 'costs': {'spread_bps': config.SPREAD_BPS,
                     'slippage_bps_per_fill': config.SLIPPAGE_BPS, 'fee_per_share_per_fill': config.FEE_PER_SHARE},
                 'experiment': experiment,
+                'regime_registration': registration,
                 'primary_comparison': 'fully accounted marked net P&L per exchange session versus baseline',
                 'uncertainty': {'method': 'paired moving-block bootstrap', 'block_sessions': 5,
                                 'draws': 2000, 'seed': 20260918, 'frozen': True},
@@ -192,13 +234,14 @@ def run_comparison(dataset, windows_path, output, allow_synthetic=False, allow_z
     (output / 'comparison.json').write_text(json.dumps(summary, indent=2, allow_nan=False) + '\n')
     lines = ['# Gate comparison', '', 'Status: exploratory; no candidate promoted.', '',
              f'Feed: {feed}. Costs: {protocol["costs"]}.', '',
-             '| Window | Variant | Closed | Net P&L | Net/session | Δ/session vs baseline | Realized drawdown | Open |',
-             '|---|---|---:|---:|---:|---:|---:|---:|']
+             '| Window | Variant | Closed | Net P&L | Net/session | Opportunity loss | Δ/session vs baseline | Realized drawdown | Open |',
+             '|---|---|---:|---:|---:|---:|---:|---:|---:|']
     baselines = {r['window']['name']: r['diagnostics']['net_pnl_per_session'] for r in summary if r['variant'] == 'baseline'}
     for r in summary:
         m, d = r['metrics'], r['diagnostics']
+        loss = d['opportunity_loss']['rejected_candidates']
         lines.append(f'| {r["window"]["name"]} | {r["variant"]} | {m["n_closed"]} | {m["total_pnl"]:.2f} | '
-                     f'{d["net_pnl_per_session"]:.2f} | {d["net_pnl_per_session"] - baselines[r["window"]["name"]]:.2f} | '
+                     f'{d["net_pnl_per_session"]:.2f} | {loss} | {d["net_pnl_per_session"] - baselines[r["window"]["name"]]:.2f} | '
                      f'{m["max_drawdown"]:.2f} | {r["censored_positions"]} |')
     lines += ['', 'Synthetic fixtures establish correctness only. Missing or rejected context is recorded in diagnostics.json.',
               'Realized results omit open-position value and risk. Inspect coverage, censoring and per-session/ticker/side breakdowns.',
@@ -219,6 +262,7 @@ def main():
     p.add_argument('--allow-zero-costs', action='store_true')
     p.add_argument('--experiment', choices=('quality', 'regime'), default='quality',
                    help='Run the original independent quality gates or the T07 regime gate')
+    p.add_argument('--registration', help='Frozen T07 regime registration JSON')
     args = p.parse_args()
     if args.review:
         review(args.review, min_sessions=args.min_sessions)
@@ -226,7 +270,7 @@ def main():
         p.error('--dataset, --windows and --output are required unless --review is used')
     else:
         run_comparison(args.dataset, args.windows, args.output, args.allow_synthetic, args.allow_zero_costs,
-                       experiment=args.experiment)
+                       experiment=args.experiment, registration_path=args.registration)
 
 
 if __name__ == '__main__':

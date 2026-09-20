@@ -1,0 +1,8 @@
+{
+  "status": "blocked_unregistered",
+  "experiment": "regime",
+  "version": "t07_regime_v1",
+  "variants": ["baseline", "regime"],
+  "evaluation_period": null,
+  "notes": "Fill with a dated holdout period and register it before inspecting T07 results. This template contains no evaluation dates or coverage claim."
+}

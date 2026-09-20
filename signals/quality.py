@@ -94,9 +94,10 @@ class ResearchGate:
         """Return bars available at a decision's completed-bar timestamp."""
         return frame.loc[frame.index <= ts].reset_index()
 
-    def _regime(self, ts, context=None):
+    def _regime(self, ts, context=None, decision_at=None):
         if context is not None:
             return context
+        freshness_at = utc(decision_at) if decision_at is not None else ts
         spy = self.bars.get('SPY')
         qqq = self.bars.get('QQQ')
         if spy is None:
@@ -105,7 +106,7 @@ class ResearchGate:
         if spy_frame.empty:
             return classify_context(None)
         spy_at = spy_frame['timestamp'].iloc[-1]
-        if ts - spy_at > pd.Timedelta(minutes=POLICY['regime_stale_minutes']):
+        if freshness_at - spy_at > pd.Timedelta(minutes=POLICY['regime_stale_minutes']):
             return classify_context(None, stale=True)
         try:
             spy_ind = compute_indicators(spy_frame)
@@ -117,7 +118,7 @@ class ResearchGate:
             qqq_frame = self._frame_at(qqq, ts)
             if not qqq_frame.empty:
                 qqq_at = qqq_frame['timestamp'].iloc[-1]
-                qqq_stale = ts - qqq_at > pd.Timedelta(minutes=POLICY['regime_stale_minutes'])
+                qqq_stale = freshness_at - qqq_at > pd.Timedelta(minutes=POLICY['regime_stale_minutes'])
                 if not qqq_stale:
                     try:
                         qqq_ind = compute_indicators(qqq_frame)
@@ -141,7 +142,7 @@ class ResearchGate:
         if self.mode in ('rvol', 'both'):
             detail['checks']['rvol'] = self._rvol(symbol, ts, pair)
         if self.mode == 'regime':
-            regime_context = self._regime(ts, context=context)
+            regime_context = self._regime(ts, context=context, decision_at=decision_at)
             eligibility = regime_eligibility(direction, regime_context)
             detail['regime'] = regime_context.get('regime', UNKNOWN)
             detail['checks']['regime'] = {

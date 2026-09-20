@@ -7,9 +7,10 @@ import pytest
 
 from data.sessions import utc
 from research import REGIME_VARIANTS, run_comparison
+from signals.indicators import compute_indicators
 from signals.quality import ResearchGate
 from signals.regime import (BEAR, BULL, CHOPPY, UNKNOWN, classify_context,
-                             regime_eligibility)
+                            regime_eligibility)
 
 
 def _ind(close, sma20, sma50):
@@ -61,15 +62,34 @@ def test_regime_gate_replay_is_causal_and_replay_live_parity():
     decision_at = timestamps[54] + pd.Timedelta(minutes=5)
     gate = ResearchGate(bars, "regime")
     replay = gate("AAA", {}, decision_at, "LONG")
-    live_context = gate._regime(timestamps[54])
-    live = gate("AAA", {}, decision_at, "LONG", context=live_context)
-    assert replay == live
+    available = {symbol: frame[frame.timestamp <= timestamps[54]]
+                 for symbol, frame in bars.items()}
+    live_context = classify_context(
+        compute_indicators(available["SPY"]),
+        compute_indicators(available["QQQ"]),
+    )
+    live = regime_eligibility("LONG", live_context)
+    replay_check = replay[1]["checks"]["regime"]
+    assert replay_check["accepted"] == live["accepted"]
+    assert replay_check["regime"] == live["regime"]
+    assert replay_check["reason"] == live["reason"]
     assert replay[0] is True
 
     future = {symbol: frame.copy() for symbol, frame in bars.items()}
     for frame in future.values():
         frame.loc[frame.timestamp > timestamps[54], "close"] = 1.0
     assert ResearchGate(future, "regime")("AAA", {}, decision_at, "LONG") == replay
+
+
+def test_regime_freshness_uses_decision_timestamp_at_boundary():
+    bars, timestamps = _causal_fixture()
+    bars = {symbol: frame[frame.timestamp <= timestamps[54]].copy()
+            for symbol, frame in bars.items()}
+    # At 15 minutes after the last context bar, both replay and live must reject.
+    decision_at = timestamps[54] + pd.Timedelta(minutes=15)
+    accepted, detail = ResearchGate(bars, "regime")("AAA", {}, decision_at, "LONG")
+    assert accepted is False
+    assert detail["checks"]["regime"]["context"]["reason"] == "stale_spy"
 
 
 def test_regime_gate_missing_context_detail_is_persistable():
@@ -91,10 +111,23 @@ def test_regime_runner_declares_separate_variants(tmp_path, monkeypatch):
     monkeypatch.setattr("config.SLIPPAGE_BPS", 1)
     output = tmp_path / "regime"
     summary = run_comparison(fixture / "bars.json", fixture / "windows.json", output,
-                             allow_synthetic=True, experiment="regime")
+                             allow_synthetic=True, experiment="regime",
+                             registration_path=fixture / "regime_registration.json")
     assert REGIME_VARIANTS == ("baseline", "regime")
     assert {row["variant"] for row in summary} == set(REGIME_VARIANTS)
+    assert all("opportunity_loss" in row["diagnostics"] for row in summary)
     protocol = json.loads((output / "protocol.json").read_text())
     assert protocol["experiment"] == "regime"
+    assert protocol["regime_registration"]["status"] == "registered"
     assert {row["variant"] for row in protocol["registered_trials"]} == set(REGIME_VARIANTS)
     assert all("rvol" not in row["variant"] for row in protocol["registered_trials"])
+    assert "Opportunity loss" in (output / "comparison.md").read_text()
+
+
+def test_regime_runner_blocks_without_registration(tmp_path):
+    from pathlib import Path
+
+    fixture = Path(__file__).parent / "fixtures"
+    with pytest.raises(ValueError, match="requires --registration"):
+        run_comparison(fixture / "bars.json", fixture / "windows.json", tmp_path / "blocked",
+                       allow_synthetic=True, experiment="regime")
