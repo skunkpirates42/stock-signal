@@ -17,6 +17,9 @@ from analytics.research_review import review
 # Preserve the historical module API while exposing the bounded shadow submodule.
 __path__ = [str(Path(__file__).with_name('research'))]
 
+QUALITY_VARIANTS = ('baseline', 'strength', 'rvol', 'both')
+REGIME_VARIANTS = ('baseline', 'regime')
+
 
 def validate_windows(windows):
     previous = None
@@ -101,7 +104,11 @@ def diagnostics(result, db, w):
     }
 
 
-def run_comparison(dataset, windows_path, output, allow_synthetic=False, allow_zero_costs=False):
+def run_comparison(dataset, windows_path, output, allow_synthetic=False, allow_zero_costs=False,
+                   experiment='quality'):
+    if experiment not in ('quality', 'regime'):
+        raise ValueError('Unknown experiment')
+    variants = QUALITY_VARIANTS if experiment == 'quality' else REGIME_VARIANTS
     dataset, windows_path, output = Path(dataset), Path(windows_path), Path(output)
     windows = json.loads(windows_path.read_text())
     validate_windows(windows)
@@ -144,6 +151,7 @@ def run_comparison(dataset, windows_path, output, allow_synthetic=False, allow_z
                 'population_fingerprint': population_fingerprint,
                 'coverage': coverage, 'costs': {'spread_bps': config.SPREAD_BPS,
                     'slippage_bps_per_fill': config.SLIPPAGE_BPS, 'fee_per_share_per_fill': config.FEE_PER_SHARE},
+                'experiment': experiment,
                 'primary_comparison': 'fully accounted marked net P&L per exchange session versus baseline',
                 'uncertainty': {'method': 'paired moving-block bootstrap', 'block_sessions': 5,
                                 'draws': 2000, 'seed': 20260918, 'frozen': True},
@@ -151,7 +159,7 @@ def run_comparison(dataset, windows_path, output, allow_synthetic=False, allow_z
                 'registered_collection': False,
                 'accounting_coverage': {'status': 'unregistered', 'reason': 'registered journal coverage is required'},
                 'registered_trials': [{'window': w['name'], 'variant': mode}
-                                     for w in windows for mode in ('baseline', 'strength', 'rvol', 'both')],
+                                     for w in windows for mode in variants],
                 'acceptance': {'minimum_sessions': 60,
                                'keep': ['positive net expectancy',
                                         'paired interval lower bound above zero'],
@@ -167,7 +175,7 @@ def run_comparison(dataset, windows_path, output, allow_synthetic=False, allow_z
     for w in windows:
         start, end = utc(w['start']), utc(w['end'])
         subset = {s: df[df.timestamp < end] for s, df in bars.items()}
-        for mode in ('baseline', 'strength', 'rvol', 'both'):
+        for mode in variants:
             dest = output / w['name'] / mode
             dest.mkdir(parents=True)
             result = run_portfolio(subset, str(dest / 'run.db'), feed=feed,
@@ -209,13 +217,16 @@ def main():
     p.add_argument('--min-sessions', type=int, default=60)
     p.add_argument('--allow-synthetic', action='store_true')
     p.add_argument('--allow-zero-costs', action='store_true')
+    p.add_argument('--experiment', choices=('quality', 'regime'), default='quality',
+                   help='Run the original independent quality gates or the T07 regime gate')
     args = p.parse_args()
     if args.review:
         review(args.review, min_sessions=args.min_sessions)
     elif not (args.dataset and args.windows and args.output):
         p.error('--dataset, --windows and --output are required unless --review is used')
     else:
-        run_comparison(args.dataset, args.windows, args.output, args.allow_synthetic, args.allow_zero_costs)
+        run_comparison(args.dataset, args.windows, args.output, args.allow_synthetic, args.allow_zero_costs,
+                       experiment=args.experiment)
 
 
 if __name__ == '__main__':
