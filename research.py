@@ -13,6 +13,9 @@ from signals.quality import ResearchGate, POLICY
 from data.sessions import calendar, session_bounds, utc
 from analytics.metrics import CLOSED, compute_metrics
 
+# Preserve the historical module API while exposing the bounded shadow submodule.
+__path__ = [str(Path(__file__).with_name('research'))]
+
 
 def validate_windows(windows):
     previous = None
