@@ -114,8 +114,13 @@ def run_comparison(dataset, windows_path, output, allow_synthetic=False, allow_z
             coverage[w['name']][s] = {'bars': len(selected), 'sessions': selected.timestamp.dt.tz_convert('America/New_York').dt.date.nunique(),
                                       'warmup_bars': int((df.timestamp < start).sum())}
     output.mkdir(parents=True, exist_ok=True)
+    population_fingerprint = hashlib.sha256(json.dumps({
+        'dataset_file_sha256': hashlib.sha256(dataset.read_bytes()).hexdigest(),
+        'windows': windows, 'policy': POLICY,
+    }, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     protocol = {'dataset_file_sha256': hashlib.sha256(dataset.read_bytes()).hexdigest(),
                 'dataset_metadata': meta, 'windows': windows, 'policy': POLICY,
+                'population_fingerprint': population_fingerprint,
                 'coverage': coverage, 'costs': {'spread_bps': config.SPREAD_BPS,
                     'slippage_bps_per_fill': config.SLIPPAGE_BPS, 'fee_per_share_per_fill': config.FEE_PER_SHARE},
                 'primary_comparison': 'fully accounted marked net P&L per exchange session versus baseline',
@@ -123,6 +128,12 @@ def run_comparison(dataset, windows_path, output, allow_synthetic=False, allow_z
                                 'draws': 2000, 'seed': 20260918, 'frozen': True},
                 'risk_limits': None,
                 'registered_collection': False,
+                'acceptance': {'minimum_sessions': 60,
+                               'keep': ['positive net expectancy',
+                                        'paired interval lower bound above zero'],
+                               'reject': ['negative net expectancy',
+                                          'paired interval upper bound below zero'],
+                               'risk_limits_required_for_promotion': True},
                 'all_trials_retained': True,
                 'promotion': 'inconclusive; inspect censoring, marked exposure, sample adequacy and cost sensitivity before promotion',
                 'allow_synthetic': allow_synthetic, 'allow_zero_costs': allow_zero_costs}
@@ -138,7 +149,8 @@ def run_comparison(dataset, windows_path, output, allow_synthetic=False, allow_z
             result = run_portfolio(subset, str(dest / 'run.db'), feed=feed,
                 gate=ResearchGate(subset, mode), gate_name=mode, evaluation_start=start, indicator_cache=indicator_cache,
                 metadata={'window': w, 'quality_policy': POLICY, 'dataset_metadata': meta,
-                          'input_dataset_sha256': protocol['dataset_file_sha256']})
+                          'input_dataset_sha256': protocol['dataset_file_sha256'],
+                          'population_fingerprint': population_fingerprint})
             export_result(result, dest)
             detail = diagnostics(result, str(dest / 'run.db'), w)
             (dest / 'diagnostics.json').write_text(json.dumps(detail, indent=2, allow_nan=False) + '\n')
