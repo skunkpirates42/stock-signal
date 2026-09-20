@@ -3,6 +3,19 @@
   "experiment": "regime",
   "version": "t07_regime_v1",
   "variants": ["baseline", "regime"],
+  "operator": "offline-fixture",
+  "symbols": ["SPY", "QQQ", "AAA"],
+  "feed": "fixture:synthetic",
+  "calendar": "XNYS",
+  "accounting_policy_version": "fixture-unaccounted-v1",
+  "cost_policy_version": "fixture-costs-v1",
+  "risk_limits": {
+    "max_marked_drawdown": 100000,
+    "max_gross_exposure": 100000,
+    "max_turnover": 100000,
+    "max_adverse_loss": 100000,
+    "max_stale_fraction": 1
+  },
   "evaluation_period": {
     "name": "holdout",
     "start": "2026-06-10T13:30Z",
