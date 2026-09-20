@@ -69,8 +69,10 @@ def diagnostics(result, db, w):
     total = sum(daily.values())
     tickers = result['metrics']['by_ticker']
     expected = window_sessions(w)
-    observed = sorted({str(utc(r['timestamp']).tz_convert('America/New_York').date())
-                       for symbol in result['dataset'].values() for r in symbol})
+    observed_by_symbol = {
+        symbol: {str(utc(r['timestamp']).tz_convert('America/New_York').date()) for r in rows}
+        for symbol, rows in result['dataset'].items()}
+    observed = sorted(set.intersection(*observed_by_symbol.values())) if observed_by_symbol else []
     incomplete = sorted(set(expected) - set(observed))
     return {
         'sessions': len(daily), 'closed_net_pnl_by_exit_session': daily,

@@ -312,7 +312,8 @@ def _decision(rows, protocol, min_sessions=60):
     windows = {w['name']: w for w in protocol.get('windows', [])}
     holdout_names = {name for name, w in windows.items() if w.get('role') == 'holdout'}
     holdout = [r for r in rows if r['window'] in holdout_names]
-    sessions = min((len(r.get('eligible_sessions', [])) for r in holdout), default=0)
+    eligible_sets = [set(r.get('eligible_sessions', [])) for r in holdout]
+    sessions = len(set.intersection(*eligible_sets)) if eligible_sets else 0
     reasons = []
     required_limits = ('max_drawdown', 'max_gross_exposure', 'max_turnover',
                        'max_adverse_loss', 'max_stale_fraction')
@@ -456,8 +457,8 @@ def review(root, *, min_sessions=60):
                         'expectancy_basis': basis,
                         'accounting_coverage': {**coverage, 'status': 'complete' if coverage_complete else 'incomplete'},
                         'eligible_sessions': eligible_sessions,
-                        'adverse_cost_loss': row.get('diagnostics', {}).get('adverse_cost_loss'),
-                        'stale_data_fraction': row.get('diagnostics', {}).get('stale_data_fraction'),
+                        'adverse_cost_loss': manifest.get('adverse_cost_loss'),
+                        'stale_data_fraction': manifest.get('stale_data_fraction'),
                         'accounting_basis': basis,
                         'accounting_claim_allowed': accounting_allowed,
                         'absolute_profitability': {'marked_net_pnl': marked['marked_net_pnl'],
