@@ -314,7 +314,8 @@ def _decision(rows, protocol, min_sessions=60):
     holdout = [r for r in rows if r['window'] in holdout_names]
     sessions = min((len(r['marked']['marked_pnl_by_session']) for r in holdout), default=0)
     reasons = []
-    required_limits = ('max_drawdown', 'max_gross_exposure', 'max_turnover')
+    required_limits = ('max_drawdown', 'max_gross_exposure', 'max_turnover',
+                       'max_adverse_loss', 'max_stale_fraction')
     if not limits or any(key not in limits or limits[key] is None for key in required_limits):
         reasons.append('risk limits are unset')
     if protocol.get('registered_collection') is not True:
@@ -340,6 +341,7 @@ def _decision(rows, protocol, min_sessions=60):
                   for r in candidates)
     favorable = bool(candidates) and all(
         r['absolute_profitability'].get('profitable') is True and
+        r['expectancy_per_trade'] is not None and r['expectancy_per_trade'] > 0 and
         r['marked'].get('marked_net_per_session', 0) > 0 and
         (r['paired_session_comparison'].get('interval') or [0, 0])[0] > 0
         for r in candidates)
@@ -348,8 +350,10 @@ def _decision(rows, protocol, min_sessions=60):
         marked = row['marked']
         for key, limit in (('max_marked_drawdown', limits.get('max_drawdown') if limits else None),
                            ('max_gross_exposure', limits.get('max_gross_exposure') if limits else None),
-                           ('turnover_over_starting_capital', limits.get('max_turnover') if limits else None)):
-            if limit is not None and marked.get(key, float('inf')) > limit:
+                           ('turnover_over_starting_capital', limits.get('max_turnover') if limits else None),
+                           ('adverse_loss', limits.get('max_adverse_loss') if limits else None),
+                           ('stale_fraction', limits.get('max_stale_fraction') if limits else None)):
+            if limit is not None and (key not in marked or marked.get(key, float('inf')) > limit):
                 reasons.append(f'{key} exceeds registered risk limit')
                 risk_ok = False
     incomplete = any('accounting' in reason or 'registered collection' in reason
@@ -428,7 +432,10 @@ def review(root, *, min_sessions=60):
         concentration = _subgroups(trades)['ticker']
         total_abs = sum(abs(float(t.get('pnl') or 0)) for t in closed)
         coverage = artifact['accounting']['coverage']
-        coverage_complete = coverage.get('status') == 'complete' and bool(coverage.get('observed', 0))
+        coverage_complete = (coverage.get('status') == 'complete' and
+                             (coverage.get('verified', 0) + coverage.get('scenario', 0) +
+                              coverage.get('not_applicable', 0)) > 0 and
+                             not (coverage.get('incomplete', 0) or coverage.get('conflict', 0)))
         accounting_allowed = (not artifact['journal']['unknown_or_incomplete'] and
                               marked['cash_equity_status'] == 'reconciled' and coverage_complete)
         basis = 'fully_accounted_net_cost_and_cashflow_basis' if accounting_allowed else 'unknown_accounting_basis'
@@ -454,8 +461,11 @@ def review(root, *, min_sessions=60):
                             'pending_candidates': row.get('diagnostics', {}).get('pending_candidates', 0),
                             'accounting_unavailable': marked['accounting_unavailable_count'],
                             'journal_conflicts': artifact['journal']['conflicts'],
-                            'incomplete_sessions': coverage.get('incomplete_sessions', []),
-                            'excluded_sessions': coverage.get('excluded_sessions', [])},
+                            'incomplete_sessions': sorted(set(coverage.get('expected_sessions', [])) -
+                                                          set(marked['marked_pnl_by_session'])) +
+                                                    list(coverage.get('incomplete_sessions', [])),
+                            'excluded_sessions': coverage.get('excluded_sessions', []),
+                            'observed_sessions': sorted(marked['marked_pnl_by_session'])},
                         'removal': {'basis': basis,
                                     'without_best_session': marked['marked_net_pnl'] - max(marked['marked_pnl_by_session'].values(), default=0)}})
         results[-1]['journal_postings_complete'] = artifact['journal']['postings_complete']
