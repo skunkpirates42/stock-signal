@@ -1,5 +1,11 @@
+import json
+
 import pytest
-from analytics.research_review import marked_metrics, paired_interval
+
+import config
+from analytics.research_review import (UNCERTAINTY, _decision, marked_metrics,
+                                       paired_interval, verify_artifact)
+from research import run_comparison
 
 
 def test_marked_equity_includes_open_costs_closed_net_and_short_exposure():
@@ -25,3 +31,34 @@ def test_paired_bootstrap_is_paired_and_deterministic():
     assert paired_interval(base, base)['mean_delta'] == 0
     with pytest.raises(ValueError):
         paired_interval({}, base)
+    with pytest.raises(ValueError, match='immutable'):
+        paired_interval(candidate, base, draws=10)
+
+
+def test_artifact_checksum_rejection_and_registered_decision_basis(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, 'SPREAD_BPS', 2)
+    monkeypatch.setattr(config, 'SLIPPAGE_BPS', 1)
+    output = tmp_path / 'comparison'
+    run_comparison('tests/fixtures/bars.json', 'tests/fixtures/windows.json', output,
+                   allow_synthetic=True)
+    artifact = output / 'development' / 'baseline'
+    assert verify_artifact(artifact)['journal']['unknown_or_incomplete'] is False
+    bars = json.loads((artifact / 'bars.json').read_text())
+    bars['AAA'][0]['close'] += 1
+    (artifact / 'bars.json').write_text(json.dumps(bars))
+    with pytest.raises(ValueError, match='checksum'):
+        verify_artifact(artifact)
+
+
+def test_unknown_accounting_cannot_be_called_reconciled_or_promotable():
+    row = {
+        'variant': 'rvol', 'window': 'holdout',
+        'marked': {'marked_pnl_by_session': {'a': 1}, 'cash_equity_status': 'reconciled'},
+        'expectancy_per_trade': 1, 'accounting_claim_allowed': False,
+        'journal_postings_complete': True, 'journal_unknown_or_incomplete': True,
+        'paired_session_comparison': {'interval': [1, 2]},
+    }
+    decision = _decision([row], {'acceptance': {'minimum_sessions': 1}, 'risk_limits': {}}, 1)
+    assert decision['status'] == 'inconclusive'
+    assert decision['promotable'] is False
+    assert 'accounting is not fully reconciled' in decision['reasons']

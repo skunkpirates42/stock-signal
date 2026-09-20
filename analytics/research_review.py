@@ -309,10 +309,21 @@ def _decision(rows, protocol, min_sessions=60):
     registered_min = registered.get('minimum_sessions', min_sessions)
     if min_sessions != registered_min:
         raise ValueError('minimum session criterion is registered and immutable')
-    sessions = max((len(r['marked']['marked_pnl_by_session']) for r in rows), default=0)
+    windows = {w['name']: w for w in protocol.get('windows', [])}
+    holdout_names = {name for name, w in windows.items() if w.get('role') == 'holdout'}
+    holdout = [r for r in rows if r['window'] in holdout_names]
+    sessions = min((len(r['marked']['marked_pnl_by_session']) for r in holdout), default=0)
     reasons = []
     if not limits:
         reasons.append('risk limits are unset')
+    if protocol.get('registered_collection') is not True:
+        reasons.append('registered collection is not complete')
+    coverage = protocol.get('accounting_coverage', {})
+    if coverage.get('status') != 'complete':
+        reasons.append('accounting coverage is not established as complete')
+    if not any((r.get('accounting_coverage', {}).get('verified', 0) or
+                r.get('accounting_coverage', {}).get('scenario', 0)) > 0 for r in rows):
+        reasons.append('accounting coverage has no positive verified or scenario evidence')
     if sessions < min_sessions:
         reasons.append(f'insufficient independent sessions ({sessions} < {min_sessions})')
     if any(r['marked']['cash_equity_status'] != 'reconciled' or
@@ -321,19 +332,29 @@ def _decision(rows, protocol, min_sessions=60):
     if any(not r.get('journal_postings_complete', True) or
            r.get('journal_unknown_or_incomplete', False) for r in rows):
         reasons.append('accounting posting exports are incomplete')
-    candidates = [r for r in rows if r['variant'] != 'baseline']
-    holdout = [r for r in candidates if r['window'] == 'holdout'] or candidates
+    candidates = [r for r in holdout if r['variant'] != 'baseline']
     harmful = any((r['paired_session_comparison'].get('interval') or [0, 0])[1] < 0
                   and r['expectancy_per_trade'] is not None and r['expectancy_per_trade'] < 0
-                  for r in holdout)
-    favorable = bool(holdout) and all(
+                  for r in candidates)
+    favorable = bool(candidates) and all(
         r['expectancy_per_trade'] is not None and r['expectancy_per_trade'] > 0 and
         (r['paired_session_comparison'].get('interval') or [0, 0])[0] > 0
-        for r in holdout)
-    if harmful:
-        status = 'reject'
-    elif favorable and sessions >= registered_min and not reasons:
+        for r in candidates)
+    risk_ok = True
+    for row in holdout:
+        marked = row['marked']
+        for key, limit in (('max_marked_drawdown', limits.get('max_drawdown') if limits else None),
+                           ('max_gross_exposure', limits.get('max_gross_exposure') if limits else None),
+                           ('turnover_over_starting_capital', limits.get('max_turnover') if limits else None)):
+            if limit is not None and marked.get(key, float('inf')) > limit:
+                reasons.append(f'{key} exceeds registered risk limit')
+                risk_ok = False
+    incomplete = any('accounting' in reason or 'registered collection' in reason
+                      or 'risk limits are unset' in reason for reason in reasons)
+    if favorable and sessions >= registered_min and not reasons and risk_ok and not incomplete:
         status = 'keep'
+    elif harmful and not reasons:
+        status = 'reject'
     else:
         status = 'inconclusive'
     if status == 'keep':
@@ -350,6 +371,14 @@ def review(root, *, min_sessions=60):
     root = Path(root)
     comparison = json.loads((root / 'comparison.json').read_text())
     protocol = json.loads((root / 'protocol.json').read_text()) if (root / 'protocol.json').exists() else {}
+    if not protocol:
+        raise ValueError('registered protocol.json is required')
+    registered_trials = protocol.get('registered_trials')
+    observed_trials = {(r['window']['name'], r['variant']) for r in comparison}
+    if registered_trials is not None:
+        expected_trials = {(r['window'], r['variant']) for r in registered_trials}
+        if observed_trials != expected_trials:
+            raise ValueError('comparison does not contain the registered trial inventory')
     output = root / 'marked-review.json'
     if output.exists():
         raise ValueError('Review already exists; preserve the saved results')
@@ -390,26 +419,33 @@ def review(root, *, min_sessions=60):
         closed = [t for t in trades if t.get('outcome') in CLOSED]
         concentration = _subgroups(trades)['ticker']
         total_abs = sum(abs(float(t.get('pnl') or 0)) for t in closed)
-        accounting_allowed = not artifact['journal']['unknown_or_incomplete']
+        accounting_allowed = (not artifact['journal']['unknown_or_incomplete'] and
+                              marked['cash_equity_status'] == 'reconciled')
         basis = 'fully_accounted_net_cost_and_cashflow_basis' if accounting_allowed else 'unknown_accounting_basis'
         marked['accounting_basis'] = basis
-        results.append({'window': row['window']['name'], 'variant': row['variant'], 'marked': marked,
+        results.append({'window': row['window']['name'], 'role': row['window'].get('role'),
+                        'variant': row['variant'], 'marked': marked,
                         'expectancy_per_trade': (sum(float(t.get('pnl') or 0) for t in closed) / len(closed)
                                                  if closed else None),
+                        'expectancy_basis': basis,
+                        'accounting_coverage': artifact['accounting']['coverage'],
                         'accounting_basis': basis,
                         'accounting_claim_allowed': accounting_allowed,
                         'absolute_profitability': {'marked_net_pnl': marked['marked_net_pnl'],
                                                    'closed_net_pnl': sum(float(t.get('pnl') or 0) for t in closed),
-                                                   'profitable': marked['marked_net_pnl'] > 0},
-                        'subgroups': _subgroups(trades),
-                        'concentration': {'ticker_abs_pnl_share': {
+                                                   'profitable': (marked['marked_net_pnl'] > 0
+                                                                  if accounting_allowed else None)},
+                        'subgroups': {'basis': basis, **_subgroups(trades)},
+                        'concentration': {'basis': basis, 'ticker_abs_pnl_share': {
                             key: (abs(value['net_pnl']) / total_abs if total_abs else None)
                             for key, value in concentration.items()}},
                         'excluded_or_incomplete': {
                             'censored_positions': row.get('censored_positions', 0),
                             'pending_candidates': row.get('diagnostics', {}).get('pending_candidates', 0),
                             'accounting_unavailable': marked['accounting_unavailable_count'],
-                            'journal_conflicts': artifact['journal']['conflicts']}})
+                            'journal_conflicts': artifact['journal']['conflicts']},
+                        'removal': {'basis': basis,
+                                    'without_best_session': marked['marked_net_pnl'] - max(marked['marked_pnl_by_session'].values(), default=0)}})
         results[-1]['journal_postings_complete'] = artifact['journal']['postings_complete']
         results[-1]['journal_unknown_or_incomplete'] = artifact['journal']['unknown_or_incomplete']
     for row in results:

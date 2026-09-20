@@ -128,6 +128,9 @@ def run_comparison(dataset, windows_path, output, allow_synthetic=False, allow_z
                                 'draws': 2000, 'seed': 20260918, 'frozen': True},
                 'risk_limits': None,
                 'registered_collection': False,
+                'accounting_coverage': {'status': 'unregistered', 'reason': 'registered journal coverage is required'},
+                'registered_trials': [{'window': w['name'], 'variant': mode}
+                                     for w in windows for mode in ('baseline', 'strength', 'rvol', 'both')],
                 'acceptance': {'minimum_sessions': 60,
                                'keep': ['positive net expectancy',
                                         'paired interval lower bound above zero'],
