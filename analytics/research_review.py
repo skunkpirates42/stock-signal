@@ -353,7 +353,10 @@ def _decision(rows, protocol, min_sessions=60):
                            ('turnover_over_starting_capital', limits.get('max_turnover') if limits else None),
                            ('adverse_loss', limits.get('max_adverse_loss') if limits else None),
                            ('stale_fraction', limits.get('max_stale_fraction') if limits else None)):
-            if limit is not None and (key not in marked or marked.get(key, float('inf')) > limit):
+            if limit is not None and key not in marked:
+                reasons.append(f'{key} risk evidence is missing')
+                risk_ok = False
+            elif limit is not None and marked.get(key, float('inf')) > limit:
                 reasons.append(f'{key} exceeds registered risk limit')
                 risk_ok = False
     incomplete = any('accounting' in reason or 'registered collection' in reason
@@ -409,6 +412,9 @@ def review(root, *, min_sessions=60):
         if not registered_window or any(row['window'].get(key) != registered_window.get(key)
                                         for key in ('start', 'end', 'role')):
             raise ValueError(f'registered window mismatch for {folder}')
+        if any(manifest.get('window', {}).get(key) != registered_window.get(key)
+               for key in ('name', 'start', 'end', 'role')):
+            raise ValueError(f'journal manifest window mismatch for {folder}')
         policy = (manifest.get('fill_policy'), manifest.get('session_policy'), manifest.get('feed'))
         dataset_hash = manifest.get('dataset_sha256')
         if expected_policy is None:
