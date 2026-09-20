@@ -353,10 +353,12 @@ def _decision(rows, protocol, min_sessions=60):
                            ('turnover_over_starting_capital', limits.get('max_turnover') if limits else None),
                            ('adverse_cost_loss', limits.get('max_adverse_loss') if limits else None),
                            ('stale_data_fraction', limits.get('max_stale_fraction') if limits else None)):
-            if limit is not None and row.get(key) is None:
+            evidence = marked if key in {'max_marked_drawdown', 'max_gross_exposure',
+                                         'turnover_over_starting_capital'} else row
+            if limit is not None and evidence.get(key) is None:
                 reasons.append(f'{key} risk evidence is missing')
                 risk_ok = False
-            elif limit is not None and row.get(key, float('inf')) > limit:
+            elif limit is not None and evidence.get(key, float('inf')) > limit:
                 reasons.append(f'{key} exceeds registered risk limit')
                 risk_ok = False
     incomplete = any('accounting' in reason or 'registered collection' in reason
