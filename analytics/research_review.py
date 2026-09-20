@@ -314,12 +314,14 @@ def _decision(rows, protocol, min_sessions=60):
     holdout = [r for r in rows if r['window'] in holdout_names]
     sessions = min((len(r['marked']['marked_pnl_by_session']) for r in holdout), default=0)
     reasons = []
-    if not limits:
+    required_limits = ('max_drawdown', 'max_gross_exposure', 'max_turnover')
+    if not limits or any(key not in limits or limits[key] is None for key in required_limits):
         reasons.append('risk limits are unset')
     if protocol.get('registered_collection') is not True:
         reasons.append('registered collection is not complete')
     coverage = protocol.get('accounting_coverage', {})
-    if coverage.get('status') != 'complete':
+    if coverage.get('status') != 'complete' or any(
+            r.get('accounting_coverage', {}).get('status') != 'complete' for r in rows):
         reasons.append('accounting coverage is not established as complete')
     if not any((r.get('accounting_coverage', {}).get('verified', 0) or
                 r.get('accounting_coverage', {}).get('scenario', 0)) > 0 for r in rows):
@@ -337,7 +339,8 @@ def _decision(rows, protocol, min_sessions=60):
                   and r['expectancy_per_trade'] is not None and r['expectancy_per_trade'] < 0
                   for r in candidates)
     favorable = bool(candidates) and all(
-        r['expectancy_per_trade'] is not None and r['expectancy_per_trade'] > 0 and
+        r['absolute_profitability'].get('profitable') is True and
+        r['marked'].get('marked_net_per_session', 0) > 0 and
         (r['paired_session_comparison'].get('interval') or [0, 0])[0] > 0
         for r in candidates)
     risk_ok = True
@@ -397,6 +400,11 @@ def review(root, *, min_sessions=60):
         manifest = artifact['manifest']
         if expected_population and manifest.get('population_fingerprint') != expected_population:
             raise ValueError(f'registered population mismatch for {folder}')
+        registered_window = next((w for w in protocol.get('windows', [])
+                                  if w.get('name') == row['window']['name']), None)
+        if not registered_window or any(row['window'].get(key) != registered_window.get(key)
+                                        for key in ('start', 'end', 'role')):
+            raise ValueError(f'registered window mismatch for {folder}')
         policy = (manifest.get('fill_policy'), manifest.get('session_policy'), manifest.get('feed'))
         dataset_hash = manifest.get('dataset_sha256')
         if expected_policy is None:
@@ -419,8 +427,10 @@ def review(root, *, min_sessions=60):
         closed = [t for t in trades if t.get('outcome') in CLOSED]
         concentration = _subgroups(trades)['ticker']
         total_abs = sum(abs(float(t.get('pnl') or 0)) for t in closed)
+        coverage = artifact['accounting']['coverage']
+        coverage_complete = coverage.get('status') == 'complete' and bool(coverage.get('observed', 0))
         accounting_allowed = (not artifact['journal']['unknown_or_incomplete'] and
-                              marked['cash_equity_status'] == 'reconciled')
+                              marked['cash_equity_status'] == 'reconciled' and coverage_complete)
         basis = 'fully_accounted_net_cost_and_cashflow_basis' if accounting_allowed else 'unknown_accounting_basis'
         marked['accounting_basis'] = basis
         results.append({'window': row['window']['name'], 'role': row['window'].get('role'),
@@ -428,7 +438,7 @@ def review(root, *, min_sessions=60):
                         'expectancy_per_trade': (sum(float(t.get('pnl') or 0) for t in closed) / len(closed)
                                                  if closed else None),
                         'expectancy_basis': basis,
-                        'accounting_coverage': artifact['accounting']['coverage'],
+                        'accounting_coverage': {**coverage, 'status': 'complete' if coverage_complete else 'incomplete'},
                         'accounting_basis': basis,
                         'accounting_claim_allowed': accounting_allowed,
                         'absolute_profitability': {'marked_net_pnl': marked['marked_net_pnl'],
@@ -443,7 +453,9 @@ def review(root, *, min_sessions=60):
                             'censored_positions': row.get('censored_positions', 0),
                             'pending_candidates': row.get('diagnostics', {}).get('pending_candidates', 0),
                             'accounting_unavailable': marked['accounting_unavailable_count'],
-                            'journal_conflicts': artifact['journal']['conflicts']},
+                            'journal_conflicts': artifact['journal']['conflicts'],
+                            'incomplete_sessions': coverage.get('incomplete_sessions', []),
+                            'excluded_sessions': coverage.get('excluded_sessions', [])},
                         'removal': {'basis': basis,
                                     'without_best_session': marked['marked_net_pnl'] - max(marked['marked_pnl_by_session'].values(), default=0)}})
         results[-1]['journal_postings_complete'] = artifact['journal']['postings_complete']
