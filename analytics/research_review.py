@@ -3,7 +3,9 @@
 Accounting supplement only: no entry/exit policy or strategy selection changes.
 """
 import argparse
+import hashlib
 import json
+import sqlite3
 from decimal import Decimal
 from pathlib import Path
 
@@ -11,11 +13,65 @@ import numpy as np
 import pandas as pd
 
 from data.sessions import utc
+from analytics.metrics import CLOSED
 
 
 ACCOUNTING_COMPONENTS = ('cash_delta', 'receivable_delta', 'payable_delta',
                          'borrow_payable_delta', 'refund_receivable_delta',
                          'repayment_liability_delta')
+
+
+def _sha256(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _canonical_dataset_hash(bars):
+    """Match ``backtest.manifest_for`` without importing replay code."""
+    canonical = {symbol: [{**row, 'timestamp': utc(row['timestamp']).isoformat()}
+                          for row in rows]
+                 for symbol, rows in sorted(bars.items())}
+    return hashlib.sha256(json.dumps(canonical, sort_keys=True,
+                                     separators=(',', ':')).encode()).hexdigest()
+
+
+def verify_artifact(folder):
+    """Validate one immutable replay directory before using any result in a report."""
+    folder = Path(folder)
+    required = ('manifest.json', 'bars.json', 'trades.json', 'run.db')
+    missing = [name for name in required if not (folder / name).exists()]
+    if missing:
+        raise ValueError(f'incomplete result artifact {folder}: missing {", ".join(missing)}')
+    manifest = json.loads((folder / 'manifest.json').read_text())
+    bars = json.loads((folder / 'bars.json').read_text())
+    trades = json.loads((folder / 'trades.json').read_text())
+    cashflow_path = folder / 'cashflows.json'
+    cashflows = json.loads(cashflow_path.read_text()) if cashflow_path.exists() else []
+    if manifest.get('dataset_sha256') != _canonical_dataset_hash(bars):
+        raise ValueError(f'checksum mismatch for {folder}/bars.json')
+    if manifest.get('symbols') and sorted(manifest['symbols']) != sorted(bars):
+        raise ValueError(f'symbol manifest mismatch for {folder}')
+    metadata = folder / 'bars.meta.json'
+    if metadata.exists():
+        feed = json.loads(metadata.read_text()).get('feed')
+        if feed != manifest.get('feed'):
+            raise ValueError(f'feed manifest mismatch for {folder}')
+    with sqlite3.connect(folder / 'run.db') as conn:
+        tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if 'trades' not in tables:
+            raise ValueError(f'journal missing trades table for {folder}')
+        db_trade_count = conn.execute('SELECT count(*) FROM trades').fetchone()[0]
+        if db_trade_count != len(trades):
+            raise ValueError(f'journal/trades mismatch for {folder}')
+        db_flow_count = (conn.execute('SELECT count(*) FROM accounting_postings').fetchone()[0]
+                         if 'accounting_postings' in tables else 0)
+        if cashflow_path.exists() and db_flow_count != len(cashflows):
+            raise ValueError(f'journal/cashflow mismatch for {folder}')
+        conflicts = (conn.execute('SELECT count(*) FROM accounting_posting_conflicts').fetchone()[0]
+                     if 'accounting_posting_conflicts' in tables else 0)
+    return {'folder': str(folder), 'manifest': manifest, 'bars': bars, 'trades': trades,
+            'cashflows': cashflows, 'journal': {'trades': len(trades), 'postings': len(cashflows),
+                                                'postings_complete': cashflow_path.exists(),
+                                                'conflicts': conflicts}}
 
 
 def _decimal(value):
@@ -187,29 +243,109 @@ def paired_interval(candidate, baseline, block=5, draws=2000):
             'method': 'paired moving-block bootstrap, 5 sessions, 2000 draws, seed 20260918; descriptive, unadjusted for variant selection'}
 
 
-def review(root):
+def _subgroups(trades):
+    closed = [t for t in trades if t.get('outcome') in ('WIN', 'LOSS', 'BREAKEVEN')]
+    def group(key):
+        result = {}
+        for trade in closed:
+            name = key(trade)
+            row = result.setdefault(name, {'n': 0, 'net_pnl': 0.0})
+            row['n'] += 1
+            row['net_pnl'] += float(trade.get('pnl') or 0)
+        for row in result.values():
+            row['net_pnl'] = round(row['net_pnl'], 8)
+            row['expectancy_per_trade'] = row['net_pnl'] / row['n'] if row['n'] else None
+        return result
+    return {'side': group(lambda t: t.get('direction', 'UNKNOWN')),
+            'ticker': group(lambda t: t.get('ticker', 'UNKNOWN')),
+            'regime': group(lambda t: t.get('regime') or 'UNKNOWN')}
+
+
+def _decision(rows, protocol, min_sessions=60):
+    limits = protocol.get('risk_limits') or protocol.get('acceptance', {}).get('risk_limits')
+    sessions = max((len(r['marked']['marked_pnl_by_session']) for r in rows), default=0)
+    reasons = []
+    if not limits:
+        reasons.append('risk limits are unset')
+    if sessions < min_sessions:
+        reasons.append(f'insufficient independent sessions ({sessions} < {min_sessions})')
+    if any(r['marked']['cash_equity_status'] != 'reconciled' for r in rows):
+        reasons.append('accounting is not fully reconciled')
+    if any(not r.get('journal_postings_complete', True) for r in rows):
+        reasons.append('accounting posting exports are incomplete')
+    return {'status': 'inconclusive', 'promotable': False, 'reasons': reasons,
+            'risk_limits': limits, 'sessions_observed': sessions,
+            'minimum_sessions': min_sessions}
+
+
+def review(root, *, min_sessions=60):
     root = Path(root)
     comparison = json.loads((root / 'comparison.json').read_text())
+    protocol = json.loads((root / 'protocol.json').read_text()) if (root / 'protocol.json').exists() else {}
     output = root / 'marked-review.json'
     if output.exists():
         raise ValueError('Review already exists; preserve the saved results')
     results = []
+    artifacts = []
+    expected_policy = None
+    window_dataset_hashes = {}
     for row in comparison:
         folder = root / row['window']['name'] / row['variant']
-        trades = json.loads((folder / 'trades.json').read_text())
-        bars = json.loads((folder / 'bars.json').read_text())
-        manifest = json.loads((folder / 'manifest.json').read_text())
+        artifact = verify_artifact(folder)
+        manifest = artifact['manifest']
+        policy = (manifest.get('fill_policy'), manifest.get('session_policy'), manifest.get('feed'))
+        dataset_hash = manifest.get('dataset_sha256')
+        if expected_policy is None:
+            expected_policy = policy
+        elif policy != expected_policy:
+            raise ValueError(f'candidate/feed/calendar policy mismatch for {folder}')
+        window_name = row['window']['name']
+        prior_hash = window_dataset_hashes.setdefault(window_name, dataset_hash)
+        if prior_hash != dataset_hash:
+            raise ValueError(f'candidate population mismatch for {folder}')
+        artifacts.append(artifact)
+    for row in comparison:
+        folder = root / row['window']['name'] / row['variant']
+        artifact = next(a for a in artifacts if a['folder'] == str(folder))
+        trades, bars, manifest = artifact['trades'], artifact['bars'], artifact['manifest']
         cashflows_file = folder / 'cashflows.json'
         cashflows = json.loads(cashflows_file.read_text()) if cashflows_file.exists() else ()
         marked = marked_metrics(trades, bars, row['window']['start'], row['window']['end'],
                                 manifest['settings']['STARTING_CAPITAL'], cashflows)
-        results.append({'window': row['window']['name'], 'variant': row['variant'], 'marked': marked})
+        closed = [t for t in trades if t.get('outcome') in CLOSED]
+        concentration = _subgroups(trades)['ticker']
+        total_abs = sum(abs(float(t.get('pnl') or 0)) for t in closed)
+        results.append({'window': row['window']['name'], 'variant': row['variant'], 'marked': marked,
+                        'expectancy_per_trade': (sum(float(t.get('pnl') or 0) for t in closed) / len(closed)
+                                                 if closed else None),
+                        'absolute_profitability': {'marked_net_pnl': marked['marked_net_pnl'],
+                                                   'closed_net_pnl': sum(float(t.get('pnl') or 0) for t in closed),
+                                                   'profitable': marked['marked_net_pnl'] > 0},
+                        'subgroups': _subgroups(trades),
+                        'concentration': {'ticker_abs_pnl_share': {
+                            key: (abs(value['net_pnl']) / total_abs if total_abs else None)
+                            for key, value in concentration.items()}},
+                        'excluded_or_incomplete': {
+                            'censored_positions': row.get('censored_positions', 0),
+                            'pending_candidates': row.get('diagnostics', {}).get('pending_candidates', 0),
+                            'accounting_unavailable': marked['accounting_unavailable_count'],
+                            'journal_conflicts': artifact['journal']['conflicts']}})
+        results[-1]['journal_postings_complete'] = artifact['journal']['postings_complete']
     for row in results:
         baseline = next(r for r in results if r['window'] == row['window'] and r['variant'] == 'baseline')
-        row['paired_session_comparison'] = paired_interval(row['marked']['marked_pnl_by_session'], baseline['marked']['marked_pnl_by_session'])
-    output.write_text(json.dumps(results, indent=2, allow_nan=False) + '\n')
+        row['paired_session_comparison'] = paired_interval(
+            row['marked']['marked_pnl_by_session'], baseline['marked']['marked_pnl_by_session'])
+    decision = _decision(results, protocol, min_sessions=min_sessions)
+    report = {'schema_version': 1, 'status': decision['status'], 'decision': decision,
+              'uncertainty': {'method': 'paired_interval per variant versus baseline',
+                              'frozen': True, 'block_sessions': 5, 'draws': 2000,
+                              'seed': 20260918},
+              'policy': {'candidate_feed_calendar': expected_policy,
+                         'all_trials_retained': True},
+              'trials': results}
+    output.write_text(json.dumps(report, indent=2, allow_nan=False) + '\n')
     print(f'Saved {output}')
-    return results
+    return report
 
 
 if __name__ == '__main__':

@@ -12,6 +12,7 @@ from db.logger import _connect
 from signals.quality import ResearchGate, POLICY
 from data.sessions import calendar, session_bounds, utc
 from analytics.metrics import CLOSED, compute_metrics
+from analytics.research_review import review
 
 
 def validate_windows(windows):
@@ -117,7 +118,12 @@ def run_comparison(dataset, windows_path, output, allow_synthetic=False, allow_z
                 'dataset_metadata': meta, 'windows': windows, 'policy': POLICY,
                 'coverage': coverage, 'costs': {'spread_bps': config.SPREAD_BPS,
                     'slippage_bps_per_fill': config.SLIPPAGE_BPS, 'fee_per_share_per_fill': config.FEE_PER_SHARE},
-                'primary_comparison': 'held-out realized net P&L per exchange session versus baseline',
+                'primary_comparison': 'fully accounted marked net P&L per exchange session versus baseline',
+                'uncertainty': {'method': 'paired moving-block bootstrap', 'block_sessions': 5,
+                                'draws': 2000, 'seed': 20260918, 'frozen': True},
+                'risk_limits': None,
+                'registered_collection': False,
+                'all_trials_retained': True,
                 'promotion': 'inconclusive; inspect censoring, marked exposure, sample adequacy and cost sensitivity before promotion',
                 'allow_synthetic': allow_synthetic, 'allow_zero_costs': allow_zero_costs}
     (output / 'protocol.json').write_text(json.dumps(protocol, indent=2) + '\n')
@@ -160,13 +166,20 @@ def run_comparison(dataset, windows_path, output, allow_synthetic=False, allow_z
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--dataset', required=True)
-    p.add_argument('--windows', required=True, help='JSON list of {name,start,end,role:development|holdout}')
-    p.add_argument('--output', required=True)
+    p.add_argument('--dataset')
+    p.add_argument('--windows', help='JSON list of {name,start,end,role:development|holdout}')
+    p.add_argument('--output')
+    p.add_argument('--review', help='Review an existing comparison directory and write marked-review.json')
+    p.add_argument('--min-sessions', type=int, default=60)
     p.add_argument('--allow-synthetic', action='store_true')
     p.add_argument('--allow-zero-costs', action='store_true')
     args = p.parse_args()
-    run_comparison(args.dataset, args.windows, args.output, args.allow_synthetic, args.allow_zero_costs)
+    if args.review:
+        review(args.review, min_sessions=args.min_sessions)
+    elif not (args.dataset and args.windows and args.output):
+        p.error('--dataset, --windows and --output are required unless --review is used')
+    else:
+        run_comparison(args.dataset, args.windows, args.output, args.allow_synthetic, args.allow_zero_costs)
 
 
 if __name__ == '__main__':
