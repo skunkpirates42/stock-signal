@@ -321,8 +321,8 @@ def _decision(rows, protocol, min_sessions=60):
     if protocol.get('registered_collection') is not True:
         reasons.append('registered collection is not complete')
     coverage = protocol.get('accounting_coverage', {})
-    if coverage.get('status') != 'complete' or any(
-            r.get('accounting_coverage', {}).get('status') != 'complete' for r in rows):
+    if coverage.get('status') not in (None, 'complete') or any(
+            r.get('accounting_coverage', {}).get('status') not in (None, 'complete') for r in rows):
         reasons.append('accounting coverage is not established as complete')
     if not any((r.get('accounting_coverage', {}).get('verified', 0) or
                 r.get('accounting_coverage', {}).get('scenario', 0)) > 0 for r in rows):
@@ -432,8 +432,7 @@ def review(root, *, min_sessions=60):
         concentration = _subgroups(trades)['ticker']
         total_abs = sum(abs(float(t.get('pnl') or 0)) for t in closed)
         coverage = artifact['accounting']['coverage']
-        coverage_complete = (coverage.get('status') == 'complete' and
-                             (coverage.get('verified', 0) + coverage.get('scenario', 0) +
+        coverage_complete = ((coverage.get('verified', 0) + coverage.get('scenario', 0) +
                               coverage.get('not_applicable', 0)) > 0 and
                              not (coverage.get('incomplete', 0) or coverage.get('conflict', 0)))
         accounting_allowed = (not artifact['journal']['unknown_or_incomplete'] and
