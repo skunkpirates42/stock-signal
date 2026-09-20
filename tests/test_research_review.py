@@ -62,3 +62,18 @@ def test_unknown_accounting_cannot_be_called_reconciled_or_promotable():
     assert decision['status'] == 'inconclusive'
     assert decision['promotable'] is False
     assert 'accounting is not fully reconciled' in decision['reasons']
+
+
+def test_report_persists_session_and_cost_evidence_fields(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, 'SPREAD_BPS', 2)
+    monkeypatch.setattr(config, 'SLIPPAGE_BPS', 1)
+    output = tmp_path / 'comparison'
+    summary = run_comparison('tests/fixtures/bars.json', 'tests/fixtures/windows.json',
+                             output, allow_synthetic=True)
+    row = summary[0]
+    inventory = row['diagnostics']['session_inventory']
+    assert set(inventory) == {'expected', 'observed', 'incomplete', 'eligible'}
+    assert row['diagnostics']['adverse_cost_loss'] is None
+    assert row['diagnostics']['stale_data_fraction'] == 0
+    protocol = json.loads((output / 'protocol.json').read_text())
+    assert protocol['coverage']['development']['SPY']['expected_sessions']
