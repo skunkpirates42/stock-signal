@@ -105,6 +105,32 @@ def test_tampered_source_fails_on_resolution_and_reimport(tmp_path):
         index.import_directory(source, synthetic=True)
 
 
+def test_resolution_byte_cap_rejects_a_stale_enlarged_file_without_reading_it(tmp_path, monkeypatch):
+    source = artifact_tree(tmp_path)
+    report_path = source / "comparison.md"
+    report_path.write_bytes(b"small saved report")
+    db = tmp_path / "demo.db"
+    index = ArtifactIndex(db)
+    index.import_directory(source, synthetic=True)
+    with sqlite3.connect(db) as conn:
+        artifact_id = conn.execute("SELECT id FROM demo_artifact_files WHERE kind='report'").fetchone()[0]
+
+    # The index still records the small file.  Replacing it with a large regular file
+    # must fail at descriptor stat/cap validation, before a complete read is attempted.
+    report_path.write_bytes(b"x" * (2 * 1024 * 1024))
+    read_sizes = []
+    original_read = artifacts.os.read
+
+    def counted_read(fd, count):
+        read_sizes.append(count)
+        return original_read(fd, count)
+
+    monkeypatch.setattr(artifacts.os, "read", counted_read)
+    with pytest.raises(ArtifactImportError, match="maximum byte size"):
+        index.resolve_artifact(artifact_id, max_bytes=1024)
+    assert sum(read_sizes) <= 1025
+
+
 def test_unsafe_window_component_is_rejected_before_any_path_resolution(tmp_path):
     source = artifact_tree(tmp_path)
     comparison_path = source / "comparison.json"

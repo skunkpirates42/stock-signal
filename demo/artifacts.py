@@ -110,8 +110,11 @@ def _open_root(root: Path):
         os.close(fd)
 
 
-def _read_file(root_fd: int, relative: str, required: bool = False) -> Optional[Tuple[bytes, str]]:
+def _read_file(root_fd: int, relative: str, required: bool = False,
+               max_bytes: Optional[int] = None) -> Optional[Tuple[bytes, str]]:
     """Read a regular source file through no-follow, descriptor-relative traversal."""
+    if max_bytes is not None and (isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 0):
+        raise ValueError("max_bytes must be a nonnegative integer or None")
     parts = _relative_parts(relative)
     parent_fd = os.dup(root_fd)
     try:
@@ -137,14 +140,25 @@ def _read_file(root_fd: int, relative: str, required: bool = False) -> Optional[
         except OSError as exc:
             raise ArtifactImportError("Unsafe artifact path: " + relative) from exc
         try:
-            if not stat.S_ISREG(os.fstat(file_fd).st_mode):
+            file_stat = os.fstat(file_fd)
+            if not stat.S_ISREG(file_stat.st_mode):
                 raise ArtifactImportError("Unsafe artifact path: " + relative)
+            if max_bytes is not None and file_stat.st_size > max_bytes:
+                raise ArtifactImportError("Indexed artifact exceeds maximum byte size")
             chunks = []
+            total = 0
             while True:
-                chunk = os.read(file_fd, 1024 * 1024)
+                # The stat check is a fast path, but a file can grow after it.  Read
+                # at most one byte beyond the ceiling so a stale index cannot make a
+                # browser request consume an arbitrarily large source file.
+                read_size = 1024 * 1024 if max_bytes is None else min(1024 * 1024, max_bytes - total + 1)
+                chunk = os.read(file_fd, read_size)
                 if not chunk:
                     break
                 chunks.append(chunk)
+                total += len(chunk)
+                if max_bytes is not None and total > max_bytes:
+                    raise ArtifactImportError("Indexed artifact exceeds maximum byte size")
             content = b"".join(chunks)
         except OSError as exc:
             raise ArtifactImportError("Cannot read indexed artifact: " + relative) from exc
@@ -584,12 +598,15 @@ class ArtifactIndex:
             except Exception as exc:
                 raise ArtifactImportError("Artifact projection fails the A1 schema") from exc
 
-    def resolve_artifact(self, artifact_id: str, *, owner_id: str = "local") -> ImportedArtifact:
+    def resolve_artifact(self, artifact_id: str, *, owner_id: str = "local",
+                         max_bytes: Optional[int] = None) -> ImportedArtifact:
         """Return verified bytes for an opaque indexed artifact ID only.
 
         Returning bytes rather than a source path prevents a later caller from opening
         a file after it changes between checksum verification and use.
         """
+        if max_bytes is not None and (isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 0):
+            raise ValueError("max_bytes must be a nonnegative integer or None")
         with self._connect() as conn:
             row = conn.execute(
                 """SELECT files.*, imports.source_directory FROM demo_artifact_files AS files
@@ -598,13 +615,17 @@ class ArtifactIndex:
             ).fetchone()
         if row is None:
             raise ArtifactImportError("Unknown artifact")
+        if max_bytes is not None and row["byte_size"] > max_bytes:
+            raise ArtifactImportError("Indexed artifact exceeds maximum byte size")
         root = Path(row["source_directory"])
         try:
             with _open_root(root) as root_fd:
-                item = _read_file(root_fd, row["relative_path"], required=True)
+                item = _read_file(root_fd, row["relative_path"], required=True, max_bytes=max_bytes)
                 assert item
                 content, digest = item
         except ArtifactImportError as exc:
+            if str(exc) == "Indexed artifact exceeds maximum byte size":
+                raise
             raise ArtifactImportError("Indexed source directory is unavailable") from exc
         if digest != row["sha256"] or len(content) != row["byte_size"]:
             raise ArtifactImportError("Indexed artifact no longer matches its checksum")
