@@ -30,6 +30,22 @@ def validate_regime_registration(registration, windows):
         raise ValueError('T07 registration version or experiment does not match')
     if registration.get('variants') != list(REGIME_VARIANTS):
         raise ValueError('T07 registration must contain baseline and regime only')
+    operator = registration.get('operator')
+    if not isinstance(operator, str) or not operator.strip():
+        raise ValueError('T07 registration requires an operator')
+    symbols = registration.get('symbols')
+    if not isinstance(symbols, list) or not symbols or any(not isinstance(s, str) or not s.strip() for s in symbols):
+        raise ValueError('T07 registration requires a non-empty symbol list')
+    for key in ('feed', 'calendar', 'accounting_policy_version', 'cost_policy_version'):
+        if not isinstance(registration.get(key), str) or not registration[key].strip():
+            raise ValueError(f'T07 registration requires {key}')
+    risk_limits = registration.get('risk_limits')
+    required_limits = ('max_marked_drawdown', 'max_gross_exposure', 'max_turnover',
+                       'max_adverse_loss', 'max_stale_fraction')
+    if not isinstance(risk_limits, dict) or any(
+            not isinstance(risk_limits.get(key), (int, float)) or risk_limits[key] < 0
+            for key in required_limits):
+        raise ValueError('T07 registration requires non-negative numeric risk limits')
     period = registration.get('evaluation_period')
     if not isinstance(period, dict) or period.get('role') != 'holdout':
         raise ValueError('T07 registration requires a holdout evaluation period')
