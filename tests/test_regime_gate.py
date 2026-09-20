@@ -131,3 +131,22 @@ def test_regime_runner_blocks_without_registration(tmp_path):
     with pytest.raises(ValueError, match="requires --registration"):
         run_comparison(fixture / "bars.json", fixture / "windows.json", tmp_path / "blocked",
                        allow_synthetic=True, experiment="regime")
+
+
+def test_regime_registration_rejects_extra_holdout_window(tmp_path):
+    from pathlib import Path
+
+    fixture = Path(__file__).parent / "fixtures"
+    windows = json.loads((fixture / "windows.json").read_text())
+    windows.append({
+        "name": "unregistered_holdout",
+        "start": "2026-06-11T13:30Z",
+        "end": "2026-06-11T20:00Z",
+        "role": "holdout",
+    })
+    windows_path = tmp_path / "windows.json"
+    windows_path.write_text(json.dumps(windows))
+    with pytest.raises(ValueError, match="exactly one holdout"):
+        run_comparison(fixture / "bars.json", windows_path, tmp_path / "blocked-extra",
+                       allow_synthetic=True, experiment="regime",
+                       registration_path=fixture / "regime_registration.json")

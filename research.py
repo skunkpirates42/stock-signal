@@ -36,8 +36,11 @@ def validate_regime_registration(registration, windows):
     start, end = period.get('start'), period.get('end')
     if not start or not end or utc(start) >= utc(end):
         raise ValueError('T07 registration requires a bounded evaluation period')
-    matching = [w for w in windows if w['role'] == 'holdout'
-                and utc(w['start']) == utc(start) and utc(w['end']) == utc(end)]
+    holdouts = [w for w in windows if w['role'] == 'holdout']
+    if len(holdouts) != 1:
+        raise ValueError('T07 registration requires exactly one holdout window')
+    matching = [w for w in holdouts
+                if utc(w['start']) == utc(start) and utc(w['end']) == utc(end)]
     if len(matching) != 1:
         raise ValueError('T07 registered period must exactly match the supplied holdout window')
     return registration
