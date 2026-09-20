@@ -447,7 +447,8 @@ def review(root, *, min_sessions=60):
                               coverage.get('not_applicable', 0)) > 0 and
                              not (coverage.get('incomplete', 0) or coverage.get('conflict', 0)))
         accounting_allowed = (not artifact['journal']['unknown_or_incomplete'] and
-                              marked['cash_equity_status'] == 'reconciled' and coverage_complete)
+                              marked['cash_equity_status'] == 'reconciled' and coverage_complete and
+                              manifest.get('accounting_attribution') == 'all_in_marked')
         basis = 'fully_accounted_net_cost_and_cashflow_basis' if accounting_allowed else 'unknown_accounting_basis'
         marked['accounting_basis'] = basis
         results.append({'window': row['window']['name'], 'role': row['window'].get('role'),
