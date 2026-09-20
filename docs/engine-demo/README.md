@@ -23,6 +23,21 @@ public display. New required fields, vocabulary changes, and changed metric mean
 require a new schema version. This v1 has no request/worker implementation; B1/B2
 must define their bounded command and transition validation against these read models.
 
+## A2 saved-artifact index
+
+`demo.artifacts.ArtifactIndex` is a local, read-only SQLite index for a selected saved
+result directory. It indexes only its fixed protocol/comparison and per-run JSON/text
+allowlist; raw bars, SQLite journals and arbitrary filenames are never indexed. Import
+checks the protocol/comparison/per-run manifest consistency, declared dataset identity,
+file hashes and A1 projection, while retaining raw JSON metadata (including unknown
+source fields) internally. It does not claim to verify raw dataset bytes when those
+bytes are intentionally excluded. Re-importing unchanged evidence for the same owner
+is idempotent; changed evidence, path traversal and symlinked files fail closed.
+The retrospective A1 projection is restricted to the two reviewed v2 protocol hashes;
+synthetic imports require matching explicit source evidence and label. Artifact
+resolution accepts an opaque indexed UUID and returns reverified bytes, not a
+source path. A3 owns browser endpoints and any response-size policy.
+
 `stock-signal` is the fixed strategy template key, an intentional exception to UUID
 entity IDs. Window names, variant labels and cost policy IDs are descriptive keys,
 never paths. Dataset, run, result and artifact IDs are opaque UUIDs. A1's validation
