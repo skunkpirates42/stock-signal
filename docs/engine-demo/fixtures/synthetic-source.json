@@ -1,0 +1,17 @@
+{
+  "description": "Hand-authored schema correctness fixture, not an engine run or strategy evidence. Deliberately missing marked review, accounting policy, cost decomposition, code identity and job timestamps.",
+  "synthetic": true,
+  "protocol": {
+    "dataset_metadata": {"feed": "synthetic:contract-fixture", "symbols": ["AAA"]},
+    "costs": {"spread_bps": 2.0, "slippage_bps_per_fill": 1.0, "fee_per_share_per_fill": 0.0},
+    "windows": [{"name": "fixture", "role": "fixture", "start": "2026-01-05T00:00:00Z", "end": "2026-01-06T00:00:00Z"}]
+  },
+  "comparison": [{
+    "window": {"name": "fixture", "role": "fixture", "start": "2026-01-05T00:00:00Z", "end": "2026-01-06T00:00:00Z"},
+    "variant": "baseline",
+    "metrics": {"metric_basis": "Synthetic closed-trade example; recorded execution costs only.", "total_pnl": 0, "gross_pnl": 2, "costs": 2, "n_closed": 1, "max_drawdown": 0, "by_regime": {}},
+    "diagnostics": {"sessions": 1, "net_pnl_per_session": 0, "limitations": ["Synthetic correctness check; no profitability or promotion evidence."]},
+    "censored_positions": 1
+  }],
+  "manifest": {"source": "backtest", "backend": "local", "feed": "synthetic:contract-fixture", "symbols": ["AAA"]}
+}

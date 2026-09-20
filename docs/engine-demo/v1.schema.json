@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:stock-signal:engine-demo:v1",
+  "title": "Stock Signal engine demo v1",
+  "description": "Public read models; individual records are addressable through $defs. No execution authority is conveyed.",
+  "oneOf": [
+    {"$ref": "#/$defs/envelope"},
+    {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/envelope"}}
+  ],
+  "$defs": {
+    "uuid": {"type": "string", "format": "uuid"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "text": {"type": "string", "minLength": 1},
+    "utc": {"type": "string", "format": "date-time", "pattern": "T.*(?:Z|\\+00:00)$"},
+    "strings": {"type": "array", "items": {"$ref": "#/$defs/text"}, "uniqueItems": true},
+    "unavailable": {
+      "type": "object", "additionalProperties": false,
+      "required": ["availability", "value", "reason", "detail"],
+      "properties": {
+        "availability": {"const": "unavailable"}, "value": {"type": "null"},
+        "reason": {"enum": ["not_recorded", "not_modeled", "not_applicable", "missing_artifact", "unverified", "unknown_legacy", "not_registered"]},
+        "detail": {"$ref": "#/$defs/text"}
+      }
+    },
+    "available": {
+      "type": "object", "additionalProperties": false,
+      "required": ["availability", "value", "reason", "detail"],
+      "properties": {
+        "availability": {"const": "available"}, "value": {"not": {"type": "null"}},
+        "reason": {"type": "null"}, "detail": {"type": ["string", "null"]}
+      }
+    },
+    "field": {"oneOf": [{"$ref": "#/$defs/available"}, {"$ref": "#/$defs/unavailable"}]},
+    "text_field": {"allOf": [{"$ref": "#/$defs/field"}, {"properties": {"value": {"type": ["string", "null"], "minLength": 1}}}]},
+    "hash_field": {"allOf": [{"$ref": "#/$defs/field"}, {"properties": {"value": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]}}}]},
+    "uuid_field": {"allOf": [{"$ref": "#/$defs/field"}, {"properties": {"value": {"oneOf": [{"$ref": "#/$defs/uuid"}, {"type": "null"}]}}}]},
+    "utc_field": {"allOf": [{"$ref": "#/$defs/field"}, {"properties": {"value": {"oneOf": [{"$ref": "#/$defs/utc"}, {"type": "null"}]}}}]},
+    "object_field": {"allOf": [{"$ref": "#/$defs/field"}, {"properties": {"value": {"type": ["object", "null"]}}}]},
+    "number_field": {"allOf": [{"$ref": "#/$defs/field"}, {"properties": {"value": {"type": ["number", "null"]}}}]},
+    "count_field": {"allOf": [{"$ref": "#/$defs/field"}, {"properties": {"value": {"type": ["integer", "null"], "minimum": 0}}}]},
+    "bounds_field": {"allOf": [{"$ref": "#/$defs/object_field"}, {"properties": {"value": {
+      "type": ["object", "null"], "additionalProperties": false, "required": ["start", "end_exclusive"],
+      "properties": {"start": {"$ref": "#/$defs/utc"}, "end_exclusive": {"$ref": "#/$defs/utc"}}
+    }}}]},
+    "metric": {
+      "type": "object", "additionalProperties": false,
+      "required": ["observation", "unit", "basis", "source_pointer"],
+      "properties": {
+        "observation": {"$ref": "#/$defs/number_field"},
+        "unit": {"enum": ["USD", "USD/session", "USD/trade", "count", "fraction", "multiple"]},
+        "basis": {"$ref": "#/$defs/text"},
+        "source_pointer": {"type": ["string", "null"], "pattern": "^/"}
+      },
+      "allOf": [
+        {"if": {"properties": {"observation": {"properties": {"availability": {"const": "available"}}}}}, "then": {"properties": {"source_pointer": {"type": "string"}}}},
+        {"if": {"properties": {"unit": {"const": "count"}}}, "then": {"properties": {"observation": {"$ref": "#/$defs/count_field"}}}}
+      ]
+    },
+    "usd_metric": {"allOf": [{"$ref": "#/$defs/metric"}, {"properties": {"unit": {"const": "USD"}}}]},
+    "count_metric": {"allOf": [{"$ref": "#/$defs/metric"}, {"properties": {"unit": {"const": "count"}}}]},
+    "session_metric": {"allOf": [{"$ref": "#/$defs/metric"}, {"properties": {"unit": {"const": "USD/session"}}}]},
+    "regime_row": {
+      "type": "object", "additionalProperties": false, "required": ["n", "wins", "pnl", "win_rate"],
+      "properties": {
+        "n": {"type": "integer", "minimum": 0, "description": "Closed trade count."},
+        "wins": {"type": "integer", "minimum": 0, "description": "Winning closed trade count."},
+        "pnl": {"type": "number", "description": "Saved realized net P&L in USD, under the wrapper basis."},
+        "win_rate": {"type": "number", "minimum": 0, "maximum": 1, "description": "Saved win rate as a fraction, not percentage points."}
+      }
+    },
+    "by_regime": {
+      "allOf": [{"$ref": "#/$defs/object_field"}, {"properties": {"value": {
+        "type": ["object", "null"], "additionalProperties": false,
+        "required": ["basis", "unit", "source_pointer", "values"],
+        "properties": {
+          "basis": {"$ref": "#/$defs/text"}, "unit": {"const": "USD", "description": "Unit for the pnl subfield; counts and win_rate have their own fixed meanings."},
+          "source_pointer": {"type": "string", "pattern": "^/"},
+          "values": {"type": "object", "propertyNames": {"$ref": "#/$defs/text"}, "additionalProperties": {"$ref": "#/$defs/regime_row"}}
+        }
+      }}}]
+    },
+    "window": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "role", "start", "end_exclusive"],
+      "properties": {
+        "name": {"$ref": "#/$defs/text"},
+        "role": {"enum": ["development", "holdout", "evaluation", "fixture", "unknown"]},
+        "start": {"$ref": "#/$defs/utc"}, "end_exclusive": {"$ref": "#/$defs/utc"}
+      }
+    },
+    "provenance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source", "execution", "historical", "retrospective", "synthetic", "evaluation", "holdout_status", "label_evidence"],
+      "properties": {
+        "source": {"enum": ["backtest", "live", "unknown"]},
+        "execution": {"enum": ["local_simulation", "paper", "unknown"]},
+        "historical": {"type": "boolean"}, "retrospective": {"type": "boolean"}, "synthetic": {"type": "boolean"},
+        "evaluation": {"enum": ["retrospective", "synthetic_correctness", "prospective", "unknown"]},
+        "holdout_status": {"allOf": [{"$ref": "#/$defs/text_field"}, {"properties": {"value": {"enum": ["upcoming", "collecting", "complete", "reviewable", null]}}}]},
+        "label_evidence": {"$ref": "#/$defs/strings", "minItems": 1}
+      },
+      "allOf": [
+        {"if": {"properties": {"evaluation": {"const": "retrospective"}}}, "then": {"properties": {"retrospective": {"const": true}, "historical": {"const": true}, "synthetic": {"const": false}}}},
+        {"if": {"properties": {"retrospective": {"const": true}}}, "then": {"properties": {"evaluation": {"const": "retrospective"}}}},
+        {"if": {"properties": {"synthetic": {"const": true}}}, "then": {"properties": {"evaluation": {"const": "synthetic_correctness"}, "retrospective": {"const": false}}}},
+        {"if": {"properties": {"evaluation": {"const": "synthetic_correctness"}}}, "then": {"properties": {"synthetic": {"const": true}}}}
+      ]
+    },
+    "accounting": {
+      "type": "object", "additionalProperties": false,
+      "required": ["version", "mode", "coverage", "unresolved"],
+      "properties": {
+        "version": {"$ref": "#/$defs/text_field"},
+        "mode": {"enum": ["recorded_costs_only", "cashflow_accounted", "unknown"]},
+        "coverage": {"enum": ["complete", "incomplete", "unavailable"]},
+        "unresolved": {"$ref": "#/$defs/strings"}
+      },
+      "allOf": [{"if": {"properties": {"coverage": {"enum": ["incomplete", "unavailable"]}}}, "then": {"properties": {"unresolved": {"minItems": 1}}}, "else": {"properties": {"unresolved": {"maxItems": 0}}}}]
+    },
+    "strategy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["record_type", "id", "label", "description", "supported_modes", "editable_fields", "template_version", "strategy_version"],
+      "properties": {
+        "record_type": {"const": "strategy"}, "id": {"const": "stock-signal"},
+        "label": {"$ref": "#/$defs/text"}, "description": {"$ref": "#/$defs/text"},
+        "supported_modes": {"const": ["historical"]}, "editable_fields": {"const": []},
+        "template_version": {"$ref": "#/$defs/text_field"}, "strategy_version": {"$ref": "#/$defs/hash_field"}
+      }
+    },
+    "dataset": {
+      "type": "object", "additionalProperties": false,
+      "required": ["record_type", "id", "label", "content_sha256", "feed", "symbols", "requested_bounds", "session_coverage", "synthetic", "metadata_state", "approved_windows", "warmup_capability", "availability"],
+      "properties": {
+        "record_type": {"const": "dataset"}, "id": {"$ref": "#/$defs/uuid"}, "label": {"$ref": "#/$defs/text"},
+        "content_sha256": {"$ref": "#/$defs/hash_field"}, "feed": {"$ref": "#/$defs/text_field"},
+        "symbols": {"$ref": "#/$defs/strings"}, "requested_bounds": {"$ref": "#/$defs/bounds_field"},
+        "session_coverage": {"$ref": "#/$defs/object_field"}, "synthetic": {"type": "boolean"},
+        "metadata_state": {"enum": ["recorded", "partial", "unavailable"]},
+        "approved_windows": {"type": "array", "items": {"$ref": "#/$defs/window"}},
+        "warmup_capability": {"$ref": "#/$defs/text_field"}, "availability": {"$ref": "#/$defs/text_field"}
+      }
+    },
+    "normalized_run": {
+      "type": "object", "additionalProperties": false,
+      "required": ["record_type", "id", "strategy_id", "strategy_version", "variant", "dataset_id", "dataset_sha256", "selected_data_sha256", "window", "observed_bounds", "symbols", "feed", "cost_policy", "accounting", "fill_policy", "session_policy", "code", "provenance"],
+      "properties": {
+        "record_type": {"const": "normalized_run"}, "id": {"$ref": "#/$defs/uuid"}, "strategy_id": {"const": "stock-signal"},
+        "strategy_version": {"$ref": "#/$defs/hash_field"}, "variant": {"$ref": "#/$defs/text"},
+        "dataset_id": {"$ref": "#/$defs/uuid"}, "dataset_sha256": {"$ref": "#/$defs/hash_field"}, "selected_data_sha256": {"$ref": "#/$defs/hash_field"},
+        "window": {"$ref": "#/$defs/window"},
+        "observed_bounds": {
+          "type": "object", "additionalProperties": false, "required": ["first_bar", "last_bar", "warmup_end_exclusive"],
+          "properties": {"first_bar": {"$ref": "#/$defs/utc_field"}, "last_bar": {"$ref": "#/$defs/utc_field"}, "warmup_end_exclusive": {"$ref": "#/$defs/utc_field"}}
+        },
+        "symbols": {"$ref": "#/$defs/strings"}, "feed": {"$ref": "#/$defs/text_field"},
+        "cost_policy": {
+          "type": "object", "additionalProperties": false, "required": ["id", "spread_bps", "slippage_bps_per_fill", "fee_per_share_per_fill", "evidence"],
+          "properties": {
+            "id": {"$ref": "#/$defs/text"}, "spread_bps": {"type": "number", "minimum": 0},
+            "slippage_bps_per_fill": {"type": "number", "minimum": 0}, "fee_per_share_per_fill": {"type": "number", "minimum": 0}, "evidence": {"$ref": "#/$defs/text"}
+          }
+        },
+        "accounting": {"$ref": "#/$defs/accounting"}, "fill_policy": {"$ref": "#/$defs/text_field"}, "session_policy": {"$ref": "#/$defs/text_field"},
+        "code": {
+          "type": "object", "additionalProperties": false, "required": ["revision", "source_sha256", "working_diff_sha256"],
+          "properties": {"revision": {"$ref": "#/$defs/text_field"}, "source_sha256": {"$ref": "#/$defs/hash_field"}, "working_diff_sha256": {"$ref": "#/$defs/hash_field"}}
+        },
+        "provenance": {"$ref": "#/$defs/provenance"}
+      }
+    },
+    "result": {
+      "type": "object", "additionalProperties": false,
+      "required": ["record_type", "id", "run_id", "window", "variant", "provenance", "accounting", "metrics", "by_regime", "limitations", "artifact_ids"],
+      "properties": {
+        "record_type": {"const": "result"}, "id": {"$ref": "#/$defs/uuid"}, "run_id": {"$ref": "#/$defs/uuid"},
+        "window": {"$ref": "#/$defs/window"}, "variant": {"$ref": "#/$defs/text"},
+        "provenance": {"$ref": "#/$defs/provenance"}, "accounting": {"$ref": "#/$defs/accounting"},
+        "metrics": {
+          "type": "object", "additionalProperties": {"$ref": "#/$defs/metric"},
+          "properties": {
+            "realized_net_pnl": {"$ref": "#/$defs/usd_metric"},
+            "gross_pnl": {"$ref": "#/$defs/usd_metric"},
+            "recorded_costs": {"$ref": "#/$defs/usd_metric"},
+            "closed_trades": {"$ref": "#/$defs/count_metric"},
+            "censored_positions": {"$ref": "#/$defs/count_metric"},
+            "realized_max_drawdown": {"$ref": "#/$defs/usd_metric"},
+            "marked_net_pnl": {"$ref": "#/$defs/usd_metric"},
+            "marked_max_drawdown": {"$ref": "#/$defs/usd_metric"},
+            "marked_net_per_session": {"$ref": "#/$defs/session_metric"},
+            "max_gross_exposure": {"$ref": "#/$defs/usd_metric"},
+            "borrow_cost": {"$ref": "#/$defs/usd_metric"},
+            "dividend_cashflow": {"$ref": "#/$defs/usd_metric"},
+            "spread_cost": {"$ref": "#/$defs/usd_metric"},
+            "slippage_cost": {"$ref": "#/$defs/usd_metric"},
+            "fees": {"$ref": "#/$defs/usd_metric"}
+          },
+          "required": ["realized_net_pnl", "gross_pnl", "recorded_costs", "closed_trades", "censored_positions", "realized_max_drawdown", "marked_net_pnl", "marked_max_drawdown", "marked_net_per_session", "max_gross_exposure", "borrow_cost", "dividend_cashflow", "spread_cost", "slippage_cost", "fees"]
+        },
+        "by_regime": {"$ref": "#/$defs/by_regime"},
+        "limitations": {"$ref": "#/$defs/strings", "minItems": 1},
+        "artifact_ids": {"type": "array", "items": {"$ref": "#/$defs/uuid"}, "uniqueItems": true}
+      }
+    },
+    "artifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["record_type", "id", "result_id", "kind", "sha256", "mime_type", "byte_size"],
+      "properties": {
+        "record_type": {"const": "artifact"}, "id": {"$ref": "#/$defs/uuid"}, "result_id": {"$ref": "#/$defs/uuid"},
+        "kind": {"enum": ["protocol", "comparison", "marked_review", "manifest", "metrics", "diagnostics", "trades", "equity", "accounting", "cashflows", "report", "registration", "dataset_metadata", "data_health", "log"]},
+        "sha256": {"$ref": "#/$defs/sha256"}, "mime_type": {"enum": ["application/json", "text/plain", "text/markdown"]},
+        "byte_size": {"type": "integer", "minimum": 0}
+      }
+    },
+    "failure": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "summary", "at", "retryable", "log_artifact_id"],
+      "properties": {
+        "code": {"enum": ["validation_failed", "input_unavailable", "timeout", "worker_lost", "execution_failed", "artifact_invalid"]},
+        "summary": {"$ref": "#/$defs/text", "maxLength": 500}, "at": {"$ref": "#/$defs/utc"},
+        "retryable": {"type": "boolean"}, "log_artifact_id": {"$ref": "#/$defs/uuid_field"}
+      }
+    },
+    "status": {
+      "type": "object", "additionalProperties": false,
+      "required": ["record_type", "run_id", "origin", "state", "created_at", "started_at", "ended_at", "phase", "progress", "heartbeat_at", "attempt", "engine_run_id", "result_id", "failure", "cancellation"],
+      "properties": {
+        "record_type": {"const": "status"}, "run_id": {"$ref": "#/$defs/uuid"}, "origin": {"enum": ["saved_artifact", "job"]},
+        "state": {"enum": ["queued", "running", "cancel_requested", "completed", "failed", "cancelled"]},
+        "created_at": {"$ref": "#/$defs/utc_field"}, "started_at": {"$ref": "#/$defs/utc_field"}, "ended_at": {"$ref": "#/$defs/utc_field"},
+        "phase": {"allOf": [{"$ref": "#/$defs/text_field"}, {"properties": {"value": {"enum": ["validating", "replaying", "exporting", "verifying", null]}}}]},
+        "progress": {"allOf": [{"$ref": "#/$defs/object_field"}, {"properties": {"value": {
+          "type": ["object", "null"], "additionalProperties": false, "required": ["completed", "total", "unit"],
+          "properties": {"completed": {"type": "integer", "minimum": 0}, "total": {"$ref": "#/$defs/count_field"}, "unit": {"enum": ["bars", "sessions", "artifacts"]}}
+        }}}]},
+        "heartbeat_at": {"$ref": "#/$defs/utc_field"}, "attempt": {"$ref": "#/$defs/count_field"},
+        "engine_run_id": {"$ref": "#/$defs/text_field"}, "result_id": {"$ref": "#/$defs/uuid_field"},
+        "failure": {"oneOf": [{"$ref": "#/$defs/failure"}, {"$ref": "#/$defs/unavailable"}]},
+        "cancellation": {"oneOf": [{"$ref": "#/$defs/unavailable"}, {
+          "type": "object", "additionalProperties": false, "required": ["requested_at", "requester_id"],
+          "properties": {"requested_at": {"$ref": "#/$defs/utc"}, "requester_id": {"$ref": "#/$defs/uuid"}}
+        }]}
+      },
+      "allOf": [
+        {"if": {"properties": {"state": {"const": "completed"}}}, "then": {"properties": {"result_id": {"$ref": "#/$defs/available"}}}, "else": {"properties": {"result_id": {"$ref": "#/$defs/unavailable"}}}},
+        {"if": {"properties": {"state": {"const": "failed"}}}, "then": {"properties": {"failure": {"$ref": "#/$defs/failure"}}}, "else": {"properties": {"failure": {"$ref": "#/$defs/unavailable"}}}},
+        {"if": {"properties": {"origin": {"const": "saved_artifact"}}}, "then": {"properties": {"state": {"const": "completed"}}}}
+      ]
+    },
+    "envelope": {
+      "type": "object", "additionalProperties": false, "required": ["schema_version", "data", "warnings"],
+      "properties": {
+        "schema_version": {"const": 1}, "warnings": {"$ref": "#/$defs/strings"},
+        "data": {"oneOf": [{"$ref": "#/$defs/strategy"}, {"$ref": "#/$defs/dataset"}, {"$ref": "#/$defs/normalized_run"}, {"$ref": "#/$defs/result"}, {"$ref": "#/$defs/artifact"}, {"$ref": "#/$defs/status"}]}
+      }
+    }
+  }
+}
