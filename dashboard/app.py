@@ -8,21 +8,30 @@ numbers match report.py exactly.
 Run:  python3 run_dashboard.py   (then open http://127.0.0.1:8000)
 """
 
+import os
 import sqlite3
+from pathlib import Path
 
-from flask import Flask, abort, jsonify, render_template, request
+from flask import Flask, Response, abort, jsonify, render_template, request
 
 import config
 from alerts.feed import build_alert_events
 from analytics.metrics import compute_metrics, equity_curve, load_closed_trades
 from db.logger import load_open_positions, init_db, scope_sql, _connect
+from demo.read_service import MAX_JSON_RESPONSE_BYTES, DemoContentTooLarge, DemoNotFound, DemoReadService
 from signals.llm_synthesis import signal_from_row, synthesize
 
 
-def create_app(db_path: str = None) -> Flask:
+def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: str = None) -> Flask:
     app = Flask(__name__)
     app.config["DB_PATH"] = db_path or config.DB_PATH
+    # These are server configuration, never request parameters.  The demo index is
+    # deliberately separate from the operational journal and has no write endpoint.
+    app.config["DEMO_DB_PATH"] = (demo_db_path or os.environ.get("DEMO_ARTIFACT_DB_PATH")
+                                  or str(Path(app.config["DB_PATH"]).with_name("demo-artifacts.db")))
+    app.config["DEMO_OWNER_ID"] = demo_owner_id or os.environ.get("DEMO_OPERATOR_OWNER_ID", "local")
     init_db(app.config["DB_PATH"])
+    demo = DemoReadService(app.config["DEMO_DB_PATH"], owner_id=app.config["DEMO_OWNER_ID"])
 
     def _db():
         return app.config["DB_PATH"]
@@ -141,6 +150,59 @@ def create_app(db_path: str = None) -> Flask:
                 "FROM orders WHERE state NOT IN ('filled','canceled','rejected','expired','done_for_day','suspended')")]
             latest = conn.execute("SELECT MAX(bar_timestamp) FROM signals WHERE source='live'").fetchone()[0]
         return jsonify(runtime=runtime, unresolved_orders=orders, latest_bar=latest)
+
+    def _demo_json(operation):
+        try:
+            payload = operation()
+            # Flask owns JSON configuration (including Unicode escaping), so cap the
+            # actual serialized response rather than an approximation of it.
+            response = jsonify(payload)
+            if len(response.get_data()) > MAX_JSON_RESPONSE_BYTES:
+                raise DemoContentTooLarge("Demo JSON response exceeds the configured response limit")
+            return response
+        except DemoNotFound:
+            # Keep absent, wrong-owner, malformed IDs, and unavailable/tampered indexed
+            # sources indistinguishable to the caller.
+            abort(404)
+        except DemoContentTooLarge:
+            abort(413, "demo content exceeds the configured response limit")
+        except ValueError as exc:
+            abort(400, str(exc))
+
+    @app.route("/api/demo/v1/strategies")
+    def api_demo_strategies():
+        return _demo_json(demo.strategy_catalog)
+
+    @app.route("/api/demo/v1/datasets")
+    def api_demo_datasets():
+        return _demo_json(lambda: demo.dataset_catalog(limit=request.args.get("limit")))
+
+    @app.route("/api/demo/v1/cost-profiles")
+    def api_demo_cost_profiles():
+        return _demo_json(lambda: demo.cost_profile_catalog(limit=request.args.get("limit")))
+
+    @app.route("/api/demo/v1/research")
+    def api_demo_research():
+        return _demo_json(lambda: demo.list_research(limit=request.args.get("limit"),
+                                                      cursor=request.args.get("cursor")))
+
+    @app.route("/api/demo/v1/results/<result_id>")
+    def api_demo_result(result_id):
+        return _demo_json(lambda: demo.result_detail(result_id))
+
+    @app.route("/api/demo/v1/results/<result_id>/artifacts/<artifact_id>")
+    def api_demo_artifact(result_id, artifact_id):
+        try:
+            artifact = demo.artifact_content(result_id, artifact_id)
+        except DemoNotFound:
+            abort(404)
+        except DemoContentTooLarge:
+            abort(413, "demo content exceeds the configured response limit")
+        response = Response(artifact.content, mimetype=artifact.mime_type)
+        response.headers["Content-Length"] = str(artifact.byte_size)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
     return app
 

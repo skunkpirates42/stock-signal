@@ -46,6 +46,23 @@ identity allocation. Artifact references contain checksums, byte sizes, MIME typ
 and owning result IDs, with no storage paths. Schema acceptance does not authorize
 serving a file: A2/A3 must enforce ownership, allowlists, checksums and safe resolution.
 
+## A3 local read API
+
+The local dashboard exposes only versioned `GET /api/demo/v1/strategies`,
+`/datasets`, `/cost-profiles`, `/research`, `/results/{resultId}` and
+`/results/{resultId}/artifacts/{artifactId}` routes. JSON uses the fixed
+`{schema_version: 1, data: ..., warnings: []}` envelope; records within catalog and
+detail data use the A1 public projections. Catalog choices are descriptions of saved
+source evidence only: datasets retain `approved_windows: []`, raw dataset bytes are
+not indexed, and no response authorizes a replay or execution.
+
+The server configures one local operator owner (`DEMO_OPERATOR_OWNER_ID`, default
+`local`) and its separate A2 SQLite index (`DEMO_ARTIFACT_DB_PATH`); neither value
+comes from a browser request. Result and artifact route IDs must be opaque UUIDs, are
+owner-scoped, and artifacts are additionally scoped to their requested result. A3
+never returns source paths or raw importer metadata. JSON pages and artifact bytes are
+bounded; missing, changed, wrong-owner, or unsafe artifact references return `404`.
+
 For newly registered strategies, `strategy_version` is the SHA-256 fingerprint of
 the UTF-8 JSON object with exactly `template_version`, `source_sha256` and
 `configuration_sha256` keys, sorted keys, compact separators, no ASCII escaping and
