@@ -1,0 +1,13 @@
+{
+  "status": "registered",
+  "experiment": "regime",
+  "version": "t07_regime_v1",
+  "variants": ["baseline", "regime"],
+  "evaluation_period": {
+    "name": "holdout",
+    "start": "2026-06-10T13:30Z",
+    "end": "2026-06-10T20:00Z",
+    "role": "holdout"
+  },
+  "notes": "Synthetic fixture registration for offline plumbing tests only; it is not a prospective evaluation registration."
+}

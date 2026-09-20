@@ -2,6 +2,8 @@
 import math
 import statistics
 import pandas as pd
+from signals.indicators import compute_indicators
+from signals.regime import UNKNOWN, classify_context, regime_eligibility
 from data.sessions import calendar, session_bounds, utc
 
 POLICY = {
@@ -9,12 +11,13 @@ POLICY = {
     'strength_threshold': 0, 'benchmark': 'SPY',
     'rvol_prior_sessions': 20, 'rvol_min_observations': 10,
     'rvol_threshold': 1.5, 'bar_minutes': 5,
+    'regime_gate_version': 'regime_v1', 'regime_stale_minutes': 10,
 }
 
 
 class ResearchGate:
     def __init__(self, bars, mode):
-        if mode not in ('baseline', 'strength', 'rvol', 'both'):
+        if mode not in ('baseline', 'strength', 'rvol', 'both', 'regime'):
             raise ValueError('Unknown research gate')
         self.mode = mode
         self.bars = {}
@@ -86,7 +89,44 @@ class ResearchGate:
         return {**detail, 'value': value, 'reference_median': median,
                 'accepted': accepted, 'reason': 'passed' if accepted else 'below_threshold'}
 
-    def __call__(self, symbol, windows, decision_at, direction):
+    @staticmethod
+    def _frame_at(frame, ts):
+        """Return bars available at a decision's completed-bar timestamp."""
+        return frame.loc[frame.index <= ts].reset_index()
+
+    def _regime(self, ts, context=None, decision_at=None):
+        if context is not None:
+            return context
+        freshness_at = utc(decision_at) if decision_at is not None else ts
+        spy = self.bars.get('SPY')
+        qqq = self.bars.get('QQQ')
+        if spy is None:
+            return classify_context(None)
+        spy_frame = self._frame_at(spy, ts)
+        if spy_frame.empty:
+            return classify_context(None)
+        spy_at = spy_frame['timestamp'].iloc[-1]
+        if freshness_at - spy_at > pd.Timedelta(minutes=POLICY['regime_stale_minutes']):
+            return classify_context(None, stale=True)
+        try:
+            spy_ind = compute_indicators(spy_frame)
+        except (KeyError, TypeError, ValueError):
+            return classify_context(None)
+        qqq_ind = None
+        qqq_stale = False
+        if qqq is not None:
+            qqq_frame = self._frame_at(qqq, ts)
+            if not qqq_frame.empty:
+                qqq_at = qqq_frame['timestamp'].iloc[-1]
+                qqq_stale = freshness_at - qqq_at > pd.Timedelta(minutes=POLICY['regime_stale_minutes'])
+                if not qqq_stale:
+                    try:
+                        qqq_ind = compute_indicators(qqq_frame)
+                    except (KeyError, TypeError, ValueError):
+                        qqq_ind = None
+        return classify_context(spy_ind, qqq_ind, qqq_stale=qqq_stale)
+
+    def __call__(self, symbol, windows, decision_at, direction, context=None):
         detail = {'mode': self.mode, 'policy': POLICY, 'strength': None,
                   'rvol': None, 'accepted': True, 'checks': {}}
         if self.mode == 'baseline':
@@ -101,6 +141,17 @@ class ResearchGate:
             detail['checks']['strength'] = self._strength(symbol, ts, direction, pair)
         if self.mode in ('rvol', 'both'):
             detail['checks']['rvol'] = self._rvol(symbol, ts, pair)
+        if self.mode == 'regime':
+            regime_context = self._regime(ts, context=context, decision_at=decision_at)
+            eligibility = regime_eligibility(direction, regime_context)
+            detail['regime'] = regime_context.get('regime', UNKNOWN)
+            detail['checks']['regime'] = {
+                **eligibility,
+                'context': dict(regime_context),
+            }
+            detail['accepted'] = eligibility['accepted']
+            detail['reason'] = 'regime_gate:' + eligibility['reason']
+            return detail['accepted'], detail
         for name, check in detail['checks'].items():
             detail[name] = check['value']
         detail['accepted'] = all(c['accepted'] for c in detail['checks'].values())
