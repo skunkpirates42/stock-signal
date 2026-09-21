@@ -198,9 +198,17 @@
 .research-listing, .artifact-list { margin: calc(var(--space) * 1.5) 0 0 calc(var(--space) * 1.5); color: var(--muted); line-height: 1.6; }
 .artifact-list span { display: block; overflow-wrap: anywhere; }
 .research-pagination { margin-top: calc(var(--space) * 2); }
+.audit-metrics, .artifact-groups { margin-bottom: calc(var(--space) * 2); }
+.audit-columns, .artifact-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(var(--space) * 2); margin-top: calc(var(--space) * 1.5); }
+.audit-columns h3, .artifact-groups h3 { font-size: .95rem; }
+.audit-counts { margin-top: var(--space); }
+.audit-counts div { display: flex; justify-content: space-between; gap: var(--space); padding: calc(var(--space) / 2) 0; border-bottom: 1px solid var(--line); }
+.audit-counts dt { color: var(--muted); overflow-wrap: anywhere; }
+.unavailable-note { margin-top: var(--space); padding: var(--space); border-left: 2px solid var(--caution); color: var(--muted); font-size: .8rem; line-height: 1.5; }
 
 @media (max-width: 700px) {
   .research-result { grid-template-columns: 1fr; }
+  .audit-columns, .artifact-groups { grid-template-columns: 1fr; }
 }
 
 .cost-adjusted-crossing {
