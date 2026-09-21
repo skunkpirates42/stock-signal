@@ -120,6 +120,11 @@ export interface SavedResultDetail {
   status: { origin: "saved_artifact" | "job"; state: string; run_id: string };
 }
 
+export interface SavedDiagnostics {
+  signal_execution_reasons: Record<string, number>;
+  candidate_gate_checks: Record<string, number>;
+}
+
 interface Envelope<T> {
   schema_version: 1;
   data: T;
@@ -157,6 +162,89 @@ export async function getResearchResults(cursor?: string) {
 export async function getSavedResult(resultId: string) {
   if (!isOpaqueDemoId(resultId)) throw new DemoNotFound("Saved demo result was not found");
   return demoGet<SavedResultDetail>(`/results/${encodeURIComponent(resultId)}`);
+}
+
+const MAX_ARTIFACT_BYTES = 1024 * 1024;
+
+function countMap(value: unknown): Record<string, number> | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const entries = Object.entries(value);
+  if (!entries.every(([key, count]) => key.length > 0 && typeof count === "number"
+    && Number.isSafeInteger(count) && count >= 0)) return null;
+  return Object.fromEntries(entries);
+}
+
+async function readBoundedBody(response: Response, expectedBytes: number): Promise<Uint8Array | null> {
+  if (!response.body) return null;
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_ARTIFACT_BYTES || total > expectedBytes) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  if (total !== expectedBytes) return null;
+  const body = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
+}
+
+/** Read only the two aggregate count maps supported by the saved diagnostics schema. */
+export async function getSavedDiagnostics(
+  resultId: string,
+  artifacts: Artifact[],
+): Promise<Availability<SavedDiagnostics>> {
+  const artifact = artifacts.find((item) => item.kind === "diagnostics");
+  if (!artifact) {
+    return { availability: "unavailable", value: null, reason: "missing_artifact", detail: "No indexed diagnostics artifact is available for this result." };
+  }
+  if (!isOpaqueDemoId(resultId) || !isOpaqueDemoId(artifact.id) || artifact.result_id !== resultId) {
+    return { availability: "unavailable", value: null, reason: "unverified", detail: "The indexed diagnostics reference is not valid for this result." };
+  }
+
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/demo/v1/results/${encodeURIComponent(resultId)}/artifacts/${encodeURIComponent(artifact.id)}`,
+      { cache: "no-store", redirect: "manual" },
+    );
+    const contentType = response.headers.get("content-type")?.split(";", 1)[0].trim();
+    const contentLength = response.headers.get("content-length");
+    const declaredLength = contentLength === null ? Number.NaN : Number(contentLength);
+    if (!response.ok || contentType !== "application/json" || !Number.isSafeInteger(declaredLength)
+      || declaredLength < 0 || declaredLength > MAX_ARTIFACT_BYTES) {
+      return { availability: "unavailable", value: null, reason: "unverified", detail: "The saved diagnostics could not be verified as bounded JSON." };
+    }
+    const body = await readBoundedBody(response, declaredLength);
+    if (!body) throw new Error("Diagnostics length mismatch");
+    const raw: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(body));
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new Error("Invalid diagnostics object");
+    const record = raw as Record<string, unknown>;
+    const signalReasons = countMap(record.signal_execution_reasons);
+    const gateChecks = countMap(record.candidate_gate_checks);
+    if (!signalReasons || !gateChecks) throw new Error("Unsupported diagnostics schema");
+    return {
+      availability: "available",
+      value: { signal_execution_reasons: signalReasons, candidate_gate_checks: gateChecks },
+      reason: null,
+      detail: "Saved aggregate counts from the indexed diagnostics artifact.",
+    };
+  } catch {
+    return { availability: "unavailable", value: null, reason: "unverified", detail: "The indexed diagnostics artifact does not contain the supported saved aggregate counts." };
+  }
 }
 
 export function artifactHref(resultId: string, artifactId: string) {

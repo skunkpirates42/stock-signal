@@ -12,6 +12,8 @@ const validDetail = {
     accounting: { version: unavailable("No policy version."), mode: "recorded_costs_only", coverage: "incomplete", unresolved: ["Borrow is not modeled."] },
     metrics: {
       realized_net_pnl: { observation: { availability: "available", value: 12.5, reason: null, detail: "saved" }, unit: "USD", basis: "Saved closed trades", source_pointer: "/comparison" },
+      gross_pnl: { observation: { availability: "available", value: 20, reason: null, detail: "saved" }, unit: "USD", basis: "Saved gross trades", source_pointer: "/comparison" },
+      recorded_costs: { observation: { availability: "available", value: 7.5, reason: null, detail: "saved" }, unit: "USD", basis: "Saved aggregate costs", source_pointer: "/comparison" },
       marked_net_pnl: { observation: { availability: "available", value: 9.5, reason: null, detail: "saved" }, unit: "USD", basis: "Saved marks", source_pointer: "/marked_review" },
       fees: { observation: { availability: "unavailable", value: null, reason: "not_recorded", detail: "Separate fees were not saved." }, unit: "USD", basis: "No fee total", source_pointer: null },
       borrow_cost: { observation: { availability: "unavailable", value: null, reason: "not_modeled", detail: "Borrow is not modeled." }, unit: "USD", basis: "No borrow amount", source_pointer: null },
@@ -25,17 +27,27 @@ const validDetail = {
     record_type: "normalized_run", id: "saved-run-uuid", strategy_id: "stock-signal", strategy_version: unavailable("Legacy strategy."), variant: "baseline", dataset_id: "dataset-uuid", dataset_sha256: available("dataset-hash"), selected_data_sha256: available("selected-hash"),
     window: { name: "review", role: "holdout", start: "2026-01-01T00:00:00Z", end_exclusive: "2026-02-01T00:00:00Z" }, observed_bounds: { first_bar: available("2026-01-01T14:30:00Z"), last_bar: unavailable("No final mark.") }, symbols: ["AAA"], feed: available("iex"), cost_policy: { id: "saved", spread_bps: 2, slippage_bps_per_fill: 1, fee_per_share_per_fill: 0, evidence: "saved source" }, accounting: { version: unavailable("No policy version."), mode: "recorded_costs_only", coverage: "incomplete", unresolved: ["Borrow is not modeled."] }, fill_policy: available("next close"), session_policy: available("regular"), code: { revision: unavailable("No revision."), source_sha256: unavailable("No source hash."), working_diff_sha256: unavailable("No diff hash.") }, provenance: { source: "backtest", execution: "local_simulation", historical: true, retrospective: true, synthetic: false, evaluation: "retrospective", holdout_status: unavailable("No prospective registration."), label_evidence: ["Saved protocol"] },
   },
-  artifacts: [{ record_type: "artifact", id: "artifact-uuid", result_id: "result-uuid", kind: "metrics", sha256: "a".repeat(64), mime_type: "application/json", byte_size: 42 }],
+  artifacts: [
+    { record_type: "artifact", id: "artifact-uuid", result_id: "result-uuid", kind: "metrics", sha256: "a".repeat(64), mime_type: "application/json", byte_size: 42 },
+    { record_type: "artifact", id: "diagnostics-uuid", result_id: "result-uuid", kind: "diagnostics", sha256: "b".repeat(64), mime_type: "application/json", byte_size: 80 },
+    { record_type: "artifact", id: "health-uuid", result_id: "result-uuid", kind: "data_health", sha256: "c".repeat(64), mime_type: "application/json", byte_size: 64 },
+  ],
   status: { origin: "saved_artifact", state: "completed", run_id: "saved-run-uuid" },
 };
 
 vi.mock("@/lib/demo", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/demo")>();
-  return { ...actual, getSavedResult: vi.fn(async () => ({ data: validDetail, warnings: ["Saved result only."] })) };
+  return {
+    ...actual,
+    getSavedResult: vi.fn(async () => ({ data: validDetail, warnings: ["Saved result only."] })),
+    getSavedDiagnostics: vi.fn(async () => ({ availability: "available", value: {
+      signal_execution_reasons: { quality_gate: 3, wait: 2 }, candidate_gate_checks: { accepted: 4, rejected: 1 },
+    }, reason: null, detail: "Saved aggregate counts." })),
+  };
 });
 
 import Page from "./page";
-import { getSavedResult } from "@/lib/demo";
+import { getSavedDiagnostics, getSavedResult } from "@/lib/demo";
 
 function textOf(node: unknown): string {
   if (typeof node === "string" || typeof node === "number") return String(node);
@@ -55,6 +67,14 @@ describe("saved result page", () => {
     expect(text).toContain("metrics");
     expect(text).toContain("borrow cost");
     expect(text).toContain("inclusive");
+    expect(text).toContain("Accounting audit");
+    expect(text).toContain("quality gate");
+    expect(text).toContain("accepted");
+    expect(text).toContain("Detailed filters unavailable");
+    expect(text).toContain("Source-specific health unavailable");
+    expect(text).toContain("Shadow comparison");
+    expect(text).toContain("data health");
+    expect(text).toContain("SHA-256");
   });
 
   it("keeps incomplete values unavailable instead of treating them as zero", async () => {
@@ -64,6 +84,16 @@ describe("saved result page", () => {
     expect(text).toContain("Unresolved accounting:");
     expect(text).toContain("Borrow is not modeled.");
     expect(text).not.toContain("+$0.00");
+  });
+
+  it("shows an honest unavailable state when aggregate diagnostics cannot be read", async () => {
+    vi.mocked(getSavedDiagnostics).mockResolvedValueOnce({ availability: "unavailable", value: null, reason: "missing_artifact", detail: "No indexed diagnostics artifact is available for this result." });
+    const page = await Page({ params: Promise.resolve({ runId: "result-uuid" }) });
+    const text = textOf(page);
+    expect(text).toContain("No indexed diagnostics artifact is available");
+    expect(text).toContain("Latest bar, stale fraction, missing sessions, and calendar alignment require the R2 read model");
+    expect(text).not.toContain("Promote result");
+    expect(text).not.toContain("Execute trade");
   });
 
   it("uses the route-local missing-result UI for an A3 404", async () => {
