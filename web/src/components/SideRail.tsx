@@ -7,6 +7,7 @@ const LINKS = [
   { href: "/", label: "Overview" },
   { href: "/signals", label: "Signals" },
   { href: "/positions", label: "Positions" },
+  { href: "/research", label: "Research" },
 ];
 
 export default function SideRail() {
