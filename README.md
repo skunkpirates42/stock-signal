@@ -3,9 +3,10 @@
 A rule-based intraday trading signal engine, built to find out whether a transparent
 consensus-of-indicators strategy can survive real trading costs.
 
-The repository implements the research plumbing; it does not establish a validated
-trading edge. Earlier numerical findings below are historical and unverified: their
-original dataset and exact gate configuration are not available in this checkout.
+The repository implements a paper-only signal engine, replay, operational dashboard and
+read-only Research catalog. It does not establish a validated trading edge. The current
+saved comparison is summarized below; earlier numerical findings are historical and
+unverified because their original dataset and exact gate configuration are unavailable.
 
 **No real capital has been traded. This is not investment advice.**
 
@@ -14,8 +15,9 @@ original dataset and exact gate configuration are not available in this checkout
 Every five minutes, for each ticker on the watchlist, six directional indicators vote.
 If at least 62% agree, the engine emits LONG or SHORT with a stop and a target at a
 designed 2:1 reward-to-risk; otherwise it emits WAIT. The trading decision is a pure
-function and is unit tested. An LLM writes the human-readable rationale for a signal but
-never makes or influences the call.
+function and is unit tested. The live loop generates an offline template explanation;
+the dashboard can request a richer LLM explanation on demand. Neither explanation can
+make or change the trading decision.
 
 Every signal and every outcome is written to SQLite, so the strategy is judged on its
 logged record rather than on memory.
@@ -28,8 +30,9 @@ logged record rather than on memory.
 | Market data | `data/` | Alpaca IEX bars: REST for history, websocket for live, aggregated to 5-minute. Seeded synthetic fallback so it runs fully offline. |
 | Execution | `trades/` | Local fill simulator by default; real Alpaca paper orders with `BROKER=alpaca`. Restart-safe. |
 | Backtest | `backtest.py` | Replays saved or fetched bars chronologically through the shared local simulation pipeline. |
-| Dashboard API | `dashboard/` | Flask app exposing `/api/metrics`, `/api/signals`, `/api/trades`, `/api/open`, `/api/alerts` over `analytics/metrics.py` and SQLite. Also still serves a legacy templated page at `/`. |
-| Dashboard UI | `web/` | Next.js 16 / React 19 app ("Instrument") — Overview, Signals and Positions pages, reading the Flask API. Dark, mono-numeral instrument-panel design; equity curve, win/loss, cost-adjusted expectancy, R-multiples, by-ticker/regime breakdowns. This is the primary dashboard going forward. |
+| Dashboard API | `dashboard/` | Flask app exposing operational JSON reads, on-demand signal explanations and versioned saved-research reads. Also still serves a legacy templated page at `/`. |
+| Dashboard UI | `web/` | Next.js 16 / React 19 app ("Instrument") — Overview, Signals, Positions, `/research` and `/runs/[runId]` saved-result audit pages. |
+| Research artifacts | `demo/`, `docs/engine-demo/` | Imports reviewed saved bundles into a separate SQLite index; verifies an allowlist and hashes, then serves owner-scoped, read-only result and artifact views. |
 | Alerts | `alerts/` | Live alert feed with browser and native macOS notifications. |
 | Persistence | `db/` | SQLite log of every signal and trade. |
 
@@ -37,6 +40,8 @@ Replay and local live simulation share the same bar pipeline. Local fills use th
 completed five-minute bar's close, a deliberately delayed simulation policy. Alpaca paper
 orders use confirmed market fills and therefore have different execution latency.
 Neither mode places protective stop/target orders at the broker.
+The Research pages display saved evidence and explicit unavailable values. They do not
+submit backtests, activate strategies or provide hosted multi-tenancy.
 
 ## Running it
 
@@ -60,12 +65,55 @@ pnpm install
 pnpm dev   # http://localhost:3000 (set FLASK_API_URL if the API isn't on the default port)
 ```
 
+The operational pages are available with a local database. The Research catalog is empty
+until a reviewed saved bundle is imported into its separate index. If you have the local
+`research-output/alpaca-iex-2026-base-v2` bundle, a read-only demo can use:
+
+```bash
+PYTHONPATH=. .venv/bin/python -c 'from demo.artifacts import ArtifactIndex; ArtifactIndex("/tmp/stock-signal-artifacts.db").import_directory("research-output/alpaca-iex-2026-base-v2", owner_id="local")'
+DEMO_ARTIFACT_DB_PATH=/tmp/stock-signal-artifacts.db .venv/bin/python run_dashboard.py
+```
+
+Then open `http://localhost:3000/research` in the running Next.js app. The saved market
+bundle is local and gitignored; a fresh clone does not include it. The importer indexes
+allowlisted result files, not raw bars or broker credentials. The [versioned read-model
+contract](docs/engine-demo/README.md) describes the catalog and audit limitations.
+
 Tests:
 
 ```bash
 .venv/bin/python -m pytest tests/ -q   # backend
 cd web && pnpm test                    # frontend (vitest)
 ```
+
+## Saved research comparison
+
+The completed January–August 2026 Alpaca IEX experiment compared the unchanged baseline,
+benchmark-relative strength, time-of-day relative volume (RVOL) and both gates. January–
+February supplied warmup history; development covered 84 March–June exchange sessions;
+the named holdout covered 43 July–August sessions. “Adverse holdout” reruns that same
+July–August period with higher modeled trading costs; it is not a third time window.
+
+| Marked net P&L | Development, base costs | Holdout, base costs | Holdout, adverse costs |
+| --- | ---: | ---: | ---: |
+| Baseline | +$2,226.27 | +$412.68 | −$5,718.88 |
+| Relative strength | +$3,855.20 | −$902.36 | −$5,311.27 |
+| RVOL | −$970.92 | +$3,460.79 | −$105.35 |
+| Both gates | +$1,490.52 | +$76.77 | −$2,490.78 |
+
+The base scenario models 2 bps round-trip spread and 1 bp slippage per fill; adverse
+models 5 bps and 2 bps respectively. These are declared assumptions, not measured
+execution costs. Marked results include open positions valued at the latest completed
+close and paid entry costs, without inventing an exit fill or fee. Dividends, short borrow
+and actual quote spreads were not fully accounted for in these saved runs.
+
+RVOL had the strongest base-cost holdout, but lost in development and was slightly
+negative under adverse holdout costs. Its descriptive paired uncertainty interval for
+the holdout advantage over baseline crossed zero. No variant was promoted. These are
+retrospective results, and the viewed holdout cannot validate a revised strategy. The
+reviewed result bundles and raw market bars are local, gitignored artifacts, so a fresh
+clone cannot independently reproduce these figures. Next checks are complete cash-flow
+accounting, execution-cost evidence and prospective baseline-versus-RVOL observations.
 
 ## Historical findings — unverified
 
@@ -79,19 +127,17 @@ The original report attributed the figures below to one backtest window of rough
 
 **1. Historical gross expectancy claim.**
 
-A 35.6% win rate at 2:1 reward-to-risk produces a small positive gross expectancy of
-**+$2.94 per trade**. It is positive for both longs and shorts and in every market
-regime, so it is not merely long bias in a rising market. But the entire edge is roughly
-what realistic spread plus exit slippage costs. Net of about $3 per trade in friction it
-is break-even to negative. Not tradeable as it stands.
+The old report claimed a 35.6% win rate and **+$2.94 gross expectancy per trade**.
+It also claimed positive gross expectancy across sides and regimes. Those breakdowns
+cannot be independently reproduced from the missing source artifacts. A flat $3/trade
+cost proxy would have erased the reported edge.
 
 **2. Demanding more agreement makes it worse.**
 
-The obvious fix is to take fewer, higher-conviction trades. It backfires. Tightening the
-threshold from 4 votes to 5 cut trade count roughly eightfold *and* collapsed per-trade
-expectancy to +$0.86. The six indicators are all price-derived and therefore collinear —
-"strong consensus" mostly means a late, extended entry. The conviction knob is exhausted;
-the current threshold is already the sweet spot.
+The old report said increasing consensus from four to five votes reduced trade count
+roughly eightfold and gross expectancy to +$0.86/trade. Overlapping price-derived votes
+could explain why more agreement did not help, but this result cannot establish an
+optimal threshold.
 
 **3. Orthogonal information does what conviction could not.**
 
@@ -105,18 +151,16 @@ do not contain:
 | RVOL ≥ 1.5 | 1,215 | 36.2% | +$3.76 | +$921 |
 | Both | 930 | 37.1% | +$5.97 | +$2,761 |
 
-Both gates are computed causally, with no look-ahead. Relative strength alone clears the
-cost line; pairing it with real volume roughly doubles per-trade edge.
+These are the old report's figures under a flat cost proxy. Its exact gate definitions
+and original data are missing; do not compare this table directly with the completed
+`quality_v2` experiment above.
 
 ### What these numbers are not
 
-This is a single in-sample window on partial-volume IEX data with idealized exits, and
-the best gate combination was chosen by looking at that same window. It demonstrates
-working plumbing and a promising direction. It does **not** demonstrate a validated edge.
-
-Before any of it means anything: walk-forward testing on periods the gates were not tuned
-on, modeled spread and realistic exit fills instead of a flat cost proxy, and then forward
-paper trading for 50+ trades across mixed regimes.
+This was a single in-sample window on partial-volume IEX data with idealized exits, and
+the best combination was selected after viewing it. The archived numbers do **not**
+demonstrate a validated edge. The later saved experiment has a separate, explicit
+protocol, but it does not rehabilitate these missing artifacts.
 
 ## Status
 
@@ -159,7 +203,7 @@ Reproduce the synthetic fixture (no credentials or network):
 Compare optional research gates on explicitly labeled chronological windows:
 
 ```bash
-.venv/bin/python research.py --dataset tests/fixtures/bars.json --windows tests/fixtures/windows.json --output /tmp/gate-comparison
+.venv/bin/python research.py --dataset tests/fixtures/bars.json --windows tests/fixtures/windows.json --output /tmp/gate-comparison --allow-synthetic --allow-zero-costs
 ```
 
 Artifacts include configuration, dataset/code fingerprints, feed, policy, historical
@@ -167,6 +211,10 @@ trades, metrics and a report. Fixture results validate plumbing only. Real resea
 saved market data, fixed development/holdout windows, realistic cost scenarios and
 prospective validation. RVOL needs at least ten prior session observations; the small
 fixture intentionally cannot establish a volume result.
+
+`python -m analytics.research_review --comparison <output>` adds marked open-position
+equity, drawdown, exposure, turnover and paired session-block uncertainty to a completed
+comparison. Dividends and short borrow remain unmodeled.
 
 Next.js polls while visible and preserves filters/explanation state. The status band
 separates API reachability from worker heartbeat/data freshness and exposes unresolved
