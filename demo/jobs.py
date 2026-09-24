@@ -22,10 +22,17 @@ from .replay_catalog import build_replay_request
 
 ACTIVE_STATES = ("running", "cancel_requested")
 PHASES = ("validating", "replaying", "exporting", "verifying")
-FAILURE_CODES = ("validation_failed", "input_unavailable", "timeout", "worker_lost",
-                 "execution_failed", "artifact_invalid")
+# Summaries are fixed per code so no worker text (paths, tracebacks, credentials) can
+# reach the API. Details belong in a private, sanitized log artifact.
+FAILURE_SUMMARIES = {
+    "validation_failed": "The run request no longer passes validation.",
+    "input_unavailable": "The approved dataset could not be read.",
+    "timeout": "The replay exceeded its time limit.",
+    "worker_lost": "The worker stopped reporting before the run finished.",
+    "execution_failed": "The replay did not finish successfully.",
+    "artifact_invalid": "The replay output failed verification.",
+}
 MAX_ATTEMPTS = 2
-MAX_FAILURE_SUMMARY_CHARS = 500
 REQUESTER_NAMESPACE = uuid.UUID("3c0f6f0e-8f5e-4b53-9c7a-1d2b6f4a9e21")
 
 
@@ -298,10 +305,10 @@ class JobStore:
                 (ended_at, engine_run_id, result_id, job_id),
             )
 
-    def fail(self, job_id: str, lease_token: str, *, code: str, summary: str, retryable: bool = False) -> None:
+    def fail(self, job_id: str, lease_token: str, *, code: str, retryable: bool = False) -> None:
         with self._transaction() as conn:
             ended_at, now = self._now()
-            failure = self._failure(code, summary, ended_at, retryable)
+            failure = self._failure(code, ended_at, retryable)
             self._leased_row(conn, job_id, lease_token, now)
             conn.execute(
                 """UPDATE demo_jobs SET state='failed', ended_at=?, failure_json=?,
@@ -347,8 +354,7 @@ class JobStore:
                     )
                     outcomes[row["id"]] = "queued"
                 else:
-                    failure = self._failure("worker_lost", "The worker stopped reporting before the run finished.",
-                                            recovered_at, False)
+                    failure = self._failure("worker_lost", recovered_at, False)
                     conn.execute(
                         """UPDATE demo_jobs SET state='failed', ended_at=?, failure_json=?,
                                lease_token=NULL, lease_expires_at=NULL WHERE id=?""",
@@ -358,14 +364,12 @@ class JobStore:
         return outcomes
 
     @staticmethod
-    def _failure(code: str, summary: str, at: str, retryable: bool) -> Dict[str, Any]:
-        if code not in FAILURE_CODES:
+    def _failure(code: str, at: str, retryable: bool) -> Dict[str, Any]:
+        if code not in FAILURE_SUMMARIES:
             raise ValueError("Unknown failure code: %s" % code)
-        if not isinstance(summary, str) or not summary.strip():
-            raise ValueError("A failure summary is required")
         if not isinstance(retryable, bool):
             raise ValueError("retryable must be a boolean")
-        return {"code": code, "summary": summary.strip()[:MAX_FAILURE_SUMMARY_CHARS], "at": at,
+        return {"code": code, "summary": FAILURE_SUMMARIES[code], "at": at,
                 "retryable": retryable,
                 "log_artifact_id": _unavailable("not_recorded", "No log artifact is published for this job.")}
 

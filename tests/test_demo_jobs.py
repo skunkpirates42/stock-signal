@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from dashboard.app import create_app
-from demo.jobs import IdempotencyConflict, JobStore, LeaseLost, requester_id_for
+from demo.jobs import FAILURE_SUMMARIES, IdempotencyConflict, JobStore, LeaseLost, requester_id_for
 from demo.read_service import DemoNotFound
 from demo.replay_catalog import ReplayRequestRejected
 
@@ -193,14 +193,21 @@ def test_completion_published_before_cancel_wins(store):
 def test_terminal_jobs_stay_terminal(store):
     job_id, _ = store.submit("local", run_request())
     claimed = store.claim_next(lease_seconds=LEASE)
-    store.fail(job_id, claimed.lease_token, code="execution_failed", summary="Replay exited with status 1.")
+    store.fail(job_id, claimed.lease_token, code="execution_failed")
     failed = status_of(store, job_id)
     assert failed["failure"]["code"] == "execution_failed"
+    assert failed["failure"]["summary"] == FAILURE_SUMMARIES["execution_failed"]
     assert store.request_cancel("local", job_id)["data"]["status"] == failed
     with pytest.raises(LeaseLost):
         store.complete(job_id, claimed.lease_token, engine_run_id="late", result_id=str(uuid.uuid4()))
     with pytest.raises(LeaseLost):
         store.confirm_cancelled(job_id, claimed.lease_token)
+
+
+def test_failure_summaries_are_fixed_per_code():
+    contract_codes = contract.SCHEMA["$defs"]["failure"]["properties"]["code"]["enum"]
+    assert sorted(FAILURE_SUMMARIES) == sorted(contract_codes)
+    assert all(0 < len(summary) <= 500 for summary in FAILURE_SUMMARIES.values())
 
 
 def test_confirming_cancel_without_a_request_is_refused(store):
@@ -215,7 +222,7 @@ def test_unknown_failure_code_and_phase_are_rejected(store):
     job_id, _ = store.submit("local", run_request())
     claimed = store.claim_next(lease_seconds=LEASE)
     with pytest.raises(ValueError):
-        store.fail(job_id, claimed.lease_token, code="Traceback", summary="boom")
+        store.fail(job_id, claimed.lease_token, code="Traceback")
     with pytest.raises(ValueError):
         store.heartbeat(job_id, claimed.lease_token, lease_seconds=LEASE, phase="uploading")
     assert status_of(store, job_id)["state"] == "running"
