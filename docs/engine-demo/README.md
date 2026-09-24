@@ -243,7 +243,8 @@ restarted worker picks up where a dead one left off.
 `GET /api/demo/v1/runs/{id}/artifacts/{artifactId}` serves one file. It rechecks the
 checksum and size, opens the file without following symlinks, and caps the size at
 1 MB. An unknown, wrong-owner, unfinished or tampered artifact is a JSON `404`, and
-an oversized one is `413 content_too_large`.
+an oversized one is `413 content_too_large`. A lock timeout is `503 job_store_busy`,
+as on the other run routes.
 
 ### B3 decisions
 
@@ -280,7 +281,17 @@ an oversized one is `413 content_too_large`.
   on the child. The child's raw log can grow without bound while it runs, but only
   its last 64 KB is kept. A worker killed with `SIGKILL` can't stop its child. The
   orphan keeps running in its attempt directory, but it can't publish anything,
-  because only the worker publishes.
+  because only the worker publishes. Leftover attempt and `.staging-*` directories
+  from a killed worker aren't cleaned up either.
+- **The network block covers Python only.** The import and socket blocks apply to
+  Python code in the child. They don't reach C extensions or subprocesses like the
+  `git` calls in `backtest.manifest_for`. The environment scrub and the credential
+  check are what keep keys away from those.
+- **Timeout beats a pending cancel.** If a cancel is pending when the time limit
+  hits, the job fails with `timeout` rather than ending as `cancelled`.
+- **One worker is a convention, not a lock.** Nothing stops a second
+  `python -m demo.worker` on the same database. Leases keep two workers from running
+  the same job, but the design assumes one.
 
 ## Provenance and unavailable values
 
