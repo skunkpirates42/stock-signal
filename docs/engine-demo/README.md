@@ -295,6 +295,25 @@ as on the other run routes.
   `python -m demo.worker` on the same database. Leases keep two workers from running
   the same job, but the design assumes one.
 
+## B4 local run UI
+
+The Next.js dashboard exposes `/run` for one approved historical replay request and
+`/runs` for local job history. `/runs/{id}` shows a job's current phase, attempt,
+failure or cancellation state, queued configuration, and its saved result when one
+exists. The same route still displays A3 imported saved results by their result ID.
+Active job pages refresh their server-side status every three seconds. A queued job
+will wait until a separate `python -m demo.worker` process claims it.
+
+`GET /api/demo/v1/replay-catalog` describes the B1 approved strategy, datasets,
+windows and cost profiles; it includes availability based on the pinned dataset bytes
+and feed metadata. It exposes no paths or editable strategy settings. The browser
+submits and cancels through Next's same-origin JSON routes. Those routes require a
+matching Origin and local loopback Host, forward only the approved request fields,
+and return structured errors. Flask remains the authority for IDs, scope and job
+transitions. Published job artifacts are served through a bounded same-origin proxy.
+The UI labels market replays retrospective and the fixture synthetic correctness;
+it has no broker order, activation or promotion action.
+
 ## Provenance and unavailable values
 
 Provenance has separate axes: `source` (`backtest`, `live`, `unknown`), `execution`

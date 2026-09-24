@@ -8,12 +8,15 @@ const LINKS = [
   { href: "/signals", label: "Signals" },
   { href: "/positions", label: "Positions" },
   { href: "/research", label: "Research" },
+  { href: "/run", label: "New run" },
+  { href: "/runs", label: "Run history" },
 ];
 
 export default function SideRail() {
   const pathname = usePathname();
   const scope = useSearchParams().get("source") === "all" ? "all" : "live";
-  const keepScope = (href: string) => (scope === "all" ? `${href}?source=all` : href);
+  const keepScope = (href: string) => (scope === "all" && ["/", "/signals", "/positions"].includes(href)
+    ? `${href}?source=all` : href);
 
   return (
     <aside className="rail">
@@ -26,8 +29,8 @@ export default function SideRail() {
           <Link
             key={link.href}
             href={keepScope(link.href)}
-            className={`rail-link${pathname === link.href ? " rail-link-active" : ""}`}
-            aria-current={pathname === link.href ? "page" : undefined}
+            className={`rail-link${pathname === link.href || (link.href === "/runs" && pathname.startsWith("/runs/")) ? " rail-link-active" : ""}`}
+            aria-current={pathname === link.href || (link.href === "/runs" && pathname.startsWith("/runs/")) ? "page" : undefined}
           >
             {link.label}
           </Link>
