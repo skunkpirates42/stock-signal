@@ -149,6 +149,15 @@ def validated_request_fields(request: Any) -> Dict[str, str]:
         raise ReplayRequestRejected("invalid_request", "Run request values must be strings")
     if not IDEMPOTENCY_KEY.fullmatch(request["idempotency_key"]):
         raise ReplayRequestRejected("invalid_idempotency_key", "Idempotency key must be 8-128 URL-safe characters")
+    if request["strategy_id"] != STRATEGY_ID:
+        raise ReplayRequestRejected("unknown_strategy", "Strategy is not approved for replay")
+    dataset = DATASETS.get(request["dataset_id"])
+    if dataset is None:
+        raise ReplayRequestRejected("unknown_dataset", "Dataset is not approved for replay")
+    if not any(item.id == request["window_id"] for item in dataset.windows):
+        raise ReplayRequestRejected("unknown_window", "Window is not approved for this dataset")
+    if request["cost_profile_id"] not in dataset.cost_profile_ids:
+        raise ReplayRequestRejected("unknown_cost_profile", "Cost profile is not approved for this dataset")
     return dict(request)
 
 
@@ -215,16 +224,8 @@ def _provenance(dataset: ApprovedDataset) -> Dict[str, Any]:
 
 def build_replay_request(request: Any, *, root: Path = ROOT) -> ReplayRequest:
     fields = validated_request_fields(request)
-    if fields["strategy_id"] != STRATEGY_ID:
-        raise ReplayRequestRejected("unknown_strategy", "Strategy is not approved for replay")
-    dataset = DATASETS.get(fields["dataset_id"])
-    if dataset is None:
-        raise ReplayRequestRejected("unknown_dataset", "Dataset is not approved for replay")
-    window = next((item for item in dataset.windows if item.id == fields["window_id"]), None)
-    if window is None:
-        raise ReplayRequestRejected("unknown_window", "Window is not approved for this dataset")
-    if fields["cost_profile_id"] not in dataset.cost_profile_ids:
-        raise ReplayRequestRejected("unknown_cost_profile", "Cost profile is not approved for this dataset")
+    dataset = DATASETS[fields["dataset_id"]]
+    window = next(item for item in dataset.windows if item.id == fields["window_id"])
     cost_profile = COST_PROFILES[fields["cost_profile_id"]]
 
     start, end = utc(window.start), utc(window.end_exclusive)

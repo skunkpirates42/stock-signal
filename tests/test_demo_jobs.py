@@ -89,6 +89,13 @@ def test_repeat_returns_the_run_without_rereading_a_changed_dataset(store, monke
         store.submit("local", run_request(idempotency_key="click-0002"))
 
 
+def test_reused_key_with_an_unapproved_id_is_rejected_not_a_conflict(store):
+    store.submit("local", run_request())
+    with pytest.raises(ReplayRequestRejected) as rejected:
+        store.submit("local", run_request(dataset_id="nope"))
+    assert rejected.value.code == "unknown_dataset"
+
+
 def test_rejected_request_creates_no_job(store):
     with pytest.raises(ReplayRequestRejected):
         store.submit("local", run_request(dataset_path="/etc/passwd"))
@@ -361,6 +368,13 @@ def test_api_rejects_unapproved_or_non_json_requests(client):
     oversized = client.post("/api/demo/v1/runs", json=run_request(padding="x" * 5000))
     assert oversized.status_code == 413
     assert client.get("/api/demo/v1/runs").get_json()["data"]["runs"] == []
+
+
+def test_api_rejects_an_unencodable_catalog_id_as_json(client):
+    body = ('{"strategy_id":"\\ud800","dataset_id":"x","window_id":"x",'
+            '"cost_profile_id":"x","idempotency_key":"click-0002"}')
+    response = client.post("/api/demo/v1/runs", data=body, content_type="application/json")
+    assert (response.status_code, response.get_json()["error"]["code"]) == (400, "unknown_strategy")
 
 
 def test_api_list_detail_cancel_and_scope(client):
