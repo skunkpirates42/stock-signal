@@ -218,6 +218,11 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
         response.status_code = status
         return response
 
+    def _is_lock_timeout(exc: sqlite3.OperationalError) -> bool:
+        # Python 3.9 has no sqlite_errorcode; SQLITE_BUSY/LOCKED are only visible in the message.
+        message = str(exc)
+        return "locked" in message or "busy" in message
+
     def _demo_run_json(operation):
         try:
             return jsonify(operation())
@@ -225,7 +230,9 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
             return _demo_error(404, "not_found", "No run with this ID in this scope.")
         except ValueError as exc:
             return _demo_error(400, "invalid_request", str(exc))
-        except sqlite3.OperationalError:
+        except sqlite3.OperationalError as exc:
+            if not _is_lock_timeout(exc):
+                raise
             return _demo_error(503, "job_store_busy", "The job store is busy; try again.")
 
     @app.route("/api/demo/v1/runs", methods=["POST"])
@@ -244,7 +251,9 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
             return _demo_error(400, exc.code, str(exc))
         except IdempotencyConflict as exc:
             return _demo_error(409, "idempotency_conflict", str(exc))
-        except sqlite3.OperationalError:
+        except sqlite3.OperationalError as exc:
+            if not _is_lock_timeout(exc):
+                raise
             return _demo_error(503, "job_store_busy", "The job store is busy; try again.")
         response = _demo_run_json(lambda: jobs.job_detail(app.config["DEMO_OWNER_ID"], job_id))
         if response.status_code == 200:

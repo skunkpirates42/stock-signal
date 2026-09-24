@@ -412,6 +412,14 @@ def test_api_status_read_failure_after_enqueue_is_json(client, monkeypatch):
     assert len(client.get("/api/demo/v1/runs").get_json()["data"]["runs"]) == 1
 
 
+def test_api_store_faults_other_than_a_lock_are_not_reported_as_busy(client, monkeypatch):
+    def missing_table(*_args, **_kwargs):
+        raise sqlite3.OperationalError("no such table: demo_jobs")
+
+    monkeypatch.setattr(JobStore, "list_jobs", missing_table)
+    assert client.get("/api/demo/v1/runs").status_code == 500
+
+
 def test_api_jobs_leave_the_engine_journal_untouched(client, tmp_path):
     client.post("/api/demo/v1/runs", json=run_request())
     with sqlite3.connect(tmp_path / "journal.db") as conn:
