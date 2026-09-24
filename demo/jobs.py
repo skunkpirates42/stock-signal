@@ -405,11 +405,11 @@ class JobStore:
         return {
             "record_type": "status", "run_id": row["id"], "origin": "job", "state": state,
             "created_at": _available(row["created_at"]),
-            "started_at": recorded("started_at", "The job has not started."),
+            "started_at": recorded("started_at", "The current attempt has not started."),
             "ended_at": recorded("ended_at", "The job has not ended."),
-            "phase": recorded("phase", "No worker phase is reported."),
+            "phase": recorded("phase", "No worker phase is reported for the current attempt."),
             "progress": _unavailable("not_recorded", "The replay does not report trustworthy progress counts."),
-            "heartbeat_at": recorded("heartbeat_at", "No worker heartbeat is recorded."),
+            "heartbeat_at": recorded("heartbeat_at", "No worker heartbeat is recorded for the current attempt."),
             "attempt": _available(row["attempt"]),
             "engine_run_id": recorded("engine_run_id", "No engine run is recorded."),
             "result_id": (_available(row["result_id"]) if state == "completed"
