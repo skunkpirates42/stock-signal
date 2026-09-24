@@ -59,6 +59,26 @@ def test_isolated_child_cannot_reach_a_broker_llm_or_network(statement):
     assert "halted; None in sys.modules" in completed.stderr or "Network access is disabled" in completed.stderr
 
 
+def test_isolated_child_does_not_load_credentials_from_a_dotenv_file(tmp_path):
+    dotenv_file = tmp_path / ".env"
+    dotenv_file.write_text("ALPACA_API_KEY=sentinel-secret-0123456789\n")
+    script = ("import os, dotenv; from demo.replay_child import isolate; isolate(); import config; "
+              "dotenv.load_dotenv(%r); from dotenv import load_dotenv; load_dotenv(%r); "
+              "print('ALPACA_API_KEY' in os.environ)" % (str(dotenv_file), str(dotenv_file)))
+    completed = subprocess.run([sys.executable, "-E", "-s", "-c", script], cwd=str(ROOT),
+                               env={"PATH": os.environ["PATH"]}, capture_output=True, text=True)
+    assert completed.stdout.strip() == "False", completed.stderr
+
+
+def test_child_refuses_to_replay_while_holding_a_credential(tmp_path):
+    attempt_dir = tmp_path / "attempt"
+    write_attempt(attempt_dir)
+    completed = run_child(attempt_dir, child_env(ALPACA_API_KEY="sentinel-secret-0123456789"))
+    assert completed.returncode == EXIT_VALIDATION_FAILED
+    assert "ALPACA_API_KEY" in completed.stderr and "sentinel-secret" not in completed.stderr
+    assert not (attempt_dir / "run.db").exists()
+
+
 @pytest.mark.parametrize("env_overrides, run_overrides", [
     ({"SPREAD_BPS": "0"}, {}),
     ({"BROKER": "alpaca"}, {}),

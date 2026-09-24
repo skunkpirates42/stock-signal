@@ -25,7 +25,7 @@ from .artifacts import RUN_ARTIFACTS, ArtifactIndex
 from .availability import available, unavailable
 from .jobs import PHASES, ClaimedJob, JobStore, LeaseLost, PublishedArtifact, PublishedResult
 from .replay_catalog import COST_PROFILES, ROOT
-from .replay_child import EXIT_INPUT_UNAVAILABLE, EXIT_VALIDATION_FAILED
+from .replay_child import CREDENTIAL_NAME_WORDS, EXIT_INPUT_UNAVAILABLE, EXIT_VALIDATION_FAILED
 
 CHILD_COMMAND = (sys.executable, "-E", "-s", "-m", "demo.replay_child")
 # These shape the strategy fingerprint, so the child must see the server's values to
@@ -34,7 +34,6 @@ PASSED_ENVIRONMENT = ("PATH", "LANG", "SESSION_POLICY", "BAR_LATENESS_SECONDS", 
 PUBLISHED_FILES = ("manifest.json", "metrics.json", "trades.json", "accounting.json", "cashflows.json",
                    "report.txt", "bars.meta.json")
 CHILD_FAILURES = {EXIT_VALIDATION_FAILED: "validation_failed", EXIT_INPUT_UNAVAILABLE: "input_unavailable"}
-SECRET_NAME_WORDS = ("KEY", "SECRET", "TOKEN", "PASSWORD")
 MAX_LOG_BYTES = 64 * 1024
 STOP_GRACE_SECONDS = 5
 POLL_SECONDS = 2
@@ -67,7 +66,7 @@ def _fsync_directory(path: Path) -> None:
 
 def sanitize_log(text: str, attempt_dir: Path) -> str:
     for name, value in os.environ.items():
-        if any(word in name.upper() for word in SECRET_NAME_WORDS) and len(value) >= 8:
+        if any(word in name.upper() for word in CREDENTIAL_NAME_WORDS) and len(value) >= 8:
             text = text.replace(value, "[redacted]")
     for path, label in ((str(attempt_dir), "<attempt>"), (str(ROOT), "<repo>"), (str(Path.home()), "~")):
         text = text.replace(path, label)

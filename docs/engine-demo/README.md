@@ -213,7 +213,10 @@ restarted worker picks up where a dead one left off.
    (`SESSION_POLICY`, `BAR_LATENESS_SECONDS`, `ACCOUNT_NAMESPACE`), the cost profile's
    values, `BROKER=local`, `LLM_PROVIDER=template`, and journal paths inside the
    attempt directory. No credential or other variable from the worker comes along,
-   and `-E` ignores `PYTHONPATH`.
+   and `-E` ignores `PYTHONPATH`. `config` normally loads the repo `.env` on import,
+   so the child turns `load_dotenv` into a no-op first, and it refuses to replay
+   (`validation_failed`) if any variable whose name contains `KEY`, `SECRET`, `TOKEN`,
+   `PASSWORD` or `URL` is present.
 3. Before importing the engine, the child blocks the `alpaca`, `trades.alpaca_broker`,
    `anthropic`, `groq` and `openai` imports and replaces socket connects with an error.
    It then rebuilds the request through B1 and refuses to run (`validation_failed`) if
@@ -267,8 +270,8 @@ an oversized one is `413 content_too_large`.
   job by accident.
 - **Logs stay private.** Failure summaries stay fixed per code. The kept log is the
   last 64 KB with the attempt path, repo path and home directory replaced, and with
-  any worker environment value whose name contains `KEY`, `SECRET`, `TOKEN` or
-  `PASSWORD` redacted. `failure.log_artifact_id` stays unavailable.
+  any worker environment value whose name contains `KEY`, `SECRET`, `TOKEN`,
+  `PASSWORD` or `URL` redacted. `failure.log_artifact_id` stays unavailable.
 - **Limits.** The worker enforces wall-clock time only; there's no memory or CPU cap
   on the child. The child's raw log can grow without bound while it runs, but only
   its last 64 KB is kept. A worker killed with `SIGKILL` can't stop its child. The

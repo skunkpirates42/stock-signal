@@ -15,6 +15,7 @@ from pathlib import Path
 EXIT_VALIDATION_FAILED = 3
 EXIT_INPUT_UNAVAILABLE = 4
 BLOCKED_MODULES = ("alpaca", "trades.alpaca_broker", "anthropic", "groq", "openai")
+CREDENTIAL_NAME_WORDS = ("KEY", "SECRET", "TOKEN", "PASSWORD", "URL")
 
 
 def _refuse_network(*args, **kwargs):
@@ -22,6 +23,10 @@ def _refuse_network(*args, **kwargs):
 
 
 def isolate() -> None:
+    import dotenv
+
+    # config loads the repo .env on import, which would hand the child every credential.
+    dotenv.load_dotenv = lambda *args, **kwargs: False
     # A None entry makes any later import of that module raise ImportError.
     for name in BLOCKED_MODULES:
         sys.modules[name] = None
@@ -42,6 +47,11 @@ def replay(attempt_dir: Path) -> int:
     from backtest import export_result, run_portfolio
     from demo.replay_catalog import ReplayRequestRejected, build_replay_request, strategy_version_for
 
+    credentials = sorted(name for name in os.environ
+                         if any(word in name.upper() for word in CREDENTIAL_NAME_WORDS))
+    if credentials:
+        print("Replay refused while holding credentials: %s" % ", ".join(credentials), file=sys.stderr)
+        return EXIT_VALIDATION_FAILED
     job = json.loads((attempt_dir / "job.json").read_text())
     expected = job["normalized_run"]
     write_phase(attempt_dir, "validating")
