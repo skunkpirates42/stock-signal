@@ -186,6 +186,14 @@ def test_child_main_blocks_broker_llm_and_network_before_replaying(tmp_path):
     assert json.loads(sentinel.read_text()) == []
 
 
+def test_importing_the_child_loads_no_engine_module_before_isolation():
+    script = ("import sys, demo.replay_child; "
+              "print(sorted({'config', 'backtest', 'demo.replay_catalog', 'dotenv'} & set(sys.modules)))")
+    completed = subprocess.run([sys.executable, "-E", "-s", "-c", script], cwd=str(ROOT),
+                               env={"PATH": os.environ["PATH"]}, capture_output=True, text=True)
+    assert completed.stdout.strip() == "[]", completed.stderr
+
+
 def test_worker_starts_the_child_without_python_environment_or_user_site():
     assert worker_module.CHILD_COMMAND == (sys.executable, "-E", "-s", "-m", "demo.replay_child")
 
