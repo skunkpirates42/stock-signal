@@ -47,21 +47,22 @@ def _sha256(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
+def _signal_group(child: subprocess.Popen, signal_number: int) -> None:
+    try:
+        os.killpg(child.pid, signal_number)
+    except (ProcessLookupError, PermissionError):
+        # macOS answers EPERM while the group's exited leader is not yet reaped.
+        pass
+
+
 def _stop(child: subprocess.Popen) -> None:
     # Signal the group even after the child exits: processes it started are still in it.
-    try:
-        os.killpg(child.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        child.wait()
-        return
+    _signal_group(child, signal.SIGTERM)
     try:
         child.wait(timeout=STOP_GRACE_SECONDS)
     except subprocess.TimeoutExpired:
         pass
-    try:
-        os.killpg(child.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
+    _signal_group(child, signal.SIGKILL)
     child.wait()
 
 

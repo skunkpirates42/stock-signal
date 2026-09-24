@@ -250,6 +250,18 @@ def test_stopping_reaches_processes_the_child_started(store, tmp_path, monkeypat
     wait_for(lambda: process_is_gone(int(pid_file.read_text())))
 
 
+def test_stop_handles_an_exited_child_that_was_not_reaped_yet(tmp_path):
+    pid_file = tmp_path / "grandchild-pid"
+    child = subprocess.Popen([sys.executable, "-c", (
+        "import subprocess, pathlib; grandchild = subprocess.Popen(['/bin/sleep', '60']); "
+        "pathlib.Path(%r).write_text(str(grandchild.pid))" % str(pid_file))], start_new_session=True)
+    wait_for(pid_file.exists)
+    time.sleep(0.5)
+    worker_module._stop(child)
+    assert child.returncode == 0
+    wait_for(lambda: process_is_gone(int(pid_file.read_text())))
+
+
 @pytest.mark.parametrize("exit_code, failure_code", [
     (3, "validation_failed"), (4, "input_unavailable"), (1, "execution_failed")])
 def test_child_exit_codes_map_to_fixed_failures(store, worker, tmp_path, monkeypatch, exit_code, failure_code):
