@@ -1,4 +1,5 @@
 import importlib.util
+import sqlite3
 import threading
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -6,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from dashboard.app import create_app
 from demo.jobs import IdempotencyConflict, JobStore, LeaseLost, requester_id_for
 from demo.read_service import DemoNotFound
 from demo.replay_catalog import ReplayRequestRejected
@@ -256,3 +258,52 @@ def test_list_is_newest_first_with_a_scoped_cursor(store, clock):
         store.list_jobs("someone-else", cursor=ids[0])
     with pytest.raises(ValueError):
         store.list_jobs("local", limit="0")
+
+
+@pytest.fixture
+def client(tmp_path):
+    app = create_app(str(tmp_path / "journal.db"), demo_db_path=str(tmp_path / "demo-artifacts.db"),
+                     demo_job_db_path=str(tmp_path / "demo-jobs.db"))
+    return app.test_client()
+
+
+def test_api_submit_is_idempotent_and_reports_conflicts(client):
+    first = client.post("/api/demo/v1/runs", json=run_request())
+    assert first.status_code == 202
+    job_id = first.get_json()["data"]["status"]["run_id"]
+    assert first.headers["Location"] == "/api/demo/v1/runs/" + job_id
+    repeat = client.post("/api/demo/v1/runs", json=run_request())
+    assert (repeat.status_code, repeat.get_json()["data"]["status"]["run_id"]) == (202, job_id)
+    conflict = client.post("/api/demo/v1/runs", json=run_request(cost_profile_id="adverse-v2"))
+    assert (conflict.status_code, conflict.get_json()["error"]["code"]) == (409, "idempotency_conflict")
+
+
+def test_api_rejects_unapproved_or_non_json_requests(client):
+    forbidden = client.post("/api/demo/v1/runs", json=run_request(spread_bps=0))
+    assert (forbidden.status_code, forbidden.get_json()["error"]["code"]) == (400, "unexpected_field")
+    form = client.post("/api/demo/v1/runs", data=run_request())
+    assert form.status_code == 415
+    oversized = client.post("/api/demo/v1/runs", json=run_request(padding="x" * 5000))
+    assert oversized.status_code == 413
+    assert client.get("/api/demo/v1/runs").get_json()["data"]["runs"] == []
+
+
+def test_api_list_detail_cancel_and_scope(client):
+    job_id = client.post("/api/demo/v1/runs", json=run_request()).get_json()["data"]["status"]["run_id"]
+    listed = client.get("/api/demo/v1/runs").get_json()
+    assert [item["run_id"] for item in listed["data"]["runs"]] == [job_id]
+    assert client.get("/api/demo/v1/runs/" + job_id).get_json()["data"]["status"]["state"] == "queued"
+    cancelled = client.post("/api/demo/v1/runs/%s/cancel" % job_id)
+    assert (cancelled.status_code, cancelled.get_json()["data"]["status"]["state"]) == (200, "cancelled")
+    assert client.get("/api/demo/v1/runs/" + str(uuid.uuid4())).status_code == 404
+    assert client.post("/api/demo/v1/runs/%s/cancel" % uuid.uuid4()).status_code == 404
+    assert client.get("/api/demo/v1/runs?cursor=" + str(uuid.uuid4())).status_code == 400
+
+
+def test_api_jobs_leave_the_engine_journal_untouched(client, tmp_path):
+    client.post("/api/demo/v1/runs", json=run_request())
+    with sqlite3.connect(tmp_path / "journal.db") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0] == 0
+    with sqlite3.connect(tmp_path / "demo-jobs.db") as conn:
+        tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert "runs" not in tables and "demo_jobs" in tables

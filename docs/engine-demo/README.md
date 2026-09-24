@@ -100,6 +100,33 @@ version, source digest and the full strategy settings, without cost and operatio
 settings). `strategy_version_for` recomputes `strategy_version` from it, so B2 must
 store it with the job and the worker can check it before replaying.
 
+## B2 local demo jobs
+
+`demo/jobs.py` keeps run jobs in their own SQLite file (`DEMO_JOB_DB_PATH`, default
+`demo-jobs.db` next to the journal). The engine journal and its `runs` manifests are
+never touched. Flask exposes four routes, all scoped to the configured operator:
+
+| Route | What it does |
+| --- | --- |
+| `POST /api/demo/v1/runs` | Validates the B1 request and queues it. Returns `202` with the status and a `Location` header. The same key and request return the same run; the same key with a different request returns `409 idempotency_conflict`. Rejections return `400` with the B1 code. The body must be JSON and at most 4 KB. |
+| `GET /api/demo/v1/runs?limit=&cursor=` | Lists runs newest first. `next_cursor` is the last run ID on the page. |
+| `GET /api/demo/v1/runs/{id}` | Returns the normalized run and its A1 status record. Unknown IDs and IDs owned by someone else both return `404`. |
+| `POST /api/demo/v1/runs/{id}/cancel` | A queued run is cancelled straight away. A running run moves to `cancel_requested` and the worker finishes the cancel. Finished runs don't change, and asking again is safe. |
+
+The worker side (B3) claims the oldest queued run with a lease token, sends heartbeats
+with a coarse phase, and then calls `complete`, `fail` or `confirm_cancelled`. Every
+call needs the current lease token, so a worker that lost its lease can't change the
+run. If a result was published before the cancel took effect, completion wins.
+`recover_expired_leases` handles a worker that stopped heartbeating:
+
+- a pending cancel ends as `cancelled`;
+- a first attempt goes back to the queue;
+- a second attempt fails with `worker_lost`.
+
+This only works for one host and one worker. WAL mode, a busy timeout and
+`BEGIN IMMEDIATE` transactions keep two clicks from creating two runs and two claims
+from taking the same run. It isn't a multi-host queue.
+
 ## Provenance and unavailable values
 
 Provenance has separate axes: `source` (`backtest`, `live`, `unknown`), `execution`
