@@ -109,6 +109,8 @@ class JobStore:
             conn.close()
 
     def _now(self) -> Tuple[str, float]:
+        # Call only inside _transaction: a time read before a lock wait can precede the
+        # writes that commit during that wait, breaking created <= started <= ended.
         now = self.clock()
         return now.isoformat(), now.timestamp()
 
@@ -156,8 +158,8 @@ class JobStore:
         if not isinstance(owner_id, str) or not owner_id:
             raise ValueError("A configured demo owner is required")
         built = build_replay_request(request)
-        created_at, _ = self._now()
         with self._transaction() as conn:
+            created_at, _ = self._now()
             existing = conn.execute(
                 "SELECT id, request_fingerprint FROM demo_jobs WHERE owner_id=? AND idempotency_key=?",
                 (owner_id, built.idempotency_key),
@@ -219,8 +221,8 @@ class JobStore:
         return envelope({"run": json.loads(row["normalized_run_json"]), "status": self._status(row)})
 
     def request_cancel(self, owner_id: str, job_id: str) -> Dict[str, Any]:
-        requested_at, _ = self._now()
         with self._transaction() as conn:
+            requested_at, _ = self._now()
             row = self._owned_row(conn, owner_id, job_id)
             if row["state"] == "queued":
                 conn.execute(
@@ -237,9 +239,9 @@ class JobStore:
         return self.job_detail(owner_id, job_id)
 
     def claim_next(self, *, lease_seconds: float) -> Optional[ClaimedJob]:
-        started_at, now = self._now()
         lease_token = str(uuid.uuid4())
         with self._transaction() as conn:
+            started_at, now = self._now()
             row = conn.execute("SELECT * FROM demo_jobs WHERE state='queued' ORDER BY seq LIMIT 1").fetchone()
             if row is None:
                 return None
@@ -264,8 +266,8 @@ class JobStore:
                   phase: Optional[str] = None) -> str:
         if phase is not None and phase not in PHASES:
             raise ValueError("Unknown phase: %s" % phase)
-        heartbeat_at, now = self._now()
         with self._transaction() as conn:
+            heartbeat_at, now = self._now()
             row = self._leased_row(conn, job_id, lease_token)
             conn.execute(
                 "UPDATE demo_jobs SET heartbeat_at=?, lease_expires_at=?, phase=COALESCE(?, phase) WHERE id=?",
@@ -277,8 +279,8 @@ class JobStore:
         if not isinstance(engine_run_id, str) or not engine_run_id:
             raise ValueError("engine_run_id is required")
         result_id = str(uuid.UUID(result_id))
-        ended_at, _ = self._now()
         with self._transaction() as conn:
+            ended_at, _ = self._now()
             self._leased_row(conn, job_id, lease_token)
             # Completion wins over a pending cancel: the result was already published.
             conn.execute(
@@ -288,9 +290,9 @@ class JobStore:
             )
 
     def fail(self, job_id: str, lease_token: str, *, code: str, summary: str, retryable: bool = False) -> None:
-        ended_at, _ = self._now()
-        failure = self._failure(code, summary, ended_at, retryable)
         with self._transaction() as conn:
+            ended_at, _ = self._now()
+            failure = self._failure(code, summary, ended_at, retryable)
             self._leased_row(conn, job_id, lease_token)
             conn.execute(
                 """UPDATE demo_jobs SET state='failed', ended_at=?, failure_json=?,
@@ -299,8 +301,8 @@ class JobStore:
             )
 
     def confirm_cancelled(self, job_id: str, lease_token: str) -> None:
-        ended_at, _ = self._now()
         with self._transaction() as conn:
+            ended_at, _ = self._now()
             row = self._leased_row(conn, job_id, lease_token)
             if row["state"] != "cancel_requested":
                 raise LeaseLost("Job %s has no pending cancel request" % job_id)
@@ -311,9 +313,9 @@ class JobStore:
             )
 
     def recover_expired_leases(self) -> Dict[str, str]:
-        recovered_at, now = self._now()
         outcomes: Dict[str, str] = {}
         with self._transaction() as conn:
+            recovered_at, now = self._now()
             expired = conn.execute(
                 "SELECT id, state, attempt FROM demo_jobs WHERE state IN (?, ?) AND lease_expires_at < ?",
                 (*ACTIVE_STATES, now),

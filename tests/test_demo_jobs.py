@@ -1,6 +1,7 @@
 import importlib.util
 import sqlite3
 import threading
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -116,6 +117,23 @@ def test_concurrent_claims_lease_a_job_once(tmp_path, clock):
         thread.join()
     won = [item for item in claims if item is not None]
     assert len(won) == 1 and won[0].attempt == 1
+
+
+def test_timestamps_are_read_after_waiting_for_the_lock(tmp_path, store, clock):
+    store.submit("local", run_request())
+    blocker = sqlite3.connect(tmp_path / "jobs.db", isolation_level=None)
+    blocker.execute("BEGIN IMMEDIATE")
+    claims = []
+    worker = threading.Thread(target=lambda: claims.append(store.claim_next(lease_seconds=LEASE)))
+    worker.start()
+    time.sleep(0.3)
+    clock.advance(5)
+    blocker.execute("COMMIT")
+    blocker.close()
+    worker.join()
+    status = status_of(store, claims[0].id)
+    assert status["started_at"]["value"] == clock.now.isoformat()
+    assert status["created_at"]["value"] < status["started_at"]["value"]
 
 
 def test_claim_returns_the_stored_request_for_the_worker(store):
