@@ -1,5 +1,4 @@
-import { API_BASE } from "@/lib/api";
-import { DemoNotFound, isOpaqueDemoId, type Artifact, type Availability, type NormalizedRun, type Result } from "@/lib/demo";
+import { demoGet, DemoNotFound, isOpaqueDemoId, type Artifact, type Availability, type NormalizedRun, type Result } from "@/lib/demo";
 
 export interface ReplayCatalog {
   strategy: { id: "stock-signal"; label: string; editable_fields: [] };
@@ -38,27 +37,18 @@ export interface JobDetail {
   artifacts: Artifact[];
 }
 
-interface Envelope<T> { schema_version: 1; data: T; warnings: string[] }
-
-async function jobGet<T>(path: string): Promise<Envelope<T>> {
-  const response = await fetch(`${API_BASE}/api/demo/v1${path}`, { cache: "no-store", redirect: "manual" });
-  if (response.status === 404) throw new DemoNotFound("Demo job was not found");
-  if (!response.ok) throw new Error(`Demo service responded ${response.status}`);
-  return response.json() as Promise<Envelope<T>>;
-}
-
 export function getReplayCatalog() {
-  return jobGet<ReplayCatalog>("/replay-catalog");
+  return demoGet<ReplayCatalog>("/replay-catalog");
 }
 
 export function getJobs(cursor?: string) {
   if (cursor !== undefined && !isOpaqueDemoId(cursor)) throw new DemoNotFound("Demo cursor was not found");
   const query = new URLSearchParams({ limit: "25" });
   if (cursor) query.set("cursor", cursor);
-  return jobGet<{ runs: JobStatus[]; next_cursor: string | null }>(`/runs?${query}`);
+  return demoGet<{ runs: JobStatus[]; next_cursor: string | null }>(`/runs?${query}`);
 }
 
 export function getJob(runId: string) {
   if (!isOpaqueDemoId(runId)) throw new DemoNotFound("Demo job was not found");
-  return jobGet<JobDetail>(`/runs/${encodeURIComponent(runId)}`);
+  return demoGet<JobDetail>(`/runs/${encodeURIComponent(runId)}`);
 }

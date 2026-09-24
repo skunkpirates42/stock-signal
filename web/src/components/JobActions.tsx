@@ -12,8 +12,21 @@ export default function JobActions({ status }: { status: JobStatus }) {
 
   useEffect(() => {
     if (!active) return;
-    const timer = window.setInterval(() => router.refresh(), 3000);
-    return () => window.clearInterval(timer);
+    let timer: number | undefined;
+    function visibilityChanged() {
+      if (timer !== undefined) window.clearInterval(timer);
+      timer = undefined;
+      if (document.visibilityState === "visible") {
+        router.refresh();
+        timer = window.setInterval(() => router.refresh(), 3000);
+      }
+    }
+    if (document.visibilityState === "visible") timer = window.setInterval(() => router.refresh(), 3000);
+    document.addEventListener("visibilitychange", visibilityChanged);
+    return () => {
+      if (timer !== undefined) window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", visibilityChanged);
+    };
   }, [active, router]);
 
   async function cancel() {

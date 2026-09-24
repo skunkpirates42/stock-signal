@@ -40,11 +40,14 @@ describe("local run mutation proxy", () => {
   });
 
   it("accepts the incoming local Host and Origin when Next normalizes request.url", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ data: { status: { run_id: RUN_ID } } }, { status: 202 })));
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ data: { status: { run_id: RUN_ID } } },
+      { status: 202, headers: { Location: "https://untrusted.example/other" } })));
     const normalized = new Request("http://internal-next:3100/api/demo/v1/runs", { method: "POST",
       headers: { Host: "127.0.0.1:3100", Origin: "http://127.0.0.1:3100", "Content-Type": "application/json" },
       body: JSON.stringify(requestBody) });
-    expect((await submitJob(normalized)).status).toBe(202);
+    const response = await submitJob(normalized);
+    expect(response.status).toBe(202);
+    expect(response.headers.get("Location")).toBe(`/runs/${RUN_ID}`);
   });
 
   it("cancels only an opaque run with an empty JSON body", async () => {

@@ -24,11 +24,10 @@ function localOrigin(request: Request): boolean {
   } catch { return false; }
 }
 
-async function jsonBody(request: Request): Promise<unknown> {
-  const length = request.headers.get("content-length");
-  if (length && (!/^\d+$/.test(length) || Number(length) > MAX_BODY_BYTES)) throw new RangeError("body_too_large");
-  if (!request.body) throw new SyntaxError("Missing JSON body");
-  const reader = request.body.getReader();
+async function boundedBytes(stream: ReadableStream<Uint8Array> | null, limit: number,
+  oversized: () => Error): Promise<Uint8Array> {
+  if (!stream) throw new Error("Missing JSON body");
+  const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
   try {
@@ -36,13 +35,20 @@ async function jsonBody(request: Request): Promise<unknown> {
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > MAX_BODY_BYTES) { await reader.cancel(); throw new RangeError("body_too_large"); }
+      if (size > limit) { await reader.cancel(); throw oversized(); }
       chunks.push(value);
     }
   } finally { reader.releaseLock(); }
   const body = new Uint8Array(size);
   let offset = 0;
   for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.byteLength; }
+  return body;
+}
+
+async function jsonBody(request: Request): Promise<unknown> {
+  const length = request.headers.get("content-length");
+  if (length && (!/^\d+$/.test(length) || Number(length) > MAX_BODY_BYTES)) throw new RangeError("body_too_large");
+  const body = await boundedBytes(request.body, MAX_BODY_BYTES, () => new RangeError("body_too_large"));
   return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(body));
 }
 
@@ -50,21 +56,7 @@ async function boundedReply(response: Response): Promise<unknown> {
   if (!response.body) throw new Error("Missing response body");
   const declared = response.headers.get("content-length");
   if (declared && (!/^\d+$/.test(declared) || Number(declared) > MAX_REPLY_BYTES)) throw new Error("Oversized reply");
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > MAX_REPLY_BYTES) { await reader.cancel(); throw new Error("Oversized reply"); }
-      chunks.push(value);
-    }
-  } finally { reader.releaseLock(); }
-  const body = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.byteLength; }
+  const body = await boundedBytes(response.body, MAX_REPLY_BYTES, () => new Error("Oversized reply"));
   return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(body));
 }
 
@@ -84,7 +76,16 @@ async function upstreamPost(path: string, body: object): Promise<Response> {
     return error(502, "demo_unavailable", "The local demo service returned an unexpected response.");
   }
   try {
-    return Response.json(await boundedReply(response), { status: response.status, headers: HEADERS });
+    const payload = await boundedReply(response);
+    const headers: Record<string, string> = { ...HEADERS };
+    if (response.status === 202) {
+      const status = (payload as { data?: { status?: { run_id?: unknown } } })?.data?.status;
+      if (typeof status?.run_id !== "string" || !isOpaqueDemoId(status.run_id)) {
+        throw new Error("Missing public run ID");
+      }
+      headers.Location = `/runs/${status.run_id}`;
+    }
+    return Response.json(payload, { status: response.status, headers });
   } catch {
     return error(502, "demo_unavailable", "The local demo service returned an invalid response.");
   }
