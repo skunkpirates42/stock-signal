@@ -155,21 +155,47 @@ def test_fixture_job_completes_offline_and_publishes_only_verified_files(store, 
     assert worker.run_once() is None
 
 
-def test_broker_sentinel_stays_untouched_with_a_hostile_parent_environment(store, worker, tmp_path, monkeypatch):
-    sentinel = tmp_path / "broker-called"
-    fake_packages = tmp_path / "fake-packages"
-    for package in ("alpaca", "anthropic", "groq"):
-        (fake_packages / package).mkdir(parents=True)
-        (fake_packages / package / "__init__.py").write_text(
-            "open(%r, 'a').write(%r)\n" % (str(sentinel), package))
+def test_child_main_blocks_broker_llm_and_network_before_replaying(tmp_path):
+    sentinel = tmp_path / "sentinel.json"
+    script = (
+        "import json, socket, sys\n"
+        "import demo.replay_child as child\n"
+        "def probe(attempt_dir):\n"
+        "    reached = []\n"
+        "    for module in ('trades.alpaca_broker', 'alpaca', 'anthropic', 'groq'):\n"
+        "        try:\n"
+        "            __import__(module)\n"
+        "            reached.append(module)\n"
+        "        except ImportError:\n"
+        "            pass\n"
+        "    try:\n"
+        "        socket.create_connection(('127.0.0.1', 9))\n"
+        "        reached.append('network')\n"
+        "    except OSError as exc:\n"
+        "        if 'disabled' not in str(exc):\n"
+        "            reached.append('network')\n"
+        "    open(%r, 'w').write(json.dumps(reached))\n"
+        "    return 0\n"
+        "child.replay = probe\n"
+        "sys.exit(child.main(['replay_child', %r]))\n" % (str(sentinel), str(tmp_path)))
+    completed = subprocess.run([sys.executable, "-E", "-s", "-c", script], cwd=str(ROOT),
+                               env={"PATH": os.environ["PATH"]}, capture_output=True, text=True)
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(sentinel.read_text()) == []
+
+
+def test_worker_starts_the_child_without_python_environment_or_user_site():
+    assert worker_module.CHILD_COMMAND == (sys.executable, "-E", "-s", "-m", "demo.replay_child")
+
+
+def test_hostile_parent_environment_does_not_reach_the_replay(store, worker, tmp_path, monkeypatch):
     secret = "sentinel-secret-0123456789"
-    for name, value in (("PYTHONPATH", str(fake_packages)), ("BROKER", "alpaca"), ("LLM_PROVIDER", "anthropic"),
+    for name, value in (("PYTHONPATH", str(tmp_path)), ("BROKER", "alpaca"), ("LLM_PROVIDER", "anthropic"),
                         ("ALPACA_API_KEY", secret), ("ALPACA_SECRET_KEY", secret), ("ANTHROPIC_API_KEY", secret),
                         ("DB_PATH", str(tmp_path / "journal.db")), ("BACKTEST_DB_PATH", str(tmp_path / "backtest.db"))):
         monkeypatch.setenv(name, value)
     job_id, _ = store.submit("local", run_request())
     assert worker.run_once() == "completed"
-    assert not sentinel.exists()
     assert not (tmp_path / "journal.db").exists() and not (tmp_path / "backtest.db").exists()
     log = (tmp_path / "worker" / "logs" / job_id / "attempt-1.log").read_text()
     assert secret not in log
