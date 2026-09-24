@@ -386,6 +386,18 @@ def test_api_run_errors_are_json_with_a_code(client):
     assert client.get("/api/demo/v1/runs/" + job_id).get_json()["data"]["status"]["state"] == "queued"
 
 
+def test_api_status_read_failure_after_enqueue_is_json(client, monkeypatch):
+    def locked(*_args, **_kwargs):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(JobStore, "job_detail", locked)
+    response = client.post("/api/demo/v1/runs", json=run_request())
+    assert (response.status_code, response.get_json()["error"]["code"]) == (503, "job_store_busy")
+    assert "Location" not in response.headers
+    monkeypatch.undo()
+    assert len(client.get("/api/demo/v1/runs").get_json()["data"]["runs"]) == 1
+
+
 def test_api_jobs_leave_the_engine_journal_untouched(client, tmp_path):
     client.post("/api/demo/v1/runs", json=run_request())
     with sqlite3.connect(tmp_path / "journal.db") as conn:

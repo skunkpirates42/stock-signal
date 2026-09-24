@@ -213,8 +213,10 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
         response.headers["Cache-Control"] = "no-store"
         return response
 
-    def _demo_error(status: int, code: str, message: str):
-        return jsonify({"error": {"code": code, "message": message}}), status
+    def _demo_error(status: int, code: str, message: str) -> Response:
+        response = jsonify({"error": {"code": code, "message": message}})
+        response.status_code = status
+        return response
 
     def _demo_run_json(operation):
         try:
