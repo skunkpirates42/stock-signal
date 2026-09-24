@@ -7,6 +7,7 @@ import pytest
 
 import config
 from backtest import run_portfolio
+from dashboard.app import create_app
 from demo.replay_catalog import (COST_PROFILES, DATASETS, TRADER_WINDOW_BARS, ReplayRequestRejected,
                                  TEMPLATE_VERSION, build_replay_request, dataset_is_available,
                                  request_fingerprint, strategy_version_for)
@@ -23,6 +24,18 @@ MARKET_ID = "b8e4c7d2-51a9-4c36-8f0e-2d7a9e3c4b61"
 def fixture_request(**overrides):
     return {"strategy_id": "stock-signal", "dataset_id": FIXTURE_ID, "window_id": "fixture-day-2",
             "cost_profile_id": "base-v2", "idempotency_key": "click-0001", **overrides}
+
+
+def test_replay_catalog_exposes_only_approved_choices(tmp_path):
+    response = create_app(db_path=str(tmp_path / "journal.db"), demo_db_path=str(tmp_path / "index.db"),
+                          demo_job_db_path=str(tmp_path / "jobs.db")).test_client().get("/api/demo/v1/replay-catalog")
+    assert response.status_code == 200
+    catalog = response.get_json()["data"]
+    assert catalog["strategy"] == {"id": "stock-signal", "label": "Stock Signal baseline", "editable_fields": []}
+    assert {item["id"] for item in catalog["datasets"]} == set(DATASETS)
+    assert {item["id"] for item in catalog["cost_profiles"]} == set(COST_PROFILES)
+    assert catalog["datasets"][0]["windows"][0]["id"] == "fixture-day-2"
+    assert "relative_path" not in str(catalog)
 
 
 def test_fixture_request_selects_warmup_and_window_and_validates_against_a1():

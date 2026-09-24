@@ -1,0 +1,10 @@
+.run-form, .run-actions { display: grid; gap: calc(var(--space) * 2); }
+.run-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(var(--space) * 2); margin: calc(var(--space) * 2) 0; }
+.run-fields > div { display: grid; gap: var(--space); min-width: 0; }
+.run-fields label { color: var(--muted); font-size: 0.85rem; }
+.run-fields select, .run-fields input { width: 100%; min-width: 0; padding: var(--space); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--ground); color: var(--ink); font: inherit; }
+.run-fields input[readonly] { color: var(--muted); }
+.run-form .button, .run-actions .button { justify-self: start; cursor: pointer; }
+.run-form .button:disabled, .run-actions .button:disabled { opacity: 0.5; cursor: not-allowed; }
+.run-actions { margin-top: calc(var(--space) * 2); }
+@media (max-width: 700px) { .run-fields { grid-template-columns: 1fr; } }

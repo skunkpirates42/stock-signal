@@ -1,4 +1,6 @@
 import Link from "next/link";
+import JobDetail from "@/components/JobDetail";
+import { getJob } from "@/lib/jobs";
 import { artifactHref, availabilityText, getSavedDiagnostics, getSavedResult, type Artifact, type Availability, type Metric } from "@/lib/demo";
 import { formatCurrency, formatTimestamp } from "@/lib/format";
 import { notFound } from "next/navigation";
@@ -32,6 +34,13 @@ function artifactList(resultId: string, artifacts: Artifact[]) {
 
 export default async function SavedRunPage({ params }: { params: Promise<{ runId: string }> }) {
   const { runId: resultId } = await params;
+  let job;
+  try {
+    job = await getJob(resultId);
+  } catch (error) {
+    if (!(error instanceof Error && error.name === "DemoNotFound")) throw error;
+  }
+  if (job) return <JobDetail detail={job.data} warnings={job.warnings} />;
   let detail;
   try {
     detail = await getSavedResult(resultId);

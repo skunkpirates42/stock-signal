@@ -20,7 +20,7 @@ from analytics.metrics import compute_metrics, equity_curve, load_closed_trades
 from db.logger import load_open_positions, init_db, scope_sql, _connect
 from demo.jobs import IdempotencyConflict, InvalidPageRequest, JobStore
 from demo.read_service import MAX_JSON_RESPONSE_BYTES, DemoContentTooLarge, DemoNotFound, DemoReadService
-from demo.replay_catalog import ReplayRequestRejected
+from demo.replay_catalog import ReplayRequestRejected, replay_catalog
 from signals.llm_synthesis import signal_from_row, synthesize
 
 
@@ -234,6 +234,10 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
             if not _is_lock_timeout(exc):
                 raise
             return _demo_error(503, "job_store_busy", "The job store is busy; try again.")
+
+    @app.route("/api/demo/v1/replay-catalog")
+    def api_demo_replay_catalog():
+        return jsonify({"schema_version": 1, "data": replay_catalog(), "warnings": []})
 
     @app.route("/api/demo/v1/runs", methods=["POST"])
     def api_demo_submit_run():

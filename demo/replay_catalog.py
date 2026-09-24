@@ -132,6 +132,29 @@ def dataset_is_available(dataset: ApprovedDataset, root: Path = ROOT) -> bool:
     return path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() == dataset.sha256
 
 
+def replay_catalog(root: Path = ROOT) -> Dict[str, Any]:
+    """Expose only the approved B1 choices, with no local paths or editable settings."""
+    datasets = []
+    for dataset in DATASETS.values():
+        try:
+            available_now = (dataset_is_available(dataset, root)
+                             and _recorded_feed((root / dataset.relative_path).with_suffix(".meta.json")) == dataset.feed)
+        except OSError:
+            available_now = False
+        datasets.append({"id": dataset.id, "label": dataset.label, "content_sha256": dataset.sha256,
+                         "feed": dataset.feed, "synthetic": dataset.synthetic, "available": available_now,
+                         "windows": [{"id": window.id, "start": window.start,
+                                      "end_exclusive": window.end_exclusive} for window in dataset.windows],
+                         "cost_profile_ids": list(dataset.cost_profile_ids)})
+    return {"strategy": {"id": STRATEGY_ID, "label": "Stock Signal baseline", "editable_fields": []},
+            "datasets": datasets,
+            "cost_profiles": [{"id": profile.id, "label": profile.label,
+                               "spread_bps": profile.spread_bps,
+                               "slippage_bps_per_fill": profile.slippage_bps_per_fill,
+                               "fee_per_share_per_fill": profile.fee_per_share_per_fill,
+                               "evidence": profile.evidence} for profile in COST_PROFILES.values()]}
+
+
 def request_fingerprint(request: Mapping[str, Any]) -> str:
     return _canonical_sha256({key: request[key] for key in sorted(REQUEST_FIELDS - {"idempotency_key"})})
 

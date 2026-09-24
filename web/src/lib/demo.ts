@@ -141,9 +141,9 @@ export function isOpaqueDemoId(value: string): boolean {
   return OPAQUE_ID.test(value);
 }
 
-async function demoGet<T>(path: string): Promise<Envelope<T>> {
-  const response = await fetch(`${API_BASE}/api/demo/v1${path}`, { cache: "no-store" });
-  if (response.status === 404) throw new DemoNotFound("Saved demo record was not found");
+export async function demoGet<T>(path: string): Promise<Envelope<T>> {
+  const response = await fetch(`${API_BASE}/api/demo/v1${path}`, { cache: "no-store", redirect: "manual" });
+  if (response.status === 404) throw new DemoNotFound("Demo record was not found");
   if (!response.ok) throw new Error(`${path} responded ${response.status}`);
   return response.json() as Promise<Envelope<T>>;
 }
