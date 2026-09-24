@@ -159,11 +159,9 @@ multi-host queue.
   and heartbeat are cleared for the new attempt, while `attempt` keeps counting.
 - **Completion beats a pending cancel.** Once a result is published, it's recorded as
   published. Cancel only settles a run that hasn't finished. A live worker records its
-  result even after its lease lapses, as long as recovery hasn't run. What B2 can't
-  cover is a worker that publishes and then dies before `complete`: recovery doesn't
-  know about the result index yet. B3 adds that check to recovery (for example a
-  published-result lookup that completes the job instead of requeueing, cancelling or
-  failing it). Until then, a retried attempt must look up the index before replaying.
+  result even after its lease lapses, as long as recovery hasn't run. B3 closed the
+  remaining gap, a worker that publishes and then dies before `complete`, by writing
+  the result rows in the same transaction as `complete` (see B3 below).
 - **Idempotency lookup before the full build.** Submit checks the fields and the
   catalog IDs, which is quick because nothing is read from disk, then looks up the
   owner and key. A repeat click returns its run without reloading the
@@ -172,7 +170,7 @@ multi-host queue.
   the full B1 check before it's queued.
 - **Fixed failure summaries.** `fail` takes a failure code, not text, and each code
   maps to one fixed summary. No path, traceback or credential from a worker can reach
-  the API. Details belong in B3's private, sanitized log artifact.
+  the API. Details go to the worker's private, sanitized log (B3).
 - **Submit and cancel must be JSON.** A cross-site page can send a form post to
   127.0.0.1, so loopback binding alone doesn't stop it. It can't send
   `application/json` without a CORS preflight. Flask answers the preflight but sends no
@@ -187,6 +185,95 @@ multi-host queue.
   operator scope is a name. `requester_id_for` derives a stable UUIDv5 from it.
 - **No progress counts.** Progress stays `not_recorded` and the phase is coarse. The
   replay doesn't report trustworthy counts yet.
+
+## B3 local demo worker
+
+`python -m demo.worker` runs queued jobs one at a time. It reads the same job database
+as the dashboard (`--job-db`, default `DEMO_JOB_DB_PATH` or `demo-jobs.db` next to the
+journal) and keeps everything else under one directory (`--root`, default
+`demo-worker/` next to the job database):
+
+| Directory | What's in it |
+| --- | --- |
+| `attempts/<lease token>/` | Scratch space for one attempt: the job input, the child's raw log, its private `run.db` and the exported output. Deleted when the attempt ends. |
+| `logs/<run id>/attempt-N.log` | The sanitized tail of the child's output, mode `0600`. Never served. |
+| `results/<result id>/` | Published results. Nothing in here changes after it's renamed into place. |
+
+`--timeout` sets the replay limit in seconds (default 900), and `--once` runs at most
+one job and exits. Before each claim the worker runs `recover_expired_leases`, so a
+restarted worker picks up where a dead one left off.
+
+### How a job runs
+
+1. The worker claims the oldest queued job and writes the stored request, normalized
+   run and strategy configuration into a fresh attempt directory.
+2. It starts `python -E -s -m demo.replay_child <attempt>` in its own process group,
+   with the repo as the working directory. The child's environment is built from
+   scratch: `PATH`, `LANG`, the three settings that feed the strategy fingerprint
+   (`SESSION_POLICY`, `BAR_LATENESS_SECONDS`, `ACCOUNT_NAMESPACE`), the cost profile's
+   values, `BROKER=local`, `LLM_PROVIDER=template`, and journal paths inside the
+   attempt directory. No credential or other variable from the worker comes along,
+   and `-E` ignores `PYTHONPATH`.
+3. Before importing the engine, the child blocks the `alpaca`, `trades.alpaca_broker`,
+   `anthropic`, `groq` and `openai` imports and replaces socket connects with an error.
+   It then rebuilds the request through B1 and refuses to run (`validation_failed`) if
+   the selected data, the strategy version, the cost settings or the broker no longer
+   match the queued run. A missing dataset is `input_unavailable`.
+4. While the child runs, the worker heartbeats with the phase the child reports. A
+   cancel request stops the process group (`SIGTERM`, then `SIGKILL` after 5 seconds)
+   and settles the job as `cancelled`. Hitting the time limit does the same and fails
+   the job with `timeout`. A lost lease stops the child and walks away without
+   touching the job, because recovery already owns it. Any other non-zero exit is
+   `execution_failed`.
+5. When the child exits cleanly, the worker checks the output. All seven files must
+   be there as regular files, the manifest must match the queued run's selected data,
+   feed and cost policy, and the A1 `result` and `artifact` records built from it
+   must pass the schema. Anything else fails the job with `artifact_invalid`.
+6. The worker writes the files into `results/.staging-<id>/`, fsyncs them, renames the
+   directory to `results/<id>/` and then calls `complete`, which records the result
+   and artifact rows in the same transaction that marks the job completed.
+
+`GET /api/demo/v1/runs/{id}` now carries `result` (the A1 result record) and
+`artifacts` for a completed job; both are `null` and `[]` otherwise.
+`GET /api/demo/v1/runs/{id}/artifacts/{artifactId}` serves one file. It rechecks the
+checksum and size, opens the file without following symlinks, and caps the size at
+1 MB. An unknown, wrong-owner, unfinished or tampered artifact is a JSON `404`, and
+an oversized one is `413 content_too_large`.
+
+### B3 decisions
+
+- **Results live in the job database, not the A2 index.** The A2 importer takes a
+  whole research directory (protocol, comparison and runs), mints its own run IDs, and
+  only labels two reviewed scenarios as retrospective. A job already has its run
+  record and ID, so its result sits next to it. A3's `/results` routes still list only
+  imported research.
+- **Result rows commit with `complete`.** A result is visible only once the job is
+  completed, and the job is completed only when the result is recorded. A worker that
+  dies after the rename but before `complete` leaves an unreferenced directory, and
+  recovery replays the job into a new one. Nothing partial is ever served. The cost
+  is that orphaned directories aren't swept yet.
+- **A cancel that arrives before publishing wins.** The worker checks one last time
+  (the `verifying` heartbeat) before it publishes. After that, completion wins as in B2.
+- **Raw bars aren't published.** The replay also exports `bars.json`, but it's left
+  in the attempt directory, the same as A2's rule for raw bars. The published files
+  are the manifest, metrics, trades, accounting, cash flows, report and feed metadata.
+- **The child re-validates.** The dataset or code can change between submit and
+  claim. The child rebuilds the request and compares digests rather than trusting
+  the stored copy, so a stale job fails instead of producing a result under the
+  wrong label.
+- **Blocking imports as well as forcing `BROKER=local`.** The replay path already
+  uses the local paper broker and template synthesis. The import and socket blocks
+  are a second line, so a future code path can't reach a broker or LLM from a demo
+  job by accident.
+- **Logs stay private.** Failure summaries stay fixed per code. The kept log is the
+  last 64 KB with the attempt path, repo path and home directory replaced, and with
+  any worker environment value whose name contains `KEY`, `SECRET`, `TOKEN` or
+  `PASSWORD` redacted. `failure.log_artifact_id` stays unavailable.
+- **Limits.** The worker enforces wall-clock time only; there's no memory or CPU cap
+  on the child. The child's raw log can grow without bound while it runs, but only
+  its last 64 KB is kept. A worker killed with `SIGKILL` can't stop its child. The
+  orphan keeps running in its attempt directory, but it can't publish anything,
+  because only the worker publishes.
 
 ## Provenance and unavailable values
 
