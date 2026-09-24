@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import json
 import sqlite3
 import threading
@@ -368,6 +369,9 @@ def test_api_rejects_unapproved_or_non_json_requests(client):
     assert form.status_code == 415
     oversized = client.post("/api/demo/v1/runs", json=run_request(padding="x" * 5000))
     assert oversized.status_code == 413
+    chunked = client.post("/api/demo/v1/runs", input_stream=io.BytesIO(json.dumps(run_request()).encode()),
+                          content_type="application/json", headers={"Transfer-Encoding": "chunked"})
+    assert (chunked.status_code, chunked.get_json()["error"]["code"]) == (411, "length_required")
     assert client.get("/api/demo/v1/runs").get_json()["data"]["runs"] == []
 
 

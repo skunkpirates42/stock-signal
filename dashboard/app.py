@@ -240,8 +240,10 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
         # Requiring a JSON body makes a cross-site form post fail CORS preflight.
         if not request.is_json:
             return _demo_error(415, "unsupported_media_type", "Run requests must be application/json.")
-        if request.content_length is None or request.content_length > MAX_RUN_REQUEST_BYTES:
-            return _demo_error(413, "request_too_large", "Run requests must declare a small JSON body.")
+        if request.content_length is None:
+            return _demo_error(411, "length_required", "Run requests must declare a Content-Length.")
+        if request.content_length > MAX_RUN_REQUEST_BYTES:
+            return _demo_error(413, "request_too_large", "Run requests must be at most 4 KB.")
         body = request.get_json(silent=True)
         if body is None:
             return _demo_error(400, "invalid_request", "Run request body is not valid JSON.")
