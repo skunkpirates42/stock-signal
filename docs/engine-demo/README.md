@@ -314,6 +314,16 @@ transitions. Published job artifacts are served through a bounded same-origin pr
 The UI labels market replays retrospective and the fixture synthetic correctness;
 it has no broker order, activation or promotion action.
 
+## B5 local release verification
+
+Issue #26 records the local release gate for the B1-B4 demo. The exact dashboard and
+worker commands, persistent paths, measured fixture smoke, fixed byte/time ceilings,
+startup migration, backup and rollback procedure are in the [B5 release checklist](release-checklist.md).
+The gate requires a completed synthetic fixture run to reopen after a dashboard restart,
+full backend and web verification, and evidence that broker credentials and order
+submission cannot reach the replay child. This remains a local paper-only demonstration;
+it has no activation or promotion step.
+
 ## Provenance and unavailable values
 
 Provenance has separate axes: `source` (`backtest`, `live`, `unknown`), `execution`
