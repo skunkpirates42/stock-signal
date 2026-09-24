@@ -187,6 +187,7 @@ class DemoWorker:
             child = subprocess.Popen([*CHILD_COMMAND, str(attempt_dir)], cwd=str(ROOT),
                                      env=self._child_environment(job, attempt_dir), stdin=subprocess.DEVNULL,
                                      stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+        interrupted_by = None
         try:
             deadline = time.monotonic() + self.timeout_seconds
             while True:
@@ -197,17 +198,22 @@ class DemoWorker:
                 except subprocess.TimeoutExpired:
                     pass
                 if time.monotonic() >= deadline:
-                    _stop(child)
-                    self.store.fail(job.id, job.lease_token, code="timeout")
-                    return "failed"
+                    interrupted_by = "timeout"
+                    break
                 state = self.store.heartbeat(job.id, job.lease_token, lease_seconds=self.lease_seconds,
                                              phase=self._phase(attempt_dir))
                 if state == "cancel_requested":
-                    _stop(child)
-                    self.store.confirm_cancelled(job.id, job.lease_token)
-                    return "cancelled"
+                    interrupted_by = "cancel"
+                    break
         finally:
+            # The only stop per attempt: a second one after the group is gone could hit a reused ID.
             _stop(child)
+        if interrupted_by == "timeout":
+            self.store.fail(job.id, job.lease_token, code="timeout")
+            return "failed"
+        if interrupted_by == "cancel":
+            self.store.confirm_cancelled(job.id, job.lease_token)
+            return "cancelled"
         if returncode != 0:
             self.store.fail(job.id, job.lease_token, code=CHILD_FAILURES.get(returncode, "execution_failed"))
             return "failed"

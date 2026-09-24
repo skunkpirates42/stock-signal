@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import signal
 import sqlite3
 import subprocess
 import sys
@@ -261,6 +262,27 @@ def test_stop_handles_an_exited_child_that_was_not_reaped_yet(tmp_path):
     worker_module._stop(child)
     assert child.returncode == 0
     wait_for(lambda: process_is_gone(int(pid_file.read_text())))
+
+
+@pytest.mark.parametrize("ending", ["cancel", "timeout", "exit"])
+def test_each_attempt_stops_its_process_group_once(store, tmp_path, monkeypatch, ending):
+    signals = []
+    real_signal_group = worker_module._signal_group
+    monkeypatch.setattr(worker_module, "_signal_group",
+                        lambda child, number: signals.append(number) or real_signal_group(child, number))
+    pid_file = tmp_path / "pid"
+    fake_child(monkeypatch, tmp_path, "Path(%r).write_text(str(os.getpid()))\n%s\n" % (
+        str(pid_file), "sys.exit(1)" if ending == "exit" else "time.sleep(60)"))
+    job_id, _ = store.submit("local", run_request())
+    worker = DemoWorker(store, tmp_path / "worker", lease_seconds=5, heartbeat_seconds=0.1,
+                        timeout_seconds=1 if ending == "timeout" else 60)
+    thread, outcome = run_in_background(worker)
+    wait_for(pid_file.exists)
+    if ending == "cancel":
+        store.request_cancel("local", job_id)
+    thread.join(timeout=15)
+    assert outcome["value"] == {"cancel": "cancelled", "timeout": "failed", "exit": "failed"}[ending]
+    assert signals.count(signal.SIGTERM) == 1
 
 
 @pytest.mark.parametrize("exit_code, failure_code", [
