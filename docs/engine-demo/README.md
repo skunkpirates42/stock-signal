@@ -113,16 +113,23 @@ never touched. Flask exposes four routes, all scoped to the configured operator:
 | `GET /api/demo/v1/runs/{id}` | Returns the normalized run and its A1 status record. Unknown IDs and IDs owned by someone else both return `404`. |
 | `POST /api/demo/v1/runs/{id}/cancel` | Needs a JSON content type (an empty `{}` body is fine). A queued run is cancelled straight away. A running run moves to `cancel_requested` and the worker finishes the cancel. Finished runs don't change, and asking again is safe. |
 
-Every error from these routes is JSON: `{"error": {"code", "message"}}`. The codes are
-`not_found`, `invalid_request`, `unsupported_media_type`, `request_too_large`,
-`idempotency_conflict`, `job_store_busy` (`503`, when the database lock wait times out)
-and the B1 rejection codes.
+Errors these routes return themselves are JSON: `{"error": {"code", "message"}}`. The
+codes are `not_found`, `invalid_request`, `unsupported_media_type`, `length_required`
+(`411`, no Content-Length), `request_too_large`, `idempotency_conflict`,
+`job_store_busy` (`503`, only when the database lock wait times out) and the B1
+rejection codes. Flask's own errors, like `405` for a wrong method or `500` for an
+unexpected fault, are still Flask's HTML pages. A `500` never echoes internal
+exception text.
 
 The worker side (B3) claims the oldest queued run with a lease token and sends
 heartbeats with a coarse phase before the lease runs out. It then calls `complete`,
-`fail` or `confirm_cancelled`. Every call needs the current, unexpired lease token. A
-worker whose lease has expired is refused straight away, even before recovery runs. If
-a result was published before the cancel took effect, completion wins.
+`fail` or `confirm_cancelled`. Every call needs the current lease token. A lease is
+still valid at the exact instant it expires, and recovery takes it only after that.
+`heartbeat`, `fail` and `confirm_cancelled` refuse an expired lease straight away,
+even before recovery runs. `complete` still accepts an expired lease while the token
+matches, because a matching token proves recovery hasn't run. That way a result
+published just after the lease lapsed is recorded, not replayed. If a result was
+published before the cancel took effect, completion wins.
 `recover_expired_leases` handles a worker that stopped heartbeating:
 
 - a pending cancel ends as `cancelled`;
@@ -132,7 +139,8 @@ a result was published before the cancel took effect, completion wins.
 This only works for one host and one worker. WAL mode, a busy timeout and
 `BEGIN IMMEDIATE` transactions keep two clicks from creating two runs and two claims
 from taking the same run. Timestamps are read after the lock is taken, so
-`created_at <= started_at <= ended_at` holds even when a call waits. It isn't a
+`created_at <= started_at <= ended_at` holds even when a call waits, as long as the
+system clock doesn't step backwards. Lease expiry uses the same wall clock. It isn't a
 multi-host queue.
 
 ### B2 decisions
@@ -143,18 +151,22 @@ multi-host queue.
 - **Run ID is the normalized run ID.** B1 already mints a UUID for the normalized run.
   The job reuses it, so the status and run records always point at each other.
 - **Lease token, not worker ID.** Each claim gets a fresh random token. A worker that
-  restarts under the same name can't act on an attempt it no longer owns. An expired
-  token is refused, so a late heartbeat can't revive a lost lease.
+  restarts under the same name can't act on an attempt it no longer owns. A late
+  heartbeat can't revive an expired lease, but a late `complete` can still record a
+  result while the token matches.
 - **One retry after a lost worker.** No result is public until `complete` records it,
   so rerunning an unfinished attempt is safe. The status fields for starting, phase
   and heartbeat are cleared for the new attempt, while `attempt` keeps counting.
 - **Completion beats a pending cancel.** Once a result is published, it's recorded as
-  published. Cancel only settles a run that hasn't finished. B2 can't see published
-  results, so B3 must check the result index before *every* recovery outcome
-  (requeue, `cancelled` or `worker_lost`). A worker can publish and then die, or let
-  its lease lapse, before `complete`.
-- **Idempotency lookup before the full build.** Submit checks the fields and looks up
-  the owner and key first. A repeat click returns its run without reloading the
+  published. Cancel only settles a run that hasn't finished. A live worker records its
+  result even after its lease lapses, as long as recovery hasn't run. What B2 can't
+  cover is a worker that publishes and then dies before `complete`: recovery doesn't
+  know about the result index yet. B3 adds that check to recovery (for example a
+  published-result lookup that completes the job instead of requeueing, cancelling or
+  failing it). Until then, a retried attempt must look up the index before replaying.
+- **Idempotency lookup before the full build.** Submit checks the fields and the
+  catalog IDs, which is quick because nothing is read from disk, then looks up the
+  owner and key. A repeat click returns its run without reloading the
   dataset. That keeps the "same key and request, same run" promise even if the
   dataset changes on disk, and it skips the costly bar load. A new key still gets
   the full B1 check before it's queued.
@@ -163,11 +175,14 @@ multi-host queue.
   the API. Details belong in B3's private, sanitized log artifact.
 - **Submit and cancel must be JSON.** A cross-site page can send a form post to
   127.0.0.1, so loopback binding alone doesn't stop it. It can't send
-  `application/json` without a CORS preflight, and Flask doesn't answer one. The
+  `application/json` without a CORS preflight. Flask answers the preflight but sends no
+  `Access-Control-Allow-*` headers, so the browser blocks the request. The
   routes still don't check the Host header, so a DNS-rebinding page could reach them.
   That's true of every dashboard route today. B4's Next.js proxy checks the origin.
 - **Rejections are `400` with the B1 code.** The UI (B4) reacts to `error.code`, not
   the status number. A reused key is the one case that gets its own status (`409`).
+  Catalog IDs are checked first, so a reused key with an unapproved ID is a `400`, not
+  a `409`.
 - **Requester ID is derived.** The status contract needs a UUID requester, but the local
   operator scope is a name. `requester_id_for` derives a stable UUIDv5 from it.
 - **No progress counts.** Progress stays `not_recorded` and the phase is coarse. The
