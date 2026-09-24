@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from .availability import available, unavailable
 from .read_service import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, DemoNotFound, envelope
 from .replay_catalog import build_replay_request, request_fingerprint, validated_request_fields
 
@@ -52,14 +53,6 @@ class ClaimedJob:
     request: Dict[str, Any]
     normalized_run: Dict[str, Any]
     strategy_configuration: Dict[str, Any]
-
-
-def _available(value: Any, detail: Optional[str] = None) -> Dict[str, Any]:
-    return {"availability": "available", "value": value, "reason": None, "detail": detail}
-
-
-def _unavailable(reason: str, detail: str) -> Dict[str, Any]:
-    return {"availability": "unavailable", "value": None, "reason": reason, "detail": detail}
 
 
 def _canonical_job_id(value: Any) -> str:
@@ -390,31 +383,31 @@ class JobStore:
             raise ValueError("retryable must be a boolean")
         return {"code": code, "summary": FAILURE_SUMMARIES[code], "at": at,
                 "retryable": retryable,
-                "log_artifact_id": _unavailable("not_recorded", "No log artifact is published for this job.")}
+                "log_artifact_id": unavailable("not_recorded", "No log artifact is published for this job.")}
 
     @staticmethod
     def _status(row: sqlite3.Row) -> Dict[str, Any]:
         def recorded(column: str, missing: str) -> Dict[str, Any]:
-            return _available(row[column]) if row[column] is not None else _unavailable("not_applicable", missing)
+            return available(row[column]) if row[column] is not None else unavailable("not_applicable", missing)
 
         state = row["state"]
         if row["cancel_requested_at"] is not None:
             cancellation = {"requested_at": row["cancel_requested_at"], "requester_id": row["cancel_requester_id"]}
         else:
-            cancellation = _unavailable("not_applicable", "No cancellation was requested.")
+            cancellation = unavailable("not_applicable", "No cancellation was requested.")
         return {
             "record_type": "status", "run_id": row["id"], "origin": "job", "state": state,
-            "created_at": _available(row["created_at"]),
+            "created_at": available(row["created_at"]),
             "started_at": recorded("started_at", "The current attempt has not started."),
             "ended_at": recorded("ended_at", "The job has not ended."),
             "phase": recorded("phase", "No worker phase is reported for the current attempt."),
-            "progress": _unavailable("not_recorded", "The replay does not report trustworthy progress counts."),
+            "progress": unavailable("not_recorded", "The replay does not report trustworthy progress counts."),
             "heartbeat_at": recorded("heartbeat_at", "No worker heartbeat is recorded for the current attempt."),
-            "attempt": _available(row["attempt"]),
+            "attempt": available(row["attempt"]),
             "engine_run_id": recorded("engine_run_id", "No engine run is recorded."),
-            "result_id": (_available(row["result_id"]) if state == "completed"
-                          else _unavailable("not_applicable", "Only a completed job has a result.")),
+            "result_id": (available(row["result_id"]) if state == "completed"
+                          else unavailable("not_applicable", "Only a completed job has a result.")),
             "failure": (json.loads(row["failure_json"]) if state == "failed"
-                        else _unavailable("not_applicable", "The job has not failed.")),
+                        else unavailable("not_applicable", "The job has not failed.")),
             "cancellation": cancellation,
         }

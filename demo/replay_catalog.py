@@ -21,6 +21,8 @@ from backtest import manifest_for, normalize_bars
 from data.sessions import utc
 from db.logger import ACCOUNTING_VERSION
 
+from .availability import available, unavailable
+
 ROOT = Path(__file__).resolve().parents[1]
 STRATEGY_ID = "stock-signal"
 TEMPLATE_VERSION = "stock-signal-template-1"
@@ -120,14 +122,6 @@ class ReplayRequest:
     bars: Dict[str, pd.DataFrame]
 
 
-def _available(value: Any, detail: Optional[str] = None) -> Dict[str, Any]:
-    return {"availability": "available", "value": value, "reason": None, "detail": detail}
-
-
-def _unavailable(reason: str, detail: str) -> Dict[str, Any]:
-    return {"availability": "unavailable", "value": None, "reason": reason, "detail": detail}
-
-
 def _canonical_sha256(value: Any) -> str:
     serialized = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
     return hashlib.sha256(serialized.encode()).hexdigest()
@@ -209,7 +203,7 @@ def strategy_version_for(strategy_configuration: Mapping[str, Any]) -> str:
 
 
 def _provenance(dataset: ApprovedDataset) -> Dict[str, Any]:
-    not_registered = _unavailable("not_registered", "No prospective registration exists for this replay window.")
+    not_registered = unavailable("not_registered", "No prospective registration exists for this replay window.")
     if dataset.synthetic:
         return {"source": "backtest", "execution": "local_simulation", "historical": True, "retrospective": False,
                 "synthetic": True, "evaluation": "synthetic_correctness", "holdout_status": not_registered,
@@ -244,23 +238,23 @@ def build_replay_request(request: Any, *, root: Path = ROOT) -> ReplayRequest:
 
     normalized_run = {
         "record_type": "normalized_run", "id": str(uuid.uuid4()), "strategy_id": STRATEGY_ID,
-        "strategy_version": _available(strategy_version, f"Template {TEMPLATE_VERSION} with source and configuration digests."),
+        "strategy_version": available(strategy_version, f"Template {TEMPLATE_VERSION} with source and configuration digests."),
         "variant": "baseline", "dataset_id": dataset.id,
-        "dataset_sha256": _available(dataset.sha256, "Verified catalog file digest."),
-        "selected_data_sha256": _available(manifest["dataset_sha256"], "Engine fingerprint of selected warmup and evaluation bars."),
+        "dataset_sha256": available(dataset.sha256, "Verified catalog file digest."),
+        "selected_data_sha256": available(manifest["dataset_sha256"], "Engine fingerprint of selected warmup and evaluation bars."),
         "window": {"name": window.id, "role": "evaluation", "start": start.isoformat(), "end_exclusive": end.isoformat()},
-        "observed_bounds": {"first_bar": _available(first_bar.isoformat()), "last_bar": _available(last_bar.isoformat()),
-                            "warmup_end_exclusive": _available(start.isoformat())},
-        "symbols": sorted(selected), "feed": _available(dataset.feed),
+        "observed_bounds": {"first_bar": available(first_bar.isoformat()), "last_bar": available(last_bar.isoformat()),
+                            "warmup_end_exclusive": available(start.isoformat())},
+        "symbols": sorted(selected), "feed": available(dataset.feed),
         "cost_policy": cost_profile.policy_record(),
-        "accounting": {"version": _available(str(ACCOUNTING_VERSION)), "mode": "cashflow_accounted",
+        "accounting": {"version": available(str(ACCOUNTING_VERSION)), "mode": "cashflow_accounted",
                        "coverage": "incomplete", "unresolved": ["borrow_cost", "dividend_cashflow"]},
-        "fill_policy": _available(manifest["fill_policy"]),
-        "session_policy": _available(manifest["session_policy"]),
-        "code": {"revision": _available(manifest["revision"]) if manifest["revision"] != "unknown"
-                 else _unavailable("not_recorded", "Git revision was unavailable when the request was built."),
-                 "source_sha256": _available(manifest["source_sha256"]),
-                 "working_diff_sha256": _available(manifest["working_diff_sha256"],
+        "fill_policy": available(manifest["fill_policy"]),
+        "session_policy": available(manifest["session_policy"]),
+        "code": {"revision": available(manifest["revision"]) if manifest["revision"] != "unknown"
+                 else unavailable("not_recorded", "Git revision was unavailable when the request was built."),
+                 "source_sha256": available(manifest["source_sha256"]),
+                 "working_diff_sha256": available(manifest["working_diff_sha256"],
                                                    "Digest of the working diff; a revision with a diff is not a clean build.")},
         "provenance": _provenance(dataset),
     }
