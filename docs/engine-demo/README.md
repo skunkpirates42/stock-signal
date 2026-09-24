@@ -127,6 +127,34 @@ This only works for one host and one worker. WAL mode, a busy timeout and
 `BEGIN IMMEDIATE` transactions keep two clicks from creating two runs and two claims
 from taking the same run. It isn't a multi-host queue.
 
+### B2 decisions
+
+- **Separate database file.** Jobs don't go in the journal or in the artifact index.
+  That keeps web lifecycle state out of engine manifests. It also means turning on WAL
+  for jobs doesn't change how the other two files are opened.
+- **Run ID is the normalized run ID.** B1 already mints a UUID for the normalized run.
+  The job reuses it, so the status and run records always point at each other.
+- **Lease token, not worker ID.** Each claim gets a fresh random token. A worker that
+  restarts under the same name can't act on an attempt it no longer owns.
+- **One retry after a lost worker.** No result is public until `complete` records it,
+  so rerunning an unfinished attempt is safe. B3 must still check the result index
+  before a retry, in case a worker published and then died before `complete`.
+- **Completion beats a pending cancel.** Once a result is published, it's recorded as
+  published. Cancel only settles a run that hasn't finished.
+- **Validate before the idempotency lookup.** It's simpler, and the fingerprint only
+  exists for a valid request. The downside: if the dataset changes on disk, a repeat
+  click gets a `400` instead of the existing run.
+- **Submit must be JSON.** A cross-site form post can't send `application/json`
+  without a CORS preflight, and Flask doesn't answer one. Cancel has no body, so it
+  relies on Flask being bound to loopback. B4's Next.js proxy checks the origin for
+  both.
+- **Rejections are `400` with the B1 code.** The UI (B4) reacts to `error.code`, not
+  the status number. A reused key is the one case that gets its own status (`409`).
+- **Requester ID is derived.** The status contract needs a UUID requester, but the local
+  operator scope is a name. `requester_id_for` derives a stable UUIDv5 from it.
+- **No progress counts.** Progress stays `not_recorded` and the phase is coarse. The
+  replay doesn't report trustworthy counts yet.
+
 ## Provenance and unavailable values
 
 Provenance has separate axes: `source` (`backtest`, `live`, `unknown`), `execution`
