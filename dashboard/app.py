@@ -18,11 +18,17 @@ import config
 from alerts.feed import build_alert_events
 from analytics.metrics import compute_metrics, equity_curve, load_closed_trades
 from db.logger import load_open_positions, init_db, scope_sql, _connect
+from demo.jobs import IdempotencyConflict, InvalidPageRequest, JobStore
 from demo.read_service import MAX_JSON_RESPONSE_BYTES, DemoContentTooLarge, DemoNotFound, DemoReadService
+from demo.replay_catalog import ReplayRequestRejected
 from signals.llm_synthesis import signal_from_row, synthesize
 
 
-def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: str = None) -> Flask:
+MAX_RUN_REQUEST_BYTES = 4096
+
+
+def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: str = None,
+               demo_job_db_path: str = None) -> Flask:
     app = Flask(__name__)
     app.config["DB_PATH"] = db_path or config.DB_PATH
     # These are server configuration, never request parameters.  The demo index is
@@ -30,8 +36,11 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
     app.config["DEMO_DB_PATH"] = (demo_db_path or os.environ.get("DEMO_ARTIFACT_DB_PATH")
                                   or str(Path(app.config["DB_PATH"]).with_name("demo-artifacts.db")))
     app.config["DEMO_OWNER_ID"] = demo_owner_id or os.environ.get("DEMO_OPERATOR_OWNER_ID", "local")
+    app.config["DEMO_JOB_DB_PATH"] = (demo_job_db_path or os.environ.get("DEMO_JOB_DB_PATH")
+                                      or str(Path(app.config["DB_PATH"]).with_name("demo-jobs.db")))
     init_db(app.config["DB_PATH"])
     demo = DemoReadService(app.config["DEMO_DB_PATH"], owner_id=app.config["DEMO_OWNER_ID"])
+    jobs = JobStore(app.config["DEMO_JOB_DB_PATH"])
 
     def _db():
         return app.config["DB_PATH"]
@@ -203,6 +212,71 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Cache-Control"] = "no-store"
         return response
+
+    def _demo_error(status: int, code: str, message: str) -> Response:
+        response = jsonify({"error": {"code": code, "message": message}})
+        response.status_code = status
+        return response
+
+    def _is_lock_timeout(exc: sqlite3.OperationalError) -> bool:
+        # Python 3.9 has no sqlite_errorcode; SQLITE_BUSY/LOCKED are only visible in the message.
+        message = str(exc)
+        return "locked" in message or "busy" in message
+
+    def _demo_run_json(operation):
+        try:
+            return jsonify(operation())
+        except DemoNotFound:
+            return _demo_error(404, "not_found", "No run with this ID in this scope.")
+        except InvalidPageRequest as exc:
+            return _demo_error(400, "invalid_request", str(exc))
+        except sqlite3.OperationalError as exc:
+            if not _is_lock_timeout(exc):
+                raise
+            return _demo_error(503, "job_store_busy", "The job store is busy; try again.")
+
+    @app.route("/api/demo/v1/runs", methods=["POST"])
+    def api_demo_submit_run():
+        # Requiring a JSON body makes a cross-site form post fail CORS preflight.
+        if not request.is_json:
+            return _demo_error(415, "unsupported_media_type", "Run requests must be application/json.")
+        if request.content_length is None:
+            return _demo_error(411, "length_required", "Run requests must declare a Content-Length.")
+        if request.content_length > MAX_RUN_REQUEST_BYTES:
+            return _demo_error(413, "request_too_large", "Run requests must be at most 4 KB.")
+        body = request.get_json(silent=True)
+        if body is None:
+            return _demo_error(400, "invalid_request", "Run request body is not valid JSON.")
+        try:
+            job_id, _ = jobs.submit(app.config["DEMO_OWNER_ID"], body)
+        except ReplayRequestRejected as exc:
+            return _demo_error(400, exc.code, str(exc))
+        except IdempotencyConflict as exc:
+            return _demo_error(409, "idempotency_conflict", str(exc))
+        except sqlite3.OperationalError as exc:
+            if not _is_lock_timeout(exc):
+                raise
+            return _demo_error(503, "job_store_busy", "The job store is busy; try again.")
+        response = _demo_run_json(lambda: jobs.job_detail(app.config["DEMO_OWNER_ID"], job_id))
+        if response.status_code == 200:
+            response.status_code = 202
+            response.headers["Location"] = "/api/demo/v1/runs/" + job_id
+        return response
+
+    @app.route("/api/demo/v1/runs")
+    def api_demo_runs():
+        return _demo_run_json(lambda: jobs.list_jobs(app.config["DEMO_OWNER_ID"], limit=request.args.get("limit"),
+                                                     cursor=request.args.get("cursor")))
+
+    @app.route("/api/demo/v1/runs/<run_id>")
+    def api_demo_run(run_id):
+        return _demo_run_json(lambda: jobs.job_detail(app.config["DEMO_OWNER_ID"], run_id))
+
+    @app.route("/api/demo/v1/runs/<run_id>/cancel", methods=["POST"])
+    def api_demo_cancel_run(run_id):
+        if not request.is_json:
+            return _demo_error(415, "unsupported_media_type", "Cancel requests must be application/json.")
+        return _demo_run_json(lambda: jobs.request_cancel(app.config["DEMO_OWNER_ID"], run_id))
 
     return app
 

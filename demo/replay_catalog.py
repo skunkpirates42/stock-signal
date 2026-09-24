@@ -21,6 +21,8 @@ from backtest import manifest_for, normalize_bars
 from data.sessions import utc
 from db.logger import ACCOUNTING_VERSION
 
+from .availability import available, unavailable
+
 ROOT = Path(__file__).resolve().parents[1]
 STRATEGY_ID = "stock-signal"
 TEMPLATE_VERSION = "stock-signal-template-1"
@@ -120,14 +122,6 @@ class ReplayRequest:
     bars: Dict[str, pd.DataFrame]
 
 
-def _available(value: Any, detail: Optional[str] = None) -> Dict[str, Any]:
-    return {"availability": "available", "value": value, "reason": None, "detail": detail}
-
-
-def _unavailable(reason: str, detail: str) -> Dict[str, Any]:
-    return {"availability": "unavailable", "value": None, "reason": reason, "detail": detail}
-
-
 def _canonical_sha256(value: Any) -> str:
     serialized = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
     return hashlib.sha256(serialized.encode()).hexdigest()
@@ -142,7 +136,7 @@ def request_fingerprint(request: Mapping[str, Any]) -> str:
     return _canonical_sha256({key: request[key] for key in sorted(REQUEST_FIELDS - {"idempotency_key"})})
 
 
-def _validated_fields(request: Any) -> Dict[str, str]:
+def validated_request_fields(request: Any) -> Dict[str, str]:
     if not isinstance(request, Mapping):
         raise ReplayRequestRejected("invalid_request", "Run request must be a JSON object")
     unexpected = set(request) - REQUEST_FIELDS
@@ -155,19 +149,37 @@ def _validated_fields(request: Any) -> Dict[str, str]:
         raise ReplayRequestRejected("invalid_request", "Run request values must be strings")
     if not IDEMPOTENCY_KEY.fullmatch(request["idempotency_key"]):
         raise ReplayRequestRejected("invalid_idempotency_key", "Idempotency key must be 8-128 URL-safe characters")
+    if request["strategy_id"] != STRATEGY_ID:
+        raise ReplayRequestRejected("unknown_strategy", "Strategy is not approved for replay")
+    dataset = DATASETS.get(request["dataset_id"])
+    if dataset is None:
+        raise ReplayRequestRejected("unknown_dataset", "Dataset is not approved for replay")
+    if not any(item.id == request["window_id"] for item in dataset.windows):
+        raise ReplayRequestRejected("unknown_window", "Window is not approved for this dataset")
+    if request["cost_profile_id"] not in dataset.cost_profile_ids:
+        raise ReplayRequestRejected("unknown_cost_profile", "Cost profile is not approved for this dataset")
     return dict(request)
+
+
+def _recorded_feed(meta_path: Path) -> Optional[str]:
+    try:
+        meta = json.loads(meta_path.read_text())
+    except (OSError, ValueError):
+        return None
+    return meta.get("feed") if isinstance(meta, dict) else None
 
 
 def _load_verified_bars(dataset: ApprovedDataset, root: Path) -> Dict[str, pd.DataFrame]:
     path = root / dataset.relative_path
     if not path.is_file():
         raise ReplayRequestRejected("dataset_unavailable", "Approved dataset is not present on this host")
-    content = path.read_bytes()
+    try:
+        content = path.read_bytes()
+    except OSError as exc:
+        raise ReplayRequestRejected("dataset_unavailable", "Approved dataset could not be read") from exc
     if hashlib.sha256(content).hexdigest() != dataset.sha256:
         raise ReplayRequestRejected("dataset_changed", "Approved dataset bytes do not match the catalog digest")
-    meta_path = path.with_suffix(".meta.json")
-    recorded_feed = json.loads(meta_path.read_text()).get("feed") if meta_path.is_file() else None
-    if recorded_feed != dataset.feed:
+    if _recorded_feed(path.with_suffix(".meta.json")) != dataset.feed:
         raise ReplayRequestRejected("dataset_changed", "Dataset feed metadata does not match the catalog feed")
     return {symbol: normalize_bars(pd.DataFrame(rows)) for symbol, rows in json.loads(content).items()}
 
@@ -200,7 +212,7 @@ def strategy_version_for(strategy_configuration: Mapping[str, Any]) -> str:
 
 
 def _provenance(dataset: ApprovedDataset) -> Dict[str, Any]:
-    not_registered = _unavailable("not_registered", "No prospective registration exists for this replay window.")
+    not_registered = unavailable("not_registered", "No prospective registration exists for this replay window.")
     if dataset.synthetic:
         return {"source": "backtest", "execution": "local_simulation", "historical": True, "retrospective": False,
                 "synthetic": True, "evaluation": "synthetic_correctness", "holdout_status": not_registered,
@@ -211,17 +223,9 @@ def _provenance(dataset: ApprovedDataset) -> Dict[str, Any]:
 
 
 def build_replay_request(request: Any, *, root: Path = ROOT) -> ReplayRequest:
-    fields = _validated_fields(request)
-    if fields["strategy_id"] != STRATEGY_ID:
-        raise ReplayRequestRejected("unknown_strategy", "Strategy is not approved for replay")
-    dataset = DATASETS.get(fields["dataset_id"])
-    if dataset is None:
-        raise ReplayRequestRejected("unknown_dataset", "Dataset is not approved for replay")
-    window = next((item for item in dataset.windows if item.id == fields["window_id"]), None)
-    if window is None:
-        raise ReplayRequestRejected("unknown_window", "Window is not approved for this dataset")
-    if fields["cost_profile_id"] not in dataset.cost_profile_ids:
-        raise ReplayRequestRejected("unknown_cost_profile", "Cost profile is not approved for this dataset")
+    fields = validated_request_fields(request)
+    dataset = DATASETS[fields["dataset_id"]]
+    window = next(item for item in dataset.windows if item.id == fields["window_id"])
     cost_profile = COST_PROFILES[fields["cost_profile_id"]]
 
     start, end = utc(window.start), utc(window.end_exclusive)
@@ -235,23 +239,23 @@ def build_replay_request(request: Any, *, root: Path = ROOT) -> ReplayRequest:
 
     normalized_run = {
         "record_type": "normalized_run", "id": str(uuid.uuid4()), "strategy_id": STRATEGY_ID,
-        "strategy_version": _available(strategy_version, f"Template {TEMPLATE_VERSION} with source and configuration digests."),
+        "strategy_version": available(strategy_version, f"Template {TEMPLATE_VERSION} with source and configuration digests."),
         "variant": "baseline", "dataset_id": dataset.id,
-        "dataset_sha256": _available(dataset.sha256, "Verified catalog file digest."),
-        "selected_data_sha256": _available(manifest["dataset_sha256"], "Engine fingerprint of selected warmup and evaluation bars."),
+        "dataset_sha256": available(dataset.sha256, "Verified catalog file digest."),
+        "selected_data_sha256": available(manifest["dataset_sha256"], "Engine fingerprint of selected warmup and evaluation bars."),
         "window": {"name": window.id, "role": "evaluation", "start": start.isoformat(), "end_exclusive": end.isoformat()},
-        "observed_bounds": {"first_bar": _available(first_bar.isoformat()), "last_bar": _available(last_bar.isoformat()),
-                            "warmup_end_exclusive": _available(start.isoformat())},
-        "symbols": sorted(selected), "feed": _available(dataset.feed),
+        "observed_bounds": {"first_bar": available(first_bar.isoformat()), "last_bar": available(last_bar.isoformat()),
+                            "warmup_end_exclusive": available(start.isoformat())},
+        "symbols": sorted(selected), "feed": available(dataset.feed),
         "cost_policy": cost_profile.policy_record(),
-        "accounting": {"version": _available(str(ACCOUNTING_VERSION)), "mode": "cashflow_accounted",
+        "accounting": {"version": available(str(ACCOUNTING_VERSION)), "mode": "cashflow_accounted",
                        "coverage": "incomplete", "unresolved": ["borrow_cost", "dividend_cashflow"]},
-        "fill_policy": _available(manifest["fill_policy"]),
-        "session_policy": _available(manifest["session_policy"]),
-        "code": {"revision": _available(manifest["revision"]) if manifest["revision"] != "unknown"
-                 else _unavailable("not_recorded", "Git revision was unavailable when the request was built."),
-                 "source_sha256": _available(manifest["source_sha256"]),
-                 "working_diff_sha256": _available(manifest["working_diff_sha256"],
+        "fill_policy": available(manifest["fill_policy"]),
+        "session_policy": available(manifest["session_policy"]),
+        "code": {"revision": available(manifest["revision"]) if manifest["revision"] != "unknown"
+                 else unavailable("not_recorded", "Git revision was unavailable when the request was built."),
+                 "source_sha256": available(manifest["source_sha256"]),
+                 "working_diff_sha256": available(manifest["working_diff_sha256"],
                                                    "Digest of the working diff; a revision with a diff is not a clean build.")},
         "provenance": _provenance(dataset),
     }

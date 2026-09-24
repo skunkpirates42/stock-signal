@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from .artifacts import ArtifactImportError, ArtifactIndex, ImportedArtifact
+from .availability import available, unavailable
 
 
 DEFAULT_PAGE_SIZE = 20
@@ -56,14 +57,6 @@ class ArtifactReference:
 def envelope(data: Any, warnings: Iterable[str] = ()) -> Dict[str, Any]:
     """Return the fixed v1 outer envelope used by every JSON demo route."""
     return {"schema_version": 1, "data": data, "warnings": list(dict.fromkeys(warnings))}
-
-
-def _unavailable(reason: str, detail: str) -> Dict[str, Any]:
-    return {"availability": "unavailable", "value": None, "reason": reason, "detail": detail}
-
-
-def _available(value: Any, detail: Optional[str] = None) -> Dict[str, Any]:
-    return {"availability": "available", "value": value, "reason": None, "detail": detail}
 
 
 class DemoReadService:
@@ -185,17 +178,17 @@ class DemoReadService:
         status = {
             "record_type": "status", "run_id": row["run_id"], "origin": "saved_artifact",
             "state": "completed",
-            "created_at": _unavailable("not_recorded", "Saved artifacts do not record a lifecycle creation time."),
-            "started_at": _unavailable("not_recorded", "Saved artifacts do not record a lifecycle start time."),
-            "ended_at": _unavailable("not_recorded", "Saved artifacts do not record a lifecycle end time."),
-            "phase": _unavailable("not_recorded", "Saved artifacts do not record lifecycle phase."),
-            "progress": _unavailable("not_recorded", "Saved artifacts do not record lifecycle progress."),
-            "heartbeat_at": _unavailable("not_recorded", "Saved artifacts do not record lifecycle heartbeats."),
-            "attempt": _unavailable("not_recorded", "Saved artifacts do not record a lifecycle attempt."),
-            "engine_run_id": _unavailable("not_recorded", "Saved artifacts do not record an engine run ID."),
-            "result_id": _available(row["id"]),
-            "failure": _unavailable("not_applicable", "This saved artifact is a completed result reference, not a job failure."),
-            "cancellation": _unavailable("not_applicable", "This saved artifact is a completed result reference, not a cancellable job."),
+            "created_at": unavailable("not_recorded", "Saved artifacts do not record a lifecycle creation time."),
+            "started_at": unavailable("not_recorded", "Saved artifacts do not record a lifecycle start time."),
+            "ended_at": unavailable("not_recorded", "Saved artifacts do not record a lifecycle end time."),
+            "phase": unavailable("not_recorded", "Saved artifacts do not record lifecycle phase."),
+            "progress": unavailable("not_recorded", "Saved artifacts do not record lifecycle progress."),
+            "heartbeat_at": unavailable("not_recorded", "Saved artifacts do not record lifecycle heartbeats."),
+            "attempt": unavailable("not_recorded", "Saved artifacts do not record a lifecycle attempt."),
+            "engine_run_id": unavailable("not_recorded", "Saved artifacts do not record an engine run ID."),
+            "result_id": available(row["id"]),
+            "failure": unavailable("not_applicable", "This saved artifact is a completed result reference, not a job failure."),
+            "cancellation": unavailable("not_applicable", "This saved artifact is a completed result reference, not a cancellable job."),
         }
         return envelope(
             {"result": result, "run": run, "artifacts": artifacts, "status": status},
@@ -232,8 +225,8 @@ class DemoReadService:
             "record_type": "strategy", "id": "stock-signal", "label": "Stock Signal",
             "description": "Saved deterministic historical strategy template.",
             "supported_modes": ["historical"], "editable_fields": [],
-            "template_version": _unavailable("unknown_legacy", "Saved artifacts lack an immutable template version."),
-            "strategy_version": _unavailable("unknown_legacy", "Saved artifacts lack an immutable strategy fingerprint."),
+            "template_version": unavailable("unknown_legacy", "Saved artifacts lack an immutable template version."),
+            "strategy_version": unavailable("unknown_legacy", "Saved artifacts lack an immutable strategy fingerprint."),
         }
         return envelope([strategy], ["Descriptive saved-source catalog only; no strategy is approved for execution."])
 
@@ -267,17 +260,17 @@ class DemoReadService:
                 continue
             datasets.append({
                 "record_type": "dataset", "id": dataset_id, "label": "Indexed saved-source dataset",
-                "content_sha256": run.get("dataset_sha256", _unavailable("not_recorded", "Dataset digest is absent.")),
-                "feed": run.get("feed", _unavailable("not_recorded", "Dataset feed is absent.")),
+                "content_sha256": run.get("dataset_sha256", unavailable("not_recorded", "Dataset digest is absent.")),
+                "feed": run.get("feed", unavailable("not_recorded", "Dataset feed is absent.")),
                 "symbols": run.get("symbols", []),
                 # The result evaluation window is not evidence of the original
                 # dataset's requested bounds, so it must never be substituted here.
-                "requested_bounds": _unavailable("not_recorded", "Saved source does not record requested dataset bounds."),
-                "session_coverage": _unavailable("unverified", "Saved source does not provide verified full session coverage."),
+                "requested_bounds": unavailable("not_recorded", "Saved source does not record requested dataset bounds."),
+                "session_coverage": unavailable("unverified", "Saved source does not provide verified full session coverage."),
                 "synthetic": provenance["synthetic"],
                 "metadata_state": "partial", "approved_windows": [],
-                "warmup_capability": _unavailable("not_recorded", "Saved source does not establish replay warmup capability."),
-                "availability": _unavailable("unverified", "Raw dataset bytes are intentionally excluded from the A2 index."),
+                "warmup_capability": unavailable("not_recorded", "Saved source does not establish replay warmup capability."),
+                "availability": unavailable("unverified", "Raw dataset bytes are intentionally excluded from the A2 index."),
             })
             if len(datasets) >= page_size:
                 break
