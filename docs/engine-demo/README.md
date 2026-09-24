@@ -95,7 +95,10 @@ fingerprint, which matches the manifest `run_portfolio` writes for the same bars
 record also carries the cost policy, accounting gaps and code identity. Market windows
 are labelled retrospective and the fixture is labelled synthetic correctness.
 `request_fingerprint` excludes the idempotency key, so B2 can detect key reuse with a
-different request. The strategy fingerprint ignores cost and operational settings.
+different request. The request also retains `strategy_configuration` (template
+version, source digest and the full strategy settings, without cost and operational
+settings). `strategy_version_for` recomputes `strategy_version` from it, so B2 must
+store it with the job and the worker can check it before replaying.
 
 ## Provenance and unavailable values
 

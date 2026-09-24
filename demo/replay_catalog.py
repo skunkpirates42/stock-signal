@@ -114,6 +114,7 @@ class ReplayRequest:
     idempotency_key: str
     request_fingerprint: str
     normalized_run: Dict[str, Any]
+    strategy_configuration: Dict[str, Any]
     cost_profile: CostProfile
     evaluation_start: pd.Timestamp
     bars: Dict[str, pd.DataFrame]
@@ -186,12 +187,16 @@ def _select_window(bars: Dict[str, pd.DataFrame], start: pd.Timestamp,
     return selected
 
 
-def _strategy_version(manifest: Dict[str, Any]) -> Tuple[str, str]:
-    configuration = {key: value for key, value in manifest["settings"].items()
-                     if key not in COST_SETTING_KEYS | NON_STRATEGY_SETTING_KEYS}
-    configuration_sha256 = _canonical_sha256(configuration)
-    return _canonical_sha256({"template_version": TEMPLATE_VERSION, "source_sha256": manifest["source_sha256"],
-                              "configuration_sha256": configuration_sha256}), configuration_sha256
+def _strategy_configuration(manifest: Dict[str, Any]) -> Dict[str, Any]:
+    return {"template_version": TEMPLATE_VERSION, "source_sha256": manifest["source_sha256"],
+            "configuration": {key: value for key, value in manifest["settings"].items()
+                              if key not in COST_SETTING_KEYS | NON_STRATEGY_SETTING_KEYS}}
+
+
+def strategy_version_for(strategy_configuration: Mapping[str, Any]) -> str:
+    return _canonical_sha256({"template_version": strategy_configuration["template_version"],
+                              "source_sha256": strategy_configuration["source_sha256"],
+                              "configuration_sha256": _canonical_sha256(strategy_configuration["configuration"])})
 
 
 def _provenance(dataset: ApprovedDataset) -> Dict[str, Any]:
@@ -223,7 +228,8 @@ def build_replay_request(request: Any, *, root: Path = ROOT) -> ReplayRequest:
     bars = _load_verified_bars(dataset, root)
     selected = _select_window(bars, start, end)
     manifest = manifest_for(selected, dataset.feed)
-    strategy_version, _ = _strategy_version(manifest)
+    strategy_configuration = _strategy_configuration(manifest)
+    strategy_version = strategy_version_for(strategy_configuration)
     first_bar = min(frame.timestamp.iloc[0] for frame in selected.values())
     last_bar = max(frame.timestamp.iloc[-1] for frame in selected.values())
 
@@ -250,4 +256,5 @@ def build_replay_request(request: Any, *, root: Path = ROOT) -> ReplayRequest:
         "provenance": _provenance(dataset),
     }
     return ReplayRequest(idempotency_key=fields["idempotency_key"], request_fingerprint=request_fingerprint(fields),
-                         normalized_run=normalized_run, cost_profile=cost_profile, evaluation_start=start, bars=selected)
+                         normalized_run=normalized_run, strategy_configuration=strategy_configuration,
+                         cost_profile=cost_profile, evaluation_start=start, bars=selected)

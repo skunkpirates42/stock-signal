@@ -8,7 +8,8 @@ import pytest
 import config
 from backtest import run_portfolio
 from demo.replay_catalog import (COST_PROFILES, DATASETS, TRADER_WINDOW_BARS, ReplayRequestRejected,
-                                 build_replay_request, dataset_is_available, request_fingerprint)
+                                 TEMPLATE_VERSION, build_replay_request, dataset_is_available,
+                                 request_fingerprint, strategy_version_for)
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("engine_demo_contract", ROOT / "docs/engine-demo/validate.py")
@@ -113,6 +114,18 @@ def test_changed_feed_metadata_is_rejected_although_bars_match(tmp_path):
     with pytest.raises(ReplayRequestRejected) as changed:
         build_replay_request(fixture_request(), root=tmp_path)
     assert changed.value.code == "dataset_changed"
+
+
+def test_retained_strategy_configuration_reproduces_strategy_version():
+    built = build_replay_request(fixture_request())
+    retained = built.strategy_configuration
+    assert retained["template_version"] == TEMPLATE_VERSION
+    assert retained["source_sha256"] == built.normalized_run["code"]["source_sha256"]["value"]
+    assert retained["configuration"]["WARMUP_BARS"] == config.WARMUP_BARS
+    assert not {"SPREAD_BPS", "SLIPPAGE_BPS", "FEE_PER_SHARE", "BROKER"} & set(retained["configuration"])
+    assert strategy_version_for(retained) == built.normalized_run["strategy_version"]["value"]
+    changed = {**retained, "configuration": {**retained["configuration"], "WARMUP_BARS": 1}}
+    assert strategy_version_for(changed) != built.normalized_run["strategy_version"]["value"]
 
 
 def test_window_without_enough_warmup_is_rejected(monkeypatch):
