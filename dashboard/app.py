@@ -216,6 +216,16 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
     def _demo_error(status: int, code: str, message: str):
         return jsonify({"error": {"code": code, "message": message}}), status
 
+    def _demo_run_json(operation):
+        try:
+            return jsonify(operation())
+        except DemoNotFound:
+            return _demo_error(404, "not_found", "No run with this ID in this scope.")
+        except ValueError as exc:
+            return _demo_error(400, "invalid_request", str(exc))
+        except sqlite3.OperationalError:
+            return _demo_error(503, "job_store_busy", "The job store is busy; try again.")
+
     @app.route("/api/demo/v1/runs", methods=["POST"])
     def api_demo_submit_run():
         # Requiring a JSON body makes a cross-site form post fail CORS preflight.
@@ -232,23 +242,28 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
             return _demo_error(400, exc.code, str(exc))
         except IdempotencyConflict as exc:
             return _demo_error(409, "idempotency_conflict", str(exc))
-        response = jsonify(jobs.job_detail(app.config["DEMO_OWNER_ID"], job_id))
-        response.status_code = 202
-        response.headers["Location"] = "/api/demo/v1/runs/" + job_id
+        except sqlite3.OperationalError:
+            return _demo_error(503, "job_store_busy", "The job store is busy; try again.")
+        response = _demo_run_json(lambda: jobs.job_detail(app.config["DEMO_OWNER_ID"], job_id))
+        if response.status_code == 200:
+            response.status_code = 202
+            response.headers["Location"] = "/api/demo/v1/runs/" + job_id
         return response
 
     @app.route("/api/demo/v1/runs")
     def api_demo_runs():
-        return _demo_json(lambda: jobs.list_jobs(app.config["DEMO_OWNER_ID"], limit=request.args.get("limit"),
-                                                 cursor=request.args.get("cursor")))
+        return _demo_run_json(lambda: jobs.list_jobs(app.config["DEMO_OWNER_ID"], limit=request.args.get("limit"),
+                                                     cursor=request.args.get("cursor")))
 
     @app.route("/api/demo/v1/runs/<run_id>")
     def api_demo_run(run_id):
-        return _demo_json(lambda: jobs.job_detail(app.config["DEMO_OWNER_ID"], run_id))
+        return _demo_run_json(lambda: jobs.job_detail(app.config["DEMO_OWNER_ID"], run_id))
 
     @app.route("/api/demo/v1/runs/<run_id>/cancel", methods=["POST"])
     def api_demo_cancel_run(run_id):
-        return _demo_json(lambda: jobs.request_cancel(app.config["DEMO_OWNER_ID"], run_id))
+        if not request.is_json:
+            return _demo_error(415, "unsupported_media_type", "Cancel requests must be application/json.")
+        return _demo_run_json(lambda: jobs.request_cancel(app.config["DEMO_OWNER_ID"], run_id))
 
     return app
 

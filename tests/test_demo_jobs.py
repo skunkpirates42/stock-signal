@@ -353,11 +353,22 @@ def test_api_list_detail_cancel_and_scope(client):
     listed = client.get("/api/demo/v1/runs").get_json()
     assert [item["run_id"] for item in listed["data"]["runs"]] == [job_id]
     assert client.get("/api/demo/v1/runs/" + job_id).get_json()["data"]["status"]["state"] == "queued"
-    cancelled = client.post("/api/demo/v1/runs/%s/cancel" % job_id)
+    cancelled = client.post("/api/demo/v1/runs/%s/cancel" % job_id, json={})
     assert (cancelled.status_code, cancelled.get_json()["data"]["status"]["state"]) == (200, "cancelled")
-    assert client.get("/api/demo/v1/runs/" + str(uuid.uuid4())).status_code == 404
-    assert client.post("/api/demo/v1/runs/%s/cancel" % uuid.uuid4()).status_code == 404
-    assert client.get("/api/demo/v1/runs?cursor=" + str(uuid.uuid4())).status_code == 400
+
+
+def test_api_run_errors_are_json_with_a_code(client):
+    job_id = client.post("/api/demo/v1/runs", json=run_request()).get_json()["data"]["status"]["run_id"]
+    for response, expected in (
+        (client.get("/api/demo/v1/runs/" + str(uuid.uuid4())), (404, "not_found")),
+        (client.get("/api/demo/v1/runs/not-a-uuid"), (404, "not_found")),
+        (client.post("/api/demo/v1/runs/%s/cancel" % uuid.uuid4(), json={}), (404, "not_found")),
+        (client.get("/api/demo/v1/runs?cursor=" + str(uuid.uuid4())), (400, "invalid_request")),
+        (client.get("/api/demo/v1/runs?limit=0"), (400, "invalid_request")),
+        (client.post("/api/demo/v1/runs/%s/cancel" % job_id), (415, "unsupported_media_type")),
+    ):
+        assert (response.status_code, response.get_json()["error"]["code"]) == expected
+    assert client.get("/api/demo/v1/runs/" + job_id).get_json()["data"]["status"]["state"] == "queued"
 
 
 def test_api_jobs_leave_the_engine_journal_untouched(client, tmp_path):
