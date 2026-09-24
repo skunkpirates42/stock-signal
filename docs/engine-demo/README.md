@@ -271,9 +271,11 @@ an oversized one is `413 content_too_large`.
   are a second line, so a future code path can't reach a broker or LLM from a demo
   job by accident.
 - **Logs stay private.** Failure summaries stay fixed per code. The kept log is the
-  last 64 KB with the attempt path, repo path and home directory replaced, and with
-  any worker environment value whose name contains `KEY`, `SECRET`, `TOKEN`,
-  `PASSWORD` or `URL` redacted. `failure.log_artifact_id` stays unavailable.
+  last 64 KB with the attempt path, repo path and home directory replaced. Any value
+  of 8 or more characters whose name contains `KEY`, `SECRET`, `TOKEN`, `PASSWORD` or
+  `URL`, from the worker's environment or the repo `.env`, is redacted. Redaction runs
+  before the log is cut to 64 KB, so the cut can't keep half a secret.
+  `failure.log_artifact_id` stays unavailable.
 - **Limits.** The worker enforces wall-clock time only; there's no memory or CPU cap
   on the child. The child's raw log can grow without bound while it runs, but only
   its last 64 KB is kept. A worker killed with `SIGKILL` can't stop its child. The

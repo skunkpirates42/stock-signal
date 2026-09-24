@@ -315,6 +315,24 @@ def test_kept_log_is_sanitized(store, worker, tmp_path, monkeypatch):
     assert log_path.stat().st_mode & 0o077 == 0
 
 
+def test_log_redaction_survives_truncation_and_covers_dotenv_values(store, worker, tmp_path, monkeypatch):
+    secret = "sentinel-secret-0123456789"
+    dotenv_only = "dotenv-only-secret-abcdefghij"
+    monkeypatch.setenv("ALPACA_SECRET_KEY", secret)
+    dotenv_file = tmp_path / ".env"
+    dotenv_file.write_text("DATABASE_URL=%s\n" % dotenv_only)
+    monkeypatch.setattr(worker_module, "DOTENV_PATH", dotenv_file)
+    # The kept tail starts ten characters before the end of the secret.
+    padding = worker_module.MAX_LOG_BYTES - len(dotenv_only) - 12
+    fake_child(monkeypatch, tmp_path, "print('x' * 100 + %r + %r + 'y' * %d)\nsys.exit(1)\n" % (
+        secret, dotenv_only, padding))
+    job_id, _ = store.submit("local", run_request())
+    assert worker.run_once() == "failed"
+    log = (tmp_path / "worker" / "logs" / job_id / "attempt-1.log").read_text()
+    assert log.startswith("[earlier output truncated]")
+    assert secret[-10:] not in log and dotenv_only not in log
+
+
 def test_heartbeat_must_be_shorter_than_the_lease(store, tmp_path):
     with pytest.raises(ValueError):
         DemoWorker(store, tmp_path / "worker", lease_seconds=5, heartbeat_seconds=5)

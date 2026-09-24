@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import config
+from dotenv import dotenv_values
 
 from .artifacts import RUN_ARTIFACTS, ArtifactIndex
 from .availability import available, unavailable
@@ -34,7 +35,10 @@ PASSED_ENVIRONMENT = ("PATH", "LANG", "SESSION_POLICY", "BAR_LATENESS_SECONDS", 
 PUBLISHED_FILES = ("manifest.json", "metrics.json", "trades.json", "accounting.json", "cashflows.json",
                    "report.txt", "bars.meta.json")
 CHILD_FAILURES = {EXIT_VALIDATION_FAILED: "validation_failed", EXIT_INPUT_UNAVAILABLE: "input_unavailable"}
+DOTENV_PATH = ROOT / ".env"
 MAX_LOG_BYTES = 64 * 1024
+# Redact before trimming, over extra bytes, so the cut can't split a secret and keep its tail.
+REDACTION_MARGIN_BYTES = 4 * 1024
 STOP_GRACE_SECONDS = 5
 POLL_SECONDS = 2
 
@@ -69,10 +73,16 @@ def _fsync_directory(path: Path) -> None:
         os.close(fd)
 
 
+def _credential_values() -> List[str]:
+    sources = [os.environ, dotenv_values(DOTENV_PATH) if DOTENV_PATH.is_file() else {}]
+    values = {value for source in sources for name, value in source.items()
+              if value and len(value) >= 8 and any(word in name.upper() for word in CREDENTIAL_NAME_WORDS)}
+    return sorted(values, key=len, reverse=True)
+
+
 def sanitize_log(text: str, attempt_dir: Path) -> str:
-    for name, value in os.environ.items():
-        if any(word in name.upper() for word in CREDENTIAL_NAME_WORDS) and len(value) >= 8:
-            text = text.replace(value, "[redacted]")
+    for value in _credential_values():
+        text = text.replace(value, "[redacted]")
     for path, label in ((str(attempt_dir), "<attempt>"), (str(ROOT), "<repo>"), (str(Path.home()), "~")):
         text = text.replace(path, label)
     return text
@@ -283,12 +293,13 @@ class DemoWorker:
             with open(attempt_dir / "child.log", "rb") as handle:
                 handle.seek(0, os.SEEK_END)
                 truncated = handle.tell() > MAX_LOG_BYTES
-                handle.seek(max(0, handle.tell() - MAX_LOG_BYTES))
+                handle.seek(max(0, handle.tell() - MAX_LOG_BYTES - REDACTION_MARGIN_BYTES))
                 raw = handle.read()
         except OSError:
             return
-        text = ("[earlier output truncated]\n" if truncated else "") + sanitize_log(
-            raw.decode("utf-8", "replace"), attempt_dir)
+        text = sanitize_log(raw.decode("utf-8", "replace"), attempt_dir)
+        if truncated:
+            text = "[earlier output truncated]\n" + text[-MAX_LOG_BYTES:]
         job_logs = self.logs_dir / job.id
         job_logs.mkdir(exist_ok=True, mode=0o700)
         fd = os.open(str(job_logs / ("attempt-%d.log" % job.attempt)), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
