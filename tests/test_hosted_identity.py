@@ -256,15 +256,24 @@ def identity_store():
     db.create_function("to_timestamp", 1, lambda value: value)
     db.create_function("date_trunc", 2, lambda unit, value: int(value) // 60)
     db.create_function("set_config", 3, lambda key, value, local: value)
+    db.create_function("pg_advisory_xact_lock_shared", 2, lambda namespace, key: None)
     class Connection:
+        statements = []
+
         def __enter__(self):
             return self
         def __exit__(self, exc_type, *args):
             db.rollback() if exc_type else db.commit()
         def execute(self, sql, params=()):
+            self.statements.append(sql)
+            # A SELECT-only membership role cannot run PostgreSQL row locks.
+            if "FOR SHARE" in sql or "FOR UPDATE" in sql:
+                raise PermissionError("membership role is SELECT-only")
+            if sql == "SET TRANSACTION ISOLATION LEVEL READ COMMITTED":
+                return db.execute("SELECT 1")
             sql = (sql.replace("%s", "?").replace("interval '5 minutes'", "300")
                    .replace("interval '1 hour'", "3600").replace("LEAST(", "min(")
-                   .replace(" FOR SHARE", ""))
+                   .replace("pg_catalog.", ""))
             return db.execute(sql, params)
     return PostgresIdentity(Connection, data_connect=Connection), db, Connection
 
@@ -337,3 +346,46 @@ def test_durable_rate_counters_share_user_and_tenant_dimensions(identity_store):
     with pytest.raises(BoundaryDenied, match="rate_limited"):
         other_process.check(b)
     assert db.execute("SELECT count FROM hosted_rate_buckets WHERE kind='tenant'").fetchone()[0] == 3
+
+
+def test_authorized_transaction_uses_read_only_membership_check(identity_store):
+    store, db, connection = identity_store
+    scope = Scope(str(uuid.uuid4()), str(uuid.uuid4()), "operator")
+    db.execute("INSERT INTO hosted_memberships VALUES (?,?,?)",
+               (scope.tenant_id, scope.user_id, scope.role))
+    db.commit()
+    with store.transaction(scope) as conn:
+        assert conn.execute("SELECT 42").fetchone()[0] == 42
+    statements = connection.statements
+    assert statements[0] == "SET TRANSACTION ISOLATION LEVEL READ COMMITTED"
+    assert statements[1] == "SELECT pg_catalog.pg_advisory_xact_lock_shared(1937010547, 1)"
+    assert statements[4] == "SELECT tenant_id,role FROM hosted_memberships WHERE user_id=%s"
+    assert all("FOR SHARE" not in sql and "FOR UPDATE" not in sql for sql in statements)
+
+
+def test_revocation_committed_while_waiting_for_lock_is_rechecked(identity_store):
+    store, db, connection = identity_store
+    scope = Scope(str(uuid.uuid4()), str(uuid.uuid4()), "operator")
+    db.execute("INSERT INTO hosted_memberships VALUES (?,?,?)",
+               (scope.tenant_id, scope.user_id, scope.role))
+    db.commit()
+    class RevocationWins(connection):
+        def execute(self, sql, params=()):
+            if "pg_advisory_xact_lock_shared" in sql:
+                # Simulate a writer committing while the request waits for its lock.
+                db.execute("UPDATE hosted_memberships SET role='viewer'")
+                db.commit()
+            return super().execute(sql, params)
+    store.data_connect = RevocationWins
+    with pytest.raises(BoundaryDenied, match="tenant_unavailable"):
+        with store.transaction(scope):
+            pytest.fail("revoked operation reached service")
+
+
+def test_migration_guards_every_membership_change_with_matching_lock():
+    from pathlib import Path
+    migration = (Path(__file__).parents[1] / "demo/migrations/001_hosted_identity.sql").read_text()
+    assert "pg_catalog.pg_advisory_xact_lock(1937010547, 1)" in migration
+    assert "BEFORE INSERT OR UPDATE OR DELETE OR TRUNCATE ON hosted_memberships" in migration
+    assert "FOR EACH STATEMENT EXECUTE FUNCTION hosted_membership_write_lock()" in migration
+    assert "LANGUAGE plpgsql SET search_path = pg_catalog" in migration

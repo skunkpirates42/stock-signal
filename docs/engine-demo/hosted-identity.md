@@ -34,8 +34,17 @@ storage or logs. `revoke` removes a session; expired and revoked sessions are de
 Every HTTP operation resolves the session and current membership server-side. Exactly
 one membership is required; zero or multiple memberships fail closed. There is no
 client tenant switch. Owners and operators can submit/cancel; viewers can read.
-Memberships and roles are checked again under a database lock in the operation
-transaction, so a stale session cannot preserve a removed role. Provisioning memberships
+Memberships and roles are checked again inside each operation transaction. A shared
+transaction advisory lock protects that ordinary SELECT; a database statement trigger
+takes the matching exclusive lock for every membership insert/update/delete/truncate.
+This requires only SELECT membership privileges for the data role. Concurrent operations
+share the lock; provisioning waits until they commit. If a change commits first, a fresh
+READ COMMITTED statement sees it after the lock wait and denies stale authorization.
+Connection factories must return fresh transactions. The global lock serializes rare
+membership changes across users; operation transactions must remain short and bounded.
+Administrative roles must keep the trigger enabled and lack trigger-management,
+TRUNCATE and replication-role privileges. See PostgreSQL's
+[transaction advisory lock semantics](https://www.postgresql.org/docs/current/explicit-locking.html#ADVISORY-LOCKS). Provisioning memberships
 is an audited administrative action, never an automatic consequence of login.
 
 ## Database and adapter contract
@@ -101,7 +110,8 @@ PostgreSQL RLS or concurrency behavior.
 Before deployment, run the migration and concurrent integration tests against actual
 PostgreSQL under the exact runtime grants: omitted-predicate reads, forced RLS,
 cross-tenant composite inserts, pool claim reset, duplicate login/session creation,
-nonce races, membership revocation and atomic rate counters. No PostgreSQL server was
+nonce races, both operation-first and revocation-first advisory-lock races, and atomic
+rate counters. Verify a SELECT-only membership role can complete authorized operations. No PostgreSQL server was
 available for this implementation's offline verification. Also complete the provider
 callback/state/PKCE/cookie wiring, C3+ data adapters and end-to-end staging isolation
 checks. Independent Astra review and human security review remain launch gates.

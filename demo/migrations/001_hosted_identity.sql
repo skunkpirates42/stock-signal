@@ -17,6 +17,23 @@ ALTER TABLE hosted_memberships FORCE ROW LEVEL SECURITY;
 CREATE POLICY own_memberships ON hosted_memberships
     FOR SELECT USING (user_id = nullif(current_setting('app.user_id',true),'')::uuid);
 -- Administrative membership writes use a separate audited provisioning role.
+-- Serialize membership changes against authorized operation transactions without
+-- granting those readers UPDATE or an UPDATE RLS policy. Concurrent readers share
+-- the lock. Provisioning is infrequent, so one global control-plane lock is enough.
+-- No SECURITY DEFINER privileges are needed: advisory locks are available to the
+-- provisioning role. Trigger functions cannot be invoked as ordinary SQL functions.
+CREATE FUNCTION hosted_membership_write_lock() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog AS $$
+BEGIN
+    PERFORM pg_catalog.pg_advisory_xact_lock(1937010547, 1);
+    RETURN NULL;
+END;
+$$;
+CREATE TRIGGER hosted_membership_write_lock
+    BEFORE INSERT OR UPDATE OR DELETE OR TRUNCATE ON hosted_memberships
+    FOR EACH STATEMENT EXECUTE FUNCTION hosted_membership_write_lock();
+-- Privileged maintenance must keep the trigger enabled. Runtime/provisioning roles
+-- get no table ownership, trigger-management, TRUNCATE or replication-role powers.
 CREATE TABLE hosted_login_challenges (
     id_hash text PRIMARY KEY, nonce text NOT NULL, expires_at timestamptz NOT NULL
 );

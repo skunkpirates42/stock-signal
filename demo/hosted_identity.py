@@ -170,10 +170,15 @@ class PostgresIdentity:
     @contextmanager
     def transaction(self, scope):
         with self.data_connect() as conn:
+            # A fresh READ COMMITTED snapshot after waiting is essential: a writer
+            # may commit a revocation while this transaction waits for its lock.
+            conn.execute("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
+            conn.execute("SELECT pg_catalog.pg_advisory_xact_lock_shared(1937010547, 1)")
             conn.execute("SELECT set_config('app.user_id', %s, true)", (scope.user_id,))
             conn.execute("SELECT set_config('app.tenant_id', %s, true)", (scope.tenant_id,))
-            # Recheck membership inside the operation transaction, including revocation.
-            rows = conn.execute("SELECT tenant_id,role FROM hosted_memberships WHERE user_id=%s FOR SHARE",
+            # The migration's statement trigger holds the exclusive advisory lock
+            # for membership changes. Ordinary SELECT needs no UPDATE privilege.
+            rows = conn.execute("SELECT tenant_id,role FROM hosted_memberships WHERE user_id=%s",
                                 (scope.user_id,)).fetchall()
             if len(rows) != 1 or (str(rows[0][0]), rows[0][1]) != (scope.tenant_id, scope.role):
                 raise BoundaryDenied("tenant_unavailable", 403)
