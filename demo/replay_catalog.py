@@ -158,16 +158,25 @@ def validated_request_fields(request: Any) -> Dict[str, str]:
     return dict(request)
 
 
+def _recorded_feed(meta_path: Path) -> Optional[str]:
+    try:
+        meta = json.loads(meta_path.read_text())
+    except (OSError, ValueError):
+        return None
+    return meta.get("feed") if isinstance(meta, dict) else None
+
+
 def _load_verified_bars(dataset: ApprovedDataset, root: Path) -> Dict[str, pd.DataFrame]:
     path = root / dataset.relative_path
     if not path.is_file():
         raise ReplayRequestRejected("dataset_unavailable", "Approved dataset is not present on this host")
-    content = path.read_bytes()
+    try:
+        content = path.read_bytes()
+    except OSError as exc:
+        raise ReplayRequestRejected("dataset_unavailable", "Approved dataset could not be read") from exc
     if hashlib.sha256(content).hexdigest() != dataset.sha256:
         raise ReplayRequestRejected("dataset_changed", "Approved dataset bytes do not match the catalog digest")
-    meta_path = path.with_suffix(".meta.json")
-    recorded_feed = json.loads(meta_path.read_text()).get("feed") if meta_path.is_file() else None
-    if recorded_feed != dataset.feed:
+    if _recorded_feed(path.with_suffix(".meta.json")) != dataset.feed:
         raise ReplayRequestRejected("dataset_changed", "Dataset feed metadata does not match the catalog feed")
     return {symbol: normalize_bars(pd.DataFrame(rows)) for symbol, rows in json.loads(content).items()}
 

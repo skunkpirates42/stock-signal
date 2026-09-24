@@ -116,6 +116,17 @@ def test_changed_feed_metadata_is_rejected_although_bars_match(tmp_path):
     assert changed.value.code == "dataset_changed"
 
 
+@pytest.mark.parametrize("meta", ["{not json", "[]"])
+def test_unreadable_feed_metadata_is_rejected_as_changed(tmp_path, meta):
+    fixture_dir = tmp_path / "tests" / "fixtures"
+    fixture_dir.mkdir(parents=True)
+    shutil.copy(ROOT / "tests/fixtures/bars.json", fixture_dir / "bars.json")
+    (fixture_dir / "bars.meta.json").write_text(meta)
+    with pytest.raises(ReplayRequestRejected) as changed:
+        build_replay_request(fixture_request(), root=tmp_path)
+    assert changed.value.code == "dataset_changed"
+
+
 def test_retained_strategy_configuration_reproduces_strategy_version():
     built = build_replay_request(fixture_request())
     retained = built.strategy_configuration
