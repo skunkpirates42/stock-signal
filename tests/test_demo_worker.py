@@ -285,6 +285,40 @@ def test_partial_output_is_never_published(store, worker, tmp_path, monkeypatch,
     assert list((tmp_path / "worker" / "results").iterdir()) == []
 
 
+@pytest.mark.parametrize("tamper", [
+    "manifest = json.loads((output / 'manifest.json').read_text())\n"
+    "manifest['settings']['SPREAD_BPS'] = 0.0\n"
+    "(output / 'manifest.json').write_text(json.dumps(manifest))\n",
+    "(attempt / 'elsewhere.json').write_bytes((output / 'trades.json').read_bytes())\n"
+    "(output / 'trades.json').unlink()\n"
+    "(output / 'trades.json').symlink_to(attempt / 'elsewhere.json')\n",
+])
+def test_output_that_does_not_match_the_queued_run_is_never_published(store, worker, tmp_path, monkeypatch, tamper):
+    fake_child(monkeypatch, tmp_path, (
+        "import subprocess\n"
+        "subprocess.run([sys.executable, '-E', '-s', '-m', 'demo.replay_child', str(attempt)], check=True)\n"
+        "output = attempt / 'output'\n" + tamper))
+    job_id, _ = store.submit("local", run_request())
+    assert worker.run_once() == "failed"
+    data = store.job_detail("local", job_id)["data"]
+    assert (data["status"]["failure"]["code"], data["result"]) == ("artifact_invalid", None)
+    assert list((tmp_path / "worker" / "results").iterdir()) == []
+
+
+def test_cancel_that_arrives_before_publishing_wins(store, tmp_path, monkeypatch):
+    # The child exits before the first heartbeat, so only the verifying check sees the cancel.
+    worker = DemoWorker(store, tmp_path / "worker", lease_seconds=10, heartbeat_seconds=8, timeout_seconds=60)
+    fake_child(monkeypatch, tmp_path, (
+        "sys.path.insert(0, %r)\n"
+        "from demo.jobs import JobStore\n"
+        "job_id = json.loads((attempt / 'job.json').read_text())['normalized_run']['id']\n"
+        "JobStore(%r).request_cancel('local', job_id)\n" % (str(ROOT), str(tmp_path / "jobs.db"))))
+    job_id, _ = store.submit("local", run_request())
+    assert worker.run_once() == "cancelled"
+    data = store.job_detail("local", job_id)["data"]
+    assert (data["status"]["state"], data["result"]) == ("cancelled", None)
+
+
 def test_lost_lease_stops_the_child_without_publishing(store, worker, tmp_path, monkeypatch):
     pid_file = tmp_path / "pid"
     fake_child(monkeypatch, tmp_path, "Path(%r).write_text(str(os.getpid()))\ntime.sleep(60)\n" % str(pid_file))
