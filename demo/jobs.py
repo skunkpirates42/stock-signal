@@ -41,6 +41,10 @@ class IdempotencyConflict(ValueError):
     """The owner reused an idempotency key for a different run request."""
 
 
+class InvalidPageRequest(ValueError):
+    """A list limit or cursor the caller sent is malformed or outside its scope."""
+
+
 class LeaseLost(RuntimeError):
     """The caller no longer holds the job's lease, or the job left an active state."""
 
@@ -71,9 +75,9 @@ def _page_size(value: Optional[str]) -> int:
     try:
         limit = int(value)
     except (TypeError, ValueError) as exc:
-        raise ValueError("limit must be an integer") from exc
+        raise InvalidPageRequest("limit must be an integer") from exc
     if not 1 <= limit <= MAX_PAGE_SIZE:
-        raise ValueError("limit must be between 1 and %d" % MAX_PAGE_SIZE)
+        raise InvalidPageRequest("limit must be between 1 and %d" % MAX_PAGE_SIZE)
     return limit
 
 
@@ -222,7 +226,7 @@ class JobStore:
                 try:
                     before_seq = self._owned_row(conn, owner_id, cursor)["seq"]
                 except DemoNotFound as exc:
-                    raise ValueError("cursor is not a run in this scope") from exc
+                    raise InvalidPageRequest("cursor is not a run in this scope") from exc
             sql = "SELECT * FROM demo_jobs WHERE owner_id=?"
             params: List[Any] = [owner_id]
             if before_seq is not None:

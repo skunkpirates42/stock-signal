@@ -18,7 +18,7 @@ import config
 from alerts.feed import build_alert_events
 from analytics.metrics import compute_metrics, equity_curve, load_closed_trades
 from db.logger import load_open_positions, init_db, scope_sql, _connect
-from demo.jobs import IdempotencyConflict, JobStore
+from demo.jobs import IdempotencyConflict, InvalidPageRequest, JobStore
 from demo.read_service import MAX_JSON_RESPONSE_BYTES, DemoContentTooLarge, DemoNotFound, DemoReadService
 from demo.replay_catalog import ReplayRequestRejected
 from signals.llm_synthesis import signal_from_row, synthesize
@@ -228,7 +228,7 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
             return jsonify(operation())
         except DemoNotFound:
             return _demo_error(404, "not_found", "No run with this ID in this scope.")
-        except ValueError as exc:
+        except InvalidPageRequest as exc:
             return _demo_error(400, "invalid_request", str(exc))
         except sqlite3.OperationalError as exc:
             if not _is_lock_timeout(exc):

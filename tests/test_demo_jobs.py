@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import sqlite3
 import threading
 import time
@@ -418,6 +419,18 @@ def test_api_store_faults_other_than_a_lock_are_not_reported_as_busy(client, mon
 
     monkeypatch.setattr(JobStore, "list_jobs", missing_table)
     assert client.get("/api/demo/v1/runs").status_code == 500
+
+
+def test_api_corrupt_stored_run_is_a_server_error_without_parser_text(client, monkeypatch):
+    job_id = client.post("/api/demo/v1/runs", json=run_request()).get_json()["data"]["status"]["run_id"]
+
+    def corrupt(*_args, **_kwargs):
+        json.loads("{bad")
+
+    monkeypatch.setattr(JobStore, "job_detail", corrupt)
+    response = client.get("/api/demo/v1/runs/" + job_id)
+    assert response.status_code == 500
+    assert b"Expecting property name" not in response.data
 
 
 def test_api_jobs_leave_the_engine_journal_untouched(client, tmp_path):
