@@ -272,6 +272,20 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
     def api_demo_run(run_id):
         return _demo_run_json(lambda: jobs.job_detail(app.config["DEMO_OWNER_ID"], run_id))
 
+    @app.route("/api/demo/v1/runs/<run_id>/artifacts/<artifact_id>")
+    def api_demo_run_artifact(run_id, artifact_id):
+        try:
+            artifact = jobs.artifact_content(app.config["DEMO_OWNER_ID"], run_id, artifact_id)
+        except DemoNotFound:
+            return _demo_error(404, "not_found", "No artifact with this ID for this run.")
+        except DemoContentTooLarge:
+            return _demo_error(413, "content_too_large", "The artifact exceeds the demo content limit.")
+        response = Response(artifact.content, mimetype=artifact.mime_type)
+        response.headers["Content-Length"] = str(artifact.byte_size)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
     @app.route("/api/demo/v1/runs/<run_id>/cancel", methods=["POST"])
     def api_demo_cancel_run(run_id):
         if not request.is_json:

@@ -495,3 +495,20 @@ def test_api_jobs_leave_the_engine_journal_untouched(client, tmp_path):
     with sqlite3.connect(tmp_path / "demo-jobs.db") as conn:
         tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert "runs" not in tables and "demo_jobs" in tables
+
+
+def test_api_serves_a_completed_job_artifact_by_opaque_id_only(client, tmp_path):
+    job_id = client.post("/api/demo/v1/runs", json=run_request()).get_json()["data"]["status"]["run_id"]
+    store = JobStore(tmp_path / "demo-jobs.db")
+    claimed = store.claim_next(lease_seconds=LEASE)
+    result = published(job_id, tmp_path / "result", {"report.txt": b"report"})
+    artifact_id = result.artifacts[0].id
+    before = client.get("/api/demo/v1/runs/%s/artifacts/%s" % (job_id, artifact_id))
+    assert (before.status_code, before.get_json()["error"]["code"]) == (404, "not_found")
+    store.complete(job_id, claimed.lease_token, engine_run_id="engine-run-1", result=result)
+    served = client.get("/api/demo/v1/runs/%s/artifacts/%s" % (job_id, artifact_id))
+    assert (served.status_code, served.data, served.mimetype) == (200, b"report", "text/plain")
+    assert served.headers["X-Content-Type-Options"] == "nosniff"
+    for path in ("/api/demo/v1/runs/%s/artifacts/report.txt" % job_id,
+                 "/api/demo/v1/runs/%s/artifacts/%s" % (uuid.uuid4(), artifact_id)):
+        assert client.get(path).status_code == 404
