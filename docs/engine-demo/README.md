@@ -9,6 +9,13 @@ It defines no importer, database migration, browser endpoint, execution catalog 
 worker; those are later tickets. Saved research artifacts remain their original
 formats and bytes.
 
+## Hosted identity boundary (C2)
+
+The opt-in [hosted identity implementation](hosted-identity.md) adds OIDC verification,
+server-side tenant authorization and a separate hosted API factory. Local B1–B5
+behavior is unchanged; provider wiring, hosted data adapters and staging security
+checks remain required before launch.
+
 ## Schema and compatibility
 
 [v1.schema.json](v1.schema.json) is a bundled JSON Schema Draft 2020-12 document with
