@@ -512,3 +512,12 @@ def test_api_serves_a_completed_job_artifact_by_opaque_id_only(client, tmp_path)
     for path in ("/api/demo/v1/runs/%s/artifacts/report.txt" % job_id,
                  "/api/demo/v1/runs/%s/artifacts/%s" % (uuid.uuid4(), artifact_id)):
         assert client.get(path).status_code == 404
+
+
+def test_completed_job_without_a_result_row_has_no_result(store, tmp_path):
+    job_id, _ = store.submit("local", run_request())
+    store.claim_next(lease_seconds=LEASE)
+    with sqlite3.connect(str(tmp_path / "jobs.db")) as conn:
+        conn.execute("UPDATE demo_jobs SET state='completed', result_id=? WHERE id=?", (str(uuid.uuid4()), job_id))
+    data = store.job_detail("local", job_id)["data"]
+    assert (data["result"], data["artifacts"]) == (None, [])

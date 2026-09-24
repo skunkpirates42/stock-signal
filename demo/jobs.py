@@ -291,9 +291,10 @@ class JobStore:
         try:
             row = self._owned_row(conn, owner_id, job_id)
             result, artifacts = None, []
-            if row["state"] == "completed":
-                result_row = conn.execute("SELECT id, result_json FROM demo_job_results WHERE job_id=?",
-                                          (row["id"],)).fetchone()
+            # Jobs completed before B3 recorded results have no result row to show.
+            result_row = conn.execute("SELECT id, result_json FROM demo_job_results WHERE job_id=?",
+                                      (row["id"],)).fetchone() if row["state"] == "completed" else None
+            if result_row is not None:
                 result = json.loads(result_row["result_json"])
                 artifacts = [self._artifact(artifact).as_record(result_row["id"]) for artifact in conn.execute(
                     "SELECT * FROM demo_job_artifacts WHERE result_id=? ORDER BY relative_path",
