@@ -76,6 +76,26 @@ preserves saved revision, source SHA-256 and working-diff SHA-256 in normalized 
 the current checkout revision is never substituted for saved provenance. A revision
 with a working diff is not evidence of a clean build.
 
+## B1 replay catalog and request builder
+
+`demo.replay_catalog` is the only source of replayable inputs. It has two approved
+datasets (the synthetic seeded fixture and the ignored local Alpaca IEX Jan-Aug 2026
+file), each pinned to a file SHA-256 with fixed windows, plus two cost profiles
+(`base-v2`, `adverse-v2`) matching the saved v2 protocols. There is no zero-cost
+profile. A request has exactly `strategy_id`, `dataset_id`, `window_id`,
+`cost_profile_id` and `idempotency_key`. Any other key, like a path or a cost value,
+is rejected, and so is an unknown ID.
+
+`build_replay_request` checks the dataset bytes against the catalog digest. For each
+symbol it selects the evaluation bars plus up to 120 prior bars (the trader's rolling
+window), and it rejects a window with fewer than `WARMUP_BARS` warmup bars. It returns
+an A1 `normalized_run` that records the file digest and the engine's selected-data
+fingerprint, which matches the manifest `run_portfolio` writes for the same bars. The
+record also carries the cost policy, accounting gaps and code identity. Market windows
+are labelled retrospective and the fixture is labelled synthetic correctness.
+`request_fingerprint` excludes the idempotency key, so B2 can detect key reuse with a
+different request. The strategy fingerprint ignores cost and operational settings.
+
 ## Provenance and unavailable values
 
 Provenance has separate axes: `source` (`backtest`, `live`, `unknown`), `execution`
