@@ -223,8 +223,10 @@ restarted worker picks up where a dead one left off.
    the selected data, the strategy version, the cost settings or the broker no longer
    match the queued run. A missing dataset is `input_unavailable`.
 4. While the child runs, the worker heartbeats with the phase the child reports. A
-   cancel request stops the process group (`SIGTERM`, then `SIGKILL` after 5 seconds)
-   and settles the job as `cancelled`. Hitting the time limit does the same and fails
+   cancel request stops the process group (`SIGTERM`, up to 5 seconds for the child
+   to exit, then `SIGKILL` for anything left in the group, including processes the
+   child started) and settles the job as `cancelled`. The group is also cleared
+   after every attempt, even one that exited on its own. Hitting the time limit does the same and fails
    the job with `timeout`. A lost lease stops the child and walks away without
    touching the job, because recovery already owns it. Any other non-zero exit is
    `execution_failed`.

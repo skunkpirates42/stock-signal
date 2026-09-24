@@ -44,16 +44,21 @@ def _sha256(content: bytes) -> str:
 
 
 def _stop(child: subprocess.Popen) -> None:
-    if child.poll() is not None:
-        return
+    # Signal the group even after the child exits: processes it started are still in it.
     try:
         os.killpg(child.pid, signal.SIGTERM)
-        child.wait(timeout=STOP_GRACE_SECONDS)
     except ProcessLookupError:
         child.wait()
+        return
+    try:
+        child.wait(timeout=STOP_GRACE_SECONDS)
     except subprocess.TimeoutExpired:
+        pass
+    try:
         os.killpg(child.pid, signal.SIGKILL)
-        child.wait()
+    except ProcessLookupError:
+        pass
+    child.wait()
 
 
 def _fsync_directory(path: Path) -> None:

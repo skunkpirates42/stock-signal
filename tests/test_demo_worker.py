@@ -237,6 +237,19 @@ def test_timeout_stops_the_child_and_fails_the_job(store, tmp_path, monkeypatch)
     assert process_is_gone(int(pid_file.read_text()))
 
 
+@pytest.mark.parametrize("child_exit", ["sys.exit(1)", "time.sleep(60)"])
+def test_stopping_reaches_processes_the_child_started(store, tmp_path, monkeypatch, child_exit):
+    pid_file = tmp_path / "grandchild-pid"
+    fake_child(monkeypatch, tmp_path, (
+        "import subprocess\n"
+        "grandchild = subprocess.Popen(['/bin/sleep', '60'])\n"
+        "Path(%r).write_text(str(grandchild.pid))\n" % str(pid_file) + child_exit + "\n"))
+    store.submit("local", run_request())
+    worker = DemoWorker(store, tmp_path / "worker", lease_seconds=5, heartbeat_seconds=0.1, timeout_seconds=1)
+    assert worker.run_once() == "failed"
+    wait_for(lambda: process_is_gone(int(pid_file.read_text())))
+
+
 @pytest.mark.parametrize("exit_code, failure_code", [
     (3, "validation_failed"), (4, "input_unavailable"), (1, "execution_failed")])
 def test_child_exit_codes_map_to_fixed_failures(store, worker, tmp_path, monkeypatch, exit_code, failure_code):
