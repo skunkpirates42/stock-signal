@@ -89,8 +89,12 @@ IDs. During migration, import local rows into a staging schema, verify source ma
 and hashes, and insert using those IDs. Conflicts fail closed unless all immutable
 identity fields and checksums match exactly; no ID is regenerated to hide a conflict.
 Legacy source paths are migration inputs only and are never copied into public records.
-Each imported row records source system, import batch, original timestamps, schema
-version, and unknown provenance. A dual-read comparison must show identical envelopes,
+Before import, an operator creates an audited mapping from each local `owner_id` to one
+authenticated user and tenant UUID. The mapping includes the local owner string, derived
+requester UUID, target subject, tenant, approver, and timestamp. Unmapped owners,
+duplicate assignments, and conflicting membership records are rejected and quarantined;
+the importer never guesses a tenant. Each imported row records source system, import
+batch, original timestamps, schema version, and unknown provenance. A dual-read comparison must show identical envelopes,
 ownership, checksums, and not-found behavior before local reads are retired.
 
 ## API and operational limits
@@ -103,11 +107,17 @@ token-based clients still require audience and tenant checks. CORS is an allowli
 codes without exception text. Vercel functions only enqueue, query, or cancel; they do
 not wait for a replay or proxy arbitrary object URLs.
 
-Workers run as non-root, network-denied containers with read-only application images,
-ephemeral scratch volumes, CPU/memory/process/time limits, and a minimal environment.
-Broker libraries and credential names are blocked in the child environment. The only
-permitted execution mode is paper/local simulation; a hosted deployment has no broker
-secret and cannot turn on live execution through a request parameter.
+The worker supervisor runs as a non-root service with a narrowly scoped network allowlist:
+PostgreSQL job claims/heartbeats and the private object-store endpoint only. It has
+read-only application images, ephemeral scratch volumes, CPU/memory/process/time limits,
+and a minimal environment. The replay child that imports the engine is a second, more
+restricted process: it has no network namespace, no database or object-store
+credentials, and communicates with the supervisor only through bounded local input and
+output directories. The supervisor validates and uploads the child's output after it
+exits. This split preserves durable queue access without giving replay code a network
+path. Broker libraries and credential names are blocked in the child environment. The
+only permitted execution mode is paper/local simulation; a hosted deployment has no
+broker secret and cannot turn on live execution through a request parameter.
 
 ## Required isolation and recovery tests
 
@@ -124,7 +134,8 @@ Before public launch, CI and a staging deployment must prove:
 - malformed JWTs, rotated keys, CSRF/CORS cases, oversized requests, and rate limits
   fail closed without leaking secrets;
 - migration preserves IDs, envelopes, hashes, timestamps, unknown provenance, and
-  not-found behavior against a fixed local fixture;
+  not-found behavior against a fixed local fixture, including mapped, unmapped, and
+  conflicting local-owner cases;
 - a hostile parent environment and a replay container cannot submit broker orders or
   access unrelated tenant data.
 
