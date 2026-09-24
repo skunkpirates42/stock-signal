@@ -37,7 +37,7 @@ PUBLISHED_FILES = ("manifest.json", "metrics.json", "trades.json", "accounting.j
 CHILD_FAILURES = {EXIT_VALIDATION_FAILED: "validation_failed", EXIT_INPUT_UNAVAILABLE: "input_unavailable"}
 DOTENV_PATH = ROOT / ".env"
 MAX_LOG_BYTES = 64 * 1024
-# Redact before trimming, over extra bytes, so the cut can't split a secret and keep its tail.
+# Extra bytes read beyond the kept size, so dropping the partial first line still leaves a full log.
 REDACTION_MARGIN_BYTES = 4 * 1024
 STOP_GRACE_SECONDS = 5
 POLL_SECONDS = 2
@@ -294,18 +294,23 @@ class DemoWorker:
             with open(attempt_dir / "child.log", "rb") as handle:
                 handle.seek(0, os.SEEK_END)
                 truncated = handle.tell() > MAX_LOG_BYTES
-                handle.seek(max(0, handle.tell() - MAX_LOG_BYTES - REDACTION_MARGIN_BYTES))
+                read_start = max(0, handle.tell() - MAX_LOG_BYTES - REDACTION_MARGIN_BYTES)
+                handle.seek(read_start)
                 raw = handle.read()
         except OSError:
             return
-        text = sanitize_log(raw.decode("utf-8", "replace"), attempt_dir)
+        if read_start > 0:
+            # A secret cut by the read start can only sit on this partial line, where redaction can't match it.
+            newline = raw.find(b"\n")
+            raw = raw[newline + 1:] if newline >= 0 else b""
+        kept = sanitize_log(raw.decode("utf-8", "replace"), attempt_dir).encode("utf-8")
         if truncated:
-            text = "[earlier output truncated]\n" + text[-MAX_LOG_BYTES:]
+            kept = b"[earlier output truncated]\n" + kept[-MAX_LOG_BYTES:].decode("utf-8", "ignore").encode("utf-8")
         job_logs = self.logs_dir / job.id
         job_logs.mkdir(exist_ok=True, mode=0o700)
         fd = os.open(str(job_logs / ("attempt-%d.log" % job.attempt)), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w") as log:
-            log.write(text)
+        with os.fdopen(fd, "wb") as log:
+            log.write(kept)
 
 
 def main(argv: Optional[List[str]] = None) -> int:

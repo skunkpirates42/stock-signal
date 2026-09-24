@@ -8,6 +8,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -377,6 +378,23 @@ def test_log_redaction_survives_truncation_and_covers_dotenv_values(store, worke
     log = (tmp_path / "worker" / "logs" / job_id / "attempt-1.log").read_text()
     assert log.startswith("[earlier output truncated]")
     assert secret[-10:] not in log and dotenv_only not in log
+
+
+@pytest.mark.parametrize("filler", ['File "%s/backtest.py", line 1, in run\n' % ROOT, "\u00e9" * 50 + "\n"])
+def test_kept_log_never_holds_part_of_a_secret_split_at_the_read_start(worker, tmp_path, monkeypatch, filler):
+    secret = "sentinel-secret-0123456789"
+    monkeypatch.setenv("ALPACA_SECRET_KEY", secret)
+    read_bytes = worker_module.MAX_LOG_BYTES + worker_module.REDACTION_MARGIN_BYTES
+    # The read window starts ten characters before the secret ends; the filler shrinks when sanitized.
+    window = (secret[-10:] + "\n" + filler * (read_bytes // len(filler.encode()) + 1)).encode()[:read_bytes]
+    attempt_dir = tmp_path / "attempt"
+    attempt_dir.mkdir()
+    (attempt_dir / "child.log").write_bytes(b"x" * 5000 + secret[:-10].encode() + window)
+    worker._keep_sanitized_log(SimpleNamespace(id="job", attempt=1), attempt_dir)
+    kept = (tmp_path / "worker" / "logs" / "job" / "attempt-1.log").read_bytes()
+    header = b"[earlier output truncated]\n"
+    assert kept.startswith(header) and secret[-10:].encode() not in kept
+    assert len(kept) <= len(header) + worker_module.MAX_LOG_BYTES
 
 
 def test_heartbeat_must_be_shorter_than_the_lease(store, tmp_path):

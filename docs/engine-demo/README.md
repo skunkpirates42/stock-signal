@@ -274,8 +274,10 @@ as on the other run routes.
 - **Logs stay private.** Failure summaries stay fixed per code. The kept log is the
   last 64 KB with the attempt path, repo path and home directory replaced. Any value
   of 8 or more characters whose name contains `KEY`, `SECRET`, `TOKEN`, `PASSWORD` or
-  `URL`, from the worker's environment or the repo `.env`, is redacted. Redaction runs
-  before the log is cut to 64 KB, so the cut can't keep half a secret.
+  `URL`, from the worker's environment or the repo `.env`, is redacted. For a long
+  log, the worker reads a little more than 64 KB and drops the partial first line
+  before redacting. A secret cut in half by the read can only sit on that line, so
+  no part of it survives. The result is then trimmed to 64 KB by bytes.
   `failure.log_artifact_id` stays unavailable.
 - **Limits.** The worker enforces wall-clock time only; there's no memory or CPU cap
   on the child. The child's raw log can grow without bound while it runs, but only
