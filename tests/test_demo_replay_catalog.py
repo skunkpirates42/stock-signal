@@ -105,6 +105,16 @@ def test_changed_or_missing_dataset_bytes_are_rejected(tmp_path):
     assert changed.value.code == "dataset_changed"
 
 
+def test_changed_feed_metadata_is_rejected_although_bars_match(tmp_path):
+    fixture_dir = tmp_path / "tests" / "fixtures"
+    fixture_dir.mkdir(parents=True)
+    shutil.copy(ROOT / "tests/fixtures/bars.json", fixture_dir / "bars.json")
+    (fixture_dir / "bars.meta.json").write_text('{"feed":"alpaca:sip"}')
+    with pytest.raises(ReplayRequestRejected) as changed:
+        build_replay_request(fixture_request(), root=tmp_path)
+    assert changed.value.code == "dataset_changed"
+
+
 def test_window_without_enough_warmup_is_rejected(monkeypatch):
     monkeypatch.setattr(config, "WARMUP_BARS", TRADER_WINDOW_BARS)
     with pytest.raises(ReplayRequestRejected) as rejected:

@@ -71,6 +71,7 @@ class ApprovedDataset:
     label: str
     relative_path: str
     sha256: str
+    feed: str
     synthetic: bool
     windows: Tuple[ApprovedWindow, ...]
     cost_profile_ids: Tuple[str, ...]
@@ -90,14 +91,16 @@ DATASETS = {
         ApprovedDataset(
             id="6f1d0a52-3c1b-4f7e-9a51-0c6a1f4e2b10", label="Synthetic seeded fixture (correctness only)",
             relative_path="tests/fixtures/bars.json",
-            sha256="c79214e28a17c660c47aff560d142e0ec7e01dfb99f91f3a251e0b8855905464", synthetic=True,
+            sha256="c79214e28a17c660c47aff560d142e0ec7e01dfb99f91f3a251e0b8855905464",
+            feed="synthetic:seeded-fixture", synthetic=True,
             windows=(ApprovedWindow("fixture-day-2", "2026-06-10T13:30:00+00:00", "2026-06-10T20:00:00+00:00"),),
             cost_profile_ids=("base-v2", "adverse-v2"),
         ),
         ApprovedDataset(
             id="b8e4c7d2-51a9-4c36-8f0e-2d7a9e3c4b61", label="Alpaca IEX 5-minute bars, Jan-Aug 2026",
             relative_path="research-output/alpaca-iex-2026-jan-aug/bars.json",
-            sha256="e0bcfc03a01af206f660e031567416750ea29cbbc8f2345fe834739a4b74c88e", synthetic=False,
+            sha256="e0bcfc03a01af206f660e031567416750ea29cbbc8f2345fe834739a4b74c88e",
+            feed="alpaca:iex", synthetic=False,
             windows=(ApprovedWindow("development", "2026-03-01T00:00:00+00:00", "2026-07-01T00:00:00+00:00"),
                      ApprovedWindow("holdout", "2026-07-01T00:00:00+00:00", "2026-09-01T00:00:00+00:00")),
             cost_profile_ids=("base-v2", "adverse-v2"),
@@ -154,7 +157,7 @@ def _validated_fields(request: Any) -> Dict[str, str]:
     return dict(request)
 
 
-def _load_verified_bars(dataset: ApprovedDataset, root: Path) -> Tuple[Dict[str, pd.DataFrame], str]:
+def _load_verified_bars(dataset: ApprovedDataset, root: Path) -> Dict[str, pd.DataFrame]:
     path = root / dataset.relative_path
     if not path.is_file():
         raise ReplayRequestRejected("dataset_unavailable", "Approved dataset is not present on this host")
@@ -162,11 +165,10 @@ def _load_verified_bars(dataset: ApprovedDataset, root: Path) -> Tuple[Dict[str,
     if hashlib.sha256(content).hexdigest() != dataset.sha256:
         raise ReplayRequestRejected("dataset_changed", "Approved dataset bytes do not match the catalog digest")
     meta_path = path.with_suffix(".meta.json")
-    feed = json.loads(meta_path.read_text()).get("feed") if meta_path.is_file() else None
-    if not isinstance(feed, str) or not feed:
-        raise ReplayRequestRejected("dataset_unavailable", "Approved dataset lacks recorded feed metadata")
-    bars = {symbol: normalize_bars(pd.DataFrame(rows)) for symbol, rows in json.loads(content).items()}
-    return bars, feed
+    recorded_feed = json.loads(meta_path.read_text()).get("feed") if meta_path.is_file() else None
+    if recorded_feed != dataset.feed:
+        raise ReplayRequestRejected("dataset_changed", "Dataset feed metadata does not match the catalog feed")
+    return {symbol: normalize_bars(pd.DataFrame(rows)) for symbol, rows in json.loads(content).items()}
 
 
 def _select_window(bars: Dict[str, pd.DataFrame], start: pd.Timestamp,
@@ -218,9 +220,9 @@ def build_replay_request(request: Any, *, root: Path = ROOT) -> ReplayRequest:
     cost_profile = COST_PROFILES[fields["cost_profile_id"]]
 
     start, end = utc(window.start), utc(window.end_exclusive)
-    bars, feed = _load_verified_bars(dataset, root)
+    bars = _load_verified_bars(dataset, root)
     selected = _select_window(bars, start, end)
-    manifest = manifest_for(selected, feed)
+    manifest = manifest_for(selected, dataset.feed)
     strategy_version, _ = _strategy_version(manifest)
     first_bar = min(frame.timestamp.iloc[0] for frame in selected.values())
     last_bar = max(frame.timestamp.iloc[-1] for frame in selected.values())
@@ -234,7 +236,7 @@ def build_replay_request(request: Any, *, root: Path = ROOT) -> ReplayRequest:
         "window": {"name": window.id, "role": "evaluation", "start": start.isoformat(), "end_exclusive": end.isoformat()},
         "observed_bounds": {"first_bar": _available(first_bar.isoformat()), "last_bar": _available(last_bar.isoformat()),
                             "warmup_end_exclusive": _available(start.isoformat())},
-        "symbols": sorted(selected), "feed": _available(feed),
+        "symbols": sorted(selected), "feed": _available(dataset.feed),
         "cost_policy": cost_profile.policy_record(),
         "accounting": {"version": _available(str(ACCOUNTING_VERSION)), "mode": "cashflow_accounted",
                        "coverage": "incomplete", "unresolved": ["borrow_cost", "dividend_cashflow"]},

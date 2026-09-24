@@ -86,7 +86,8 @@ profile. A request has exactly `strategy_id`, `dataset_id`, `window_id`,
 `cost_profile_id` and `idempotency_key`. Any other key, like a path or a cost value,
 is rejected, and so is an unknown ID.
 
-`build_replay_request` checks the dataset bytes against the catalog digest. For each
+`build_replay_request` checks the dataset bytes against the catalog digest and the
+metadata feed against the catalog's pinned feed. For each
 symbol it selects the evaluation bars plus up to 120 prior bars (the trader's rolling
 window), and it rejects a window with fewer than `WARMUP_BARS` warmup bars. It returns
 an A1 `normalized_run` that records the file digest and the engine's selected-data
