@@ -7,6 +7,7 @@ timeout and ``BEGIN IMMEDIATE`` transactions serialize submits, claims and trans
 from __future__ import annotations
 
 import json
+import math
 import sqlite3
 import uuid
 from contextlib import contextmanager
@@ -74,6 +75,12 @@ def _page_size(value: Optional[str]) -> int:
     if not 1 <= limit <= MAX_PAGE_SIZE:
         raise ValueError("limit must be between 1 and %d" % MAX_PAGE_SIZE)
     return limit
+
+
+def _lease_duration(value: Any) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+        raise ValueError("lease_seconds must be a positive number")
+    return float(value)
 
 
 def requester_id_for(owner_id: str) -> str:
@@ -239,6 +246,7 @@ class JobStore:
         return self.job_detail(owner_id, job_id)
 
     def claim_next(self, *, lease_seconds: float) -> Optional[ClaimedJob]:
+        lease_seconds = _lease_duration(lease_seconds)
         lease_token = str(uuid.uuid4())
         with self._transaction() as conn:
             started_at, now = self._now()
@@ -255,10 +263,10 @@ class JobStore:
                           normalized_run=json.loads(row["normalized_run_json"]),
                           strategy_configuration=json.loads(row["strategy_configuration_json"]))
 
-    def _leased_row(self, conn: sqlite3.Connection, job_id: str, lease_token: str) -> sqlite3.Row:
+    def _leased_row(self, conn: sqlite3.Connection, job_id: str, lease_token: str, now: float) -> sqlite3.Row:
         row = conn.execute("SELECT * FROM demo_jobs WHERE id=? AND lease_token=?",
                            (job_id, lease_token)).fetchone()
-        if row is None or row["state"] not in ACTIVE_STATES:
+        if row is None or row["state"] not in ACTIVE_STATES or row["lease_expires_at"] < now:
             raise LeaseLost("Job %s is no longer leased to this worker" % job_id)
         return row
 
@@ -266,9 +274,10 @@ class JobStore:
                   phase: Optional[str] = None) -> str:
         if phase is not None and phase not in PHASES:
             raise ValueError("Unknown phase: %s" % phase)
+        lease_seconds = _lease_duration(lease_seconds)
         with self._transaction() as conn:
             heartbeat_at, now = self._now()
-            row = self._leased_row(conn, job_id, lease_token)
+            row = self._leased_row(conn, job_id, lease_token, now)
             conn.execute(
                 "UPDATE demo_jobs SET heartbeat_at=?, lease_expires_at=?, phase=COALESCE(?, phase) WHERE id=?",
                 (heartbeat_at, now + lease_seconds, phase, job_id),
@@ -280,8 +289,8 @@ class JobStore:
             raise ValueError("engine_run_id is required")
         result_id = str(uuid.UUID(result_id))
         with self._transaction() as conn:
-            ended_at, _ = self._now()
-            self._leased_row(conn, job_id, lease_token)
+            ended_at, now = self._now()
+            self._leased_row(conn, job_id, lease_token, now)
             # Completion wins over a pending cancel: the result was already published.
             conn.execute(
                 """UPDATE demo_jobs SET state='completed', ended_at=?, engine_run_id=?, result_id=?,
@@ -291,9 +300,9 @@ class JobStore:
 
     def fail(self, job_id: str, lease_token: str, *, code: str, summary: str, retryable: bool = False) -> None:
         with self._transaction() as conn:
-            ended_at, _ = self._now()
+            ended_at, now = self._now()
             failure = self._failure(code, summary, ended_at, retryable)
-            self._leased_row(conn, job_id, lease_token)
+            self._leased_row(conn, job_id, lease_token, now)
             conn.execute(
                 """UPDATE demo_jobs SET state='failed', ended_at=?, failure_json=?,
                        lease_token=NULL, lease_expires_at=NULL WHERE id=?""",
@@ -302,8 +311,8 @@ class JobStore:
 
     def confirm_cancelled(self, job_id: str, lease_token: str) -> None:
         with self._transaction() as conn:
-            ended_at, _ = self._now()
-            row = self._leased_row(conn, job_id, lease_token)
+            ended_at, now = self._now()
+            row = self._leased_row(conn, job_id, lease_token, now)
             if row["state"] != "cancel_requested":
                 raise LeaseLost("Job %s has no pending cancel request" % job_id)
             conn.execute(

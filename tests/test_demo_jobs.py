@@ -254,6 +254,27 @@ def test_heartbeat_keeps_the_lease_alive(store, clock):
     assert (status["phase"]["value"], status["heartbeat_at"]["value"]) == ("exporting", heartbeat_at)
 
 
+def test_expired_lease_is_refused_before_recovery_runs(store, clock):
+    job_id, _ = store.submit("local", run_request())
+    claimed = store.claim_next(lease_seconds=LEASE)
+    clock.advance(LEASE + 1)
+    with pytest.raises(LeaseLost):
+        store.heartbeat(job_id, claimed.lease_token, lease_seconds=LEASE)
+    with pytest.raises(LeaseLost):
+        store.complete(job_id, claimed.lease_token, engine_run_id="late", result_id=str(uuid.uuid4()))
+    assert store.recover_expired_leases() == {job_id: "queued"}
+
+
+@pytest.mark.parametrize("lease_seconds", [0, -5, float("inf"), float("nan"), True, "30"])
+def test_lease_duration_must_be_positive_and_finite(store, lease_seconds):
+    job_id, _ = store.submit("local", run_request())
+    with pytest.raises(ValueError):
+        store.claim_next(lease_seconds=lease_seconds)
+    claimed = store.claim_next(lease_seconds=LEASE)
+    with pytest.raises(ValueError):
+        store.heartbeat(job_id, claimed.lease_token, lease_seconds=lease_seconds)
+
+
 def test_restart_settles_a_lost_cancel_request_as_cancelled(store, clock):
     job_id, _ = store.submit("local", run_request())
     store.claim_next(lease_seconds=LEASE)
