@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .read_service import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, DemoNotFound, envelope
-from .replay_catalog import build_replay_request
+from .replay_catalog import build_replay_request, request_fingerprint, validated_request_fields
 
 
 ACTIVE_STATES = ("running", "cancel_requested")
@@ -171,27 +171,46 @@ class JobStore:
     def submit(self, owner_id: str, request: Any) -> Tuple[str, bool]:
         if not isinstance(owner_id, str) or not owner_id:
             raise ValueError("A configured demo owner is required")
-        built = build_replay_request(request)
+        fields = validated_request_fields(request)
+        fingerprint = request_fingerprint(fields)
+        # A repeat click returns its run without re-reading the dataset, so it still gets
+        # the same run after the dataset changes and skips the costly bar load.
+        conn = self._connect()
+        try:
+            existing_id = self._job_for_key(conn, owner_id, fields["idempotency_key"], fingerprint)
+        finally:
+            conn.close()
+        if existing_id is not None:
+            return existing_id, False
+        built = build_replay_request(fields)
         with self._transaction() as conn:
             created_at, _ = self._now()
-            existing = conn.execute(
-                "SELECT id, request_fingerprint FROM demo_jobs WHERE owner_id=? AND idempotency_key=?",
-                (owner_id, built.idempotency_key),
-            ).fetchone()
-            if existing is not None:
-                if existing["request_fingerprint"] != built.request_fingerprint:
-                    raise IdempotencyConflict("idempotency_key was already used for a different request")
-                return existing["id"], False
+            existing_id = self._job_for_key(conn, owner_id, fields["idempotency_key"], fingerprint)
+            if existing_id is not None:
+                return existing_id, False
             job_id = built.normalized_run["id"]
             conn.execute(
                 """INSERT INTO demo_jobs (id, owner_id, idempotency_key, request_fingerprint, request_json,
                        normalized_run_json, strategy_configuration_json, state, created_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?)""",
                 (job_id, owner_id, built.idempotency_key, built.request_fingerprint,
-                 json.dumps(dict(request), sort_keys=True), json.dumps(built.normalized_run, sort_keys=True),
+                 json.dumps(fields, sort_keys=True), json.dumps(built.normalized_run, sort_keys=True),
                  json.dumps(built.strategy_configuration, sort_keys=True), created_at),
             )
         return job_id, True
+
+    @staticmethod
+    def _job_for_key(conn: sqlite3.Connection, owner_id: str, idempotency_key: str,
+                     fingerprint: str) -> Optional[str]:
+        existing = conn.execute(
+            "SELECT id, request_fingerprint FROM demo_jobs WHERE owner_id=? AND idempotency_key=?",
+            (owner_id, idempotency_key),
+        ).fetchone()
+        if existing is None:
+            return None
+        if existing["request_fingerprint"] != fingerprint:
+            raise IdempotencyConflict("idempotency_key was already used for a different request")
+        return existing["id"]
 
     def _owned_row(self, conn: sqlite3.Connection, owner_id: str, job_id: str) -> sqlite3.Row:
         row = conn.execute("SELECT * FROM demo_jobs WHERE id=? AND owner_id=?",

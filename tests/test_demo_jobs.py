@@ -75,6 +75,20 @@ def test_same_key_and_request_returns_same_job_and_changed_request_conflicts(sto
     assert created and other_id != job_id
 
 
+def test_repeat_returns_the_run_without_rereading_a_changed_dataset(store, monkeypatch):
+    job_id, _ = store.submit("local", run_request())
+
+    def dataset_changed(_request):
+        raise ReplayRequestRejected("dataset_changed", "Approved dataset bytes changed")
+
+    monkeypatch.setattr("demo.jobs.build_replay_request", dataset_changed)
+    assert store.submit("local", run_request()) == (job_id, False)
+    with pytest.raises(IdempotencyConflict):
+        store.submit("local", run_request(cost_profile_id="adverse-v2"))
+    with pytest.raises(ReplayRequestRejected):
+        store.submit("local", run_request(idempotency_key="click-0002"))
+
+
 def test_rejected_request_creates_no_job(store):
     with pytest.raises(ReplayRequestRejected):
         store.submit("local", run_request(dataset_path="/etc/passwd"))

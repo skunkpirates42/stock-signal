@@ -142,7 +142,7 @@ def request_fingerprint(request: Mapping[str, Any]) -> str:
     return _canonical_sha256({key: request[key] for key in sorted(REQUEST_FIELDS - {"idempotency_key"})})
 
 
-def _validated_fields(request: Any) -> Dict[str, str]:
+def validated_request_fields(request: Any) -> Dict[str, str]:
     if not isinstance(request, Mapping):
         raise ReplayRequestRejected("invalid_request", "Run request must be a JSON object")
     unexpected = set(request) - REQUEST_FIELDS
@@ -211,7 +211,7 @@ def _provenance(dataset: ApprovedDataset) -> Dict[str, Any]:
 
 
 def build_replay_request(request: Any, *, root: Path = ROOT) -> ReplayRequest:
-    fields = _validated_fields(request)
+    fields = validated_request_fields(request)
     if fields["strategy_id"] != STRATEGY_ID:
         raise ReplayRequestRejected("unknown_strategy", "Strategy is not approved for replay")
     dataset = DATASETS.get(fields["dataset_id"])

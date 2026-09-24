@@ -141,9 +141,11 @@ from taking the same run. It isn't a multi-host queue.
   before a retry, in case a worker published and then died before `complete`.
 - **Completion beats a pending cancel.** Once a result is published, it's recorded as
   published. Cancel only settles a run that hasn't finished.
-- **Validate before the idempotency lookup.** It's simpler, and the fingerprint only
-  exists for a valid request. The downside: if the dataset changes on disk, a repeat
-  click gets a `400` instead of the existing run.
+- **Idempotency lookup before the full build.** Submit checks the fields and looks up
+  the owner and key first. A repeat click returns its run without reloading the
+  dataset. That keeps the "same key and request, same run" promise even if the
+  dataset changes on disk, and it skips the costly bar load. A new key still gets
+  the full B1 check before it's queued.
 - **Submit must be JSON.** A cross-site form post can't send `application/json`
   without a CORS preflight, and Flask doesn't answer one. Cancel has no body, so it
   relies on Flask being bound to loopback. B4's Next.js proxy checks the origin for
