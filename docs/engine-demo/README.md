@@ -1,5 +1,9 @@
 # Engine demo v1 contract (A1)
 
+The hosted deployment boundary and migration/security plan is documented in
+[engine-demo-implementation-plan.md](../engine-demo-implementation-plan.md). It is a
+design and launch gate; the implementation below remains local-only.
+
 This is the frozen initial read-model contract for [issue #17](https://github.com/skunkpirates42/stock-signal/issues/17).
 It defines no importer, database migration, browser endpoint, execution catalog or
 worker; those are later tickets. Saved research artifacts remain their original
