@@ -282,10 +282,12 @@ class JobStore:
                           normalized_run=json.loads(row["normalized_run_json"]),
                           strategy_configuration=json.loads(row["strategy_configuration_json"]))
 
-    def _leased_row(self, conn: sqlite3.Connection, job_id: str, lease_token: str, now: float) -> sqlite3.Row:
+    def _leased_row(self, conn: sqlite3.Connection, job_id: str, lease_token: str,
+                    now: Optional[float]) -> sqlite3.Row:
         row = conn.execute("SELECT * FROM demo_jobs WHERE id=? AND lease_token=?",
                            (job_id, lease_token)).fetchone()
-        if row is None or row["state"] not in ACTIVE_STATES or row["lease_expires_at"] < now:
+        expired = now is not None and row is not None and row["lease_expires_at"] < now
+        if row is None or row["state"] not in ACTIVE_STATES or expired:
             raise LeaseLost("Job %s is no longer leased to this worker" % job_id)
         return row
 
@@ -308,8 +310,10 @@ class JobStore:
             raise ValueError("engine_run_id is required")
         result_id = str(uuid.UUID(result_id))
         with self._transaction() as conn:
-            ended_at, now = self._now()
-            self._leased_row(conn, job_id, lease_token, now)
+            ended_at, _ = self._now()
+            # A matching token means recovery has not run, so a result published just after
+            # the lease lapsed still completes instead of being replayed or discarded.
+            self._leased_row(conn, job_id, lease_token, None)
             # Completion wins over a pending cancel: the result was already published.
             conn.execute(
                 """UPDATE demo_jobs SET state='completed', ended_at=?, engine_run_id=?, result_id=?,

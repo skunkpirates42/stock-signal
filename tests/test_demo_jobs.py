@@ -282,8 +282,23 @@ def test_expired_lease_is_refused_before_recovery_runs(store, clock):
     with pytest.raises(LeaseLost):
         store.heartbeat(job_id, claimed.lease_token, lease_seconds=LEASE)
     with pytest.raises(LeaseLost):
-        store.complete(job_id, claimed.lease_token, engine_run_id="late", result_id=str(uuid.uuid4()))
+        store.fail(job_id, claimed.lease_token, code="execution_failed")
     assert store.recover_expired_leases() == {job_id: "queued"}
+    with pytest.raises(LeaseLost):
+        store.complete(job_id, claimed.lease_token, engine_run_id="late", result_id=str(uuid.uuid4()))
+
+
+def test_result_published_after_expiry_completes_before_recovery(store, clock):
+    job_id, _ = store.submit("local", run_request())
+    claimed = store.claim_next(lease_seconds=LEASE)
+    store.request_cancel("local", job_id)
+    clock.advance(LEASE + 1)
+    result_id = str(uuid.uuid4())
+    store.complete(job_id, claimed.lease_token, engine_run_id="engine-run-1", result_id=result_id)
+    assert store.recover_expired_leases() == {}
+    assert store.claim_next(lease_seconds=LEASE) is None
+    status = status_of(store, job_id)
+    assert (status["state"], status["result_id"]["value"]) == ("completed", result_id)
 
 
 @pytest.mark.parametrize("lease_seconds", [0, -5, float("inf"), float("nan"), True, "30"])
