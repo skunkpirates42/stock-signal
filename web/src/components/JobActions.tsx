@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { JobStatus } from "@/lib/jobs";
+import { startVisiblePolling } from "@/lib/polling";
 
 export default function JobActions({ status }: { status: JobStatus }) {
   const router = useRouter();
@@ -12,21 +13,7 @@ export default function JobActions({ status }: { status: JobStatus }) {
 
   useEffect(() => {
     if (!active) return;
-    let timer: number | undefined;
-    function visibilityChanged() {
-      if (timer !== undefined) window.clearInterval(timer);
-      timer = undefined;
-      if (document.visibilityState === "visible") {
-        router.refresh();
-        timer = window.setInterval(() => router.refresh(), 3000);
-      }
-    }
-    if (document.visibilityState === "visible") timer = window.setInterval(() => router.refresh(), 3000);
-    document.addEventListener("visibilitychange", visibilityChanged);
-    return () => {
-      if (timer !== undefined) window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", visibilityChanged);
-    };
+    return startVisiblePolling(async () => { router.refresh(); }, document, 3000);
   }, [active, router]);
 
   async function cancel() {
