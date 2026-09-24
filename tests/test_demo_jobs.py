@@ -514,6 +514,15 @@ def test_api_serves_a_completed_job_artifact_by_opaque_id_only(client, tmp_path)
         assert client.get(path).status_code == 404
 
 
+def test_api_artifact_read_reports_a_locked_store_as_busy(client, monkeypatch):
+    def locked(*_args, **_kwargs):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(JobStore, "artifact_content", locked)
+    response = client.get("/api/demo/v1/runs/%s/artifacts/%s" % (uuid.uuid4(), uuid.uuid4()))
+    assert (response.status_code, response.get_json()["error"]["code"]) == (503, "job_store_busy")
+
+
 def test_completed_job_without_a_result_row_has_no_result(store, tmp_path):
     job_id, _ = store.submit("local", run_request())
     store.claim_next(lease_seconds=LEASE)

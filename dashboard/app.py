@@ -280,6 +280,10 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
             return _demo_error(404, "not_found", "No artifact with this ID for this run.")
         except DemoContentTooLarge:
             return _demo_error(413, "content_too_large", "The artifact exceeds the demo content limit.")
+        except sqlite3.OperationalError as exc:
+            if not _is_lock_timeout(exc):
+                raise
+            return _demo_error(503, "job_store_busy", "The job store is busy; try again.")
         response = Response(artifact.content, mimetype=artifact.mime_type)
         response.headers["Content-Length"] = str(artifact.byte_size)
         response.headers["X-Content-Type-Options"] = "nosniff"
