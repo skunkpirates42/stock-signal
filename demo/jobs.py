@@ -16,8 +16,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from .artifacts import ArtifactImportError, ImportedArtifact, _open_root, _read_file
 from .availability import available, unavailable
-from .read_service import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, DemoNotFound, envelope
+from .read_service import (DEFAULT_PAGE_SIZE, MAX_ARTIFACT_BYTES, MAX_PAGE_SIZE, DemoContentTooLarge, DemoNotFound,
+                           envelope)
 from .replay_catalog import build_replay_request, request_fingerprint, validated_request_fields
 
 
@@ -59,14 +61,40 @@ class ClaimedJob:
     strategy_configuration: Dict[str, Any]
 
 
-def _canonical_job_id(value: Any) -> str:
+@dataclass(frozen=True)
+class PublishedArtifact:
+    id: str
+    kind: str
+    relative_path: str
+    sha256: str
+    mime_type: str
+    byte_size: int
+
+    def as_record(self, result_id: str) -> Dict[str, Any]:
+        return {"record_type": "artifact", "id": self.id, "result_id": result_id, "kind": self.kind,
+                "sha256": self.sha256, "mime_type": self.mime_type, "byte_size": self.byte_size}
+
+
+@dataclass(frozen=True)
+class PublishedResult:
+    id: str
+    directory: str
+    record: Dict[str, Any]
+    artifacts: Tuple[PublishedArtifact, ...]
+
+
+def _canonical_uuid(value: Any, missing: str) -> str:
     try:
         parsed = uuid.UUID(value)
     except (AttributeError, TypeError, ValueError) as exc:
-        raise DemoNotFound("Unknown run") from exc
+        raise DemoNotFound(missing) from exc
     if str(parsed) != value:
-        raise DemoNotFound("Unknown run")
+        raise DemoNotFound(missing)
     return value
+
+
+def _canonical_job_id(value: Any) -> str:
+    return _canonical_uuid(value, "Unknown run")
 
 
 def _page_size(value: Optional[str]) -> int:
@@ -160,6 +188,22 @@ class JobStore:
                 );
                 CREATE INDEX IF NOT EXISTS demo_jobs_owner_seq ON demo_jobs(owner_id, seq);
                 CREATE INDEX IF NOT EXISTS demo_jobs_state_seq ON demo_jobs(state, seq);
+                CREATE TABLE IF NOT EXISTS demo_job_results (
+                    id TEXT PRIMARY KEY,
+                    job_id TEXT NOT NULL UNIQUE REFERENCES demo_jobs(id),
+                    directory TEXT NOT NULL UNIQUE,
+                    result_json TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS demo_job_artifacts (
+                    id TEXT PRIMARY KEY,
+                    result_id TEXT NOT NULL REFERENCES demo_job_results(id),
+                    kind TEXT NOT NULL,
+                    relative_path TEXT NOT NULL,
+                    sha256 TEXT NOT NULL,
+                    mime_type TEXT NOT NULL,
+                    byte_size INTEGER NOT NULL,
+                    UNIQUE (result_id, relative_path)
+                );
                 """
             )
         finally:
@@ -246,9 +290,51 @@ class JobStore:
         conn = self._connect()
         try:
             row = self._owned_row(conn, owner_id, job_id)
+            result, artifacts = None, []
+            # Jobs completed before B3 recorded results have no result row to show.
+            result_row = conn.execute("SELECT id, result_json FROM demo_job_results WHERE job_id=?",
+                                      (row["id"],)).fetchone() if row["state"] == "completed" else None
+            if result_row is not None:
+                result = json.loads(result_row["result_json"])
+                artifacts = [self._artifact(artifact).as_record(result_row["id"]) for artifact in conn.execute(
+                    "SELECT * FROM demo_job_artifacts WHERE result_id=? ORDER BY relative_path",
+                    (result_row["id"],))]
         finally:
             conn.close()
-        return envelope({"run": json.loads(row["normalized_run_json"]), "status": self._status(row)})
+        return envelope({"run": json.loads(row["normalized_run_json"]), "status": self._status(row),
+                         "result": result, "artifacts": artifacts})
+
+    def artifact_content(self, owner_id: str, job_id: str, artifact_id: str) -> ImportedArtifact:
+        artifact_id = _canonical_uuid(artifact_id, "Unknown artifact")
+        conn = self._connect()
+        try:
+            job = self._owned_row(conn, owner_id, job_id)
+            row = conn.execute(
+                """SELECT artifacts.*, results.directory FROM demo_job_artifacts AS artifacts
+                   JOIN demo_job_results AS results ON results.id=artifacts.result_id
+                   WHERE artifacts.id=? AND results.job_id=?""",
+                (artifact_id, job["id"]),
+            ).fetchone()
+        finally:
+            conn.close()
+        if row is None or job["state"] != "completed":
+            raise DemoNotFound("Unknown artifact")
+        if row["byte_size"] > MAX_ARTIFACT_BYTES:
+            raise DemoContentTooLarge("Artifact exceeds the demo content limit")
+        try:
+            with _open_root(Path(row["directory"])) as root_fd:
+                content, digest = _read_file(root_fd, row["relative_path"], required=True,
+                                             max_bytes=MAX_ARTIFACT_BYTES)
+        except ArtifactImportError as exc:
+            raise DemoNotFound("Unknown artifact") from exc
+        if digest != row["sha256"] or len(content) != row["byte_size"]:
+            raise DemoNotFound("Unknown artifact")
+        return ImportedArtifact(row["id"], row["result_id"], row["kind"], row["mime_type"], row["byte_size"], content)
+
+    @staticmethod
+    def _artifact(row: sqlite3.Row) -> PublishedArtifact:
+        return PublishedArtifact(row["id"], row["kind"], row["relative_path"], row["sha256"], row["mime_type"],
+                                 row["byte_size"])
 
     def request_cancel(self, owner_id: str, job_id: str) -> Dict[str, Any]:
         with self._transaction() as conn:
@@ -309,15 +395,28 @@ class JobStore:
             )
         return row["state"]
 
-    def complete(self, job_id: str, lease_token: str, *, engine_run_id: str, result_id: str) -> None:
+    def complete(self, job_id: str, lease_token: str, *, engine_run_id: str, result: PublishedResult) -> None:
         if not isinstance(engine_run_id, str) or not engine_run_id:
             raise ValueError("engine_run_id is required")
-        result_id = str(uuid.UUID(result_id))
+        result_id = str(uuid.UUID(result.id))
+        if (result.record.get("id") != result_id or result.record.get("run_id") != job_id
+                or result.record.get("artifact_ids") != [artifact.id for artifact in result.artifacts]):
+            raise ValueError("Result record does not match the job and its artifacts")
         with self._transaction() as conn:
             ended_at, _ = self._now()
             # A matching token means recovery has not run, so a result published just after
             # the lease lapsed still completes instead of being replayed or discarded.
             self._leased_row(conn, job_id, lease_token, None)
+            # The result rows commit with the job's completion, so no crash can leave a
+            # served result on a job that recovery would then replay.
+            conn.execute("INSERT INTO demo_job_results (id, job_id, directory, result_json) VALUES (?, ?, ?, ?)",
+                         (result_id, job_id, result.directory, json.dumps(result.record, sort_keys=True)))
+            conn.executemany(
+                """INSERT INTO demo_job_artifacts (id, result_id, kind, relative_path, sha256, mime_type, byte_size)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                [(artifact.id, result_id, artifact.kind, artifact.relative_path, artifact.sha256,
+                  artifact.mime_type, artifact.byte_size) for artifact in result.artifacts],
+            )
             # Completion wins over a pending cancel: the result was already published.
             conn.execute(
                 """UPDATE demo_jobs SET state='completed', ended_at=?, engine_run_id=?, result_id=?,
