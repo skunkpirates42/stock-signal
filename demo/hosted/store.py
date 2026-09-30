@@ -59,22 +59,29 @@ WORKSPACE = (
     "CREATE TABLE results (id TEXT PRIMARY KEY, run_id TEXT NOT NULL UNIQUE REFERENCES runs(id))",
     "CREATE TABLE result_artifacts (id TEXT PRIMARY KEY, result_id TEXT NOT NULL REFERENCES results(id))",
 )
+CONTROL_ADMISSIONS = (
+    "CREATE TABLE authorization_operations (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), workspace_id TEXT NOT NULL REFERENCES workspaces(id), state TEXT NOT NULL CHECK(state IN ('active','uncertain','completed')), outcome TEXT CHECK(outcome IN ('committed','rolled_back')), created INTEGER NOT NULL)",
+    "CREATE INDEX authorization_operations_pending ON authorization_operations(user_id,workspace_id,state)",
+)
 
 
 def migrate(connect, statements, workspace_id=None):
-    """C2 version 1; drift, unknown versions, and wrong bindings fail closed."""
-    checksum = digest("\n".join(statements))
+    """Checksummed, additive migrations; existing version-1 checksums persist."""
+    batches = (statements, CONTROL_ADMISSIONS) if statements == CONTROL else (statements,)
     with transaction(connect) as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, checksum TEXT NOT NULL)")
         applied = conn.execute("SELECT version,checksum FROM schema_migrations ORDER BY version").fetchall()
-        if applied and applied != [(1, checksum)]:
+        expected = [(version, digest("\n".join(batch))) for version, batch in enumerate(batches, 1)]
+        if applied != expected[:len(applied)] or len(applied) > len(expected):
             raise Denied("schema_mismatch", 503)
-        if not applied:
-            for statement in statements:
+        for version, batch in enumerate(batches, 1):
+            if version <= len(applied):
+                continue
+            for statement in batch:
                 conn.execute(statement)
-            if workspace_id is not None:
+            if workspace_id is not None and version == 1:
                 conn.execute("INSERT INTO workspace_binding VALUES (1,?)", (canonical_id(workspace_id),))
-            conn.execute("INSERT INTO schema_migrations VALUES (1,?)", (checksum,))
+            conn.execute("INSERT INTO schema_migrations VALUES (?,?)", expected[version - 1])
         if workspace_id is not None:
             check_binding(conn, workspace_id)
 
@@ -151,9 +158,16 @@ class Control:
             return workspace
 
     def revoke(self, user, workspace):
-        """Trusted administrative action, serialized with EVERY boundary operation."""
+        """Block admissions immediately; acknowledge only known completed work.
+
+        Pending is durable and must be retried after operation reconciliation;
+        active/uncertain admissions never expire automatically.
+        """
         with transaction(self.connect) as conn:
             conn.execute("UPDATE memberships SET active=0 WHERE user_id=? AND workspace_id=?", (user, workspace))
+            pending = conn.execute("SELECT 1 FROM authorization_operations WHERE user_id=? AND workspace_id=? AND state IN ('active','uncertain') LIMIT 1", (user, workspace)).fetchone()
+        if pending:
+            raise Denied("revocation_pending", 409)
 
     def logout(self, session):
         with transaction(self.connect) as conn:

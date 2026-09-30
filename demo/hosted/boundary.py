@@ -2,6 +2,7 @@
 import base64
 import hmac
 import json
+import uuid
 
 from .store import Denied, Scope, check_binding, digest, limit, now, transaction
 
@@ -25,10 +26,11 @@ class Boundary:
             raise Denied()
         denied = None
         result = None
-        # Hold the authoritative membership lock until the bounded workspace
-        # transaction commits and the response is materialized. Revocation uses
-        # the same lock. No streaming, remote uploads, replay, or nested control
-        # operations are permitted in handlers. Separate processes for libSQL.
+        operation_id = str(uuid.uuid4())
+        # Commit an admission before workspace work. Revocation can deactivate
+        # membership immediately, but cannot acknowledge success while this
+        # durable admission has an active or uncertain outcome. No live control
+        # connection/lock is trusted across workspace network operations.
         with transaction(self.control.connect) as control:
             row = control.execute("SELECT user_id,csrf_hash FROM sessions WHERE id_hash=? AND expires>?", (digest(session), now(control))).fetchone()
             if row is None:
@@ -51,14 +53,47 @@ class Boundary:
             elif operation in {"submit", "cancel"} and role == "viewer":
                 denied = Denied("forbidden", 403)
             else:
+                control.execute("INSERT INTO authorization_operations VALUES (?,?,?,'active',NULL,?)", (operation_id, scope.user_id, scope.tenant_id, now(control)))
+        if denied:
+            raise denied
+
+        conn = None
+        started = commit_attempted = False
+        outcome = None
+        try:
+            conn = self.connections(endpoint, secret_ref)
+            conn.execute("PRAGMA foreign_keys=ON")
+            if conn.execute("PRAGMA foreign_keys").fetchone()[0] != 1:
+                raise Denied("unavailable", 503)
+            conn.execute("BEGIN IMMEDIATE")
+            started = True
+            check_binding(conn, workspace)
+            result = handler(conn, scope)
+            commit_attempted = True
+            conn.commit()
+            outcome = "committed"
+        except Exception as exc:
+            denied = exc
+            if not started:
+                # No handler or workspace mutation was admitted locally.
+                outcome = "rolled_back"
+            elif not commit_attempted:
                 try:
-                    with transaction(lambda: self.connections(endpoint, secret_ref)) as conn:
-                        check_binding(conn, workspace)
-                        result = handler(conn, scope)
-                except Exception as exc:
-                    # The workspace rolls back, but quota consumption must
-                    # survive failing/expensive handlers and malformed cursors.
-                    denied = exc
+                    conn.rollback()
+                    outcome = "rolled_back"
+                except Exception:
+                    pass
+            # A failed commit is always uncertain, even if rollback succeeds:
+            # the server may already have durably committed the operation.
+        finally:
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    if denied is None:
+                        denied = Denied("unavailable", 503)
+        with transaction(self.control.connect) as control:
+            control.execute("UPDATE authorization_operations SET state=?,outcome=? WHERE id=? AND state='active'", ("completed" if outcome else "uncertain", outcome, operation_id))
         if denied:
             raise denied
         return result

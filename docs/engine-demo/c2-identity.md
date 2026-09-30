@@ -10,7 +10,9 @@ Install optional dependencies from `demo/hosted/requirements.txt`. Configure an
 exact HTTPS issuer, client audience, JWKS URL, and application origin; no discovery
 URL or key location comes from the request. `OIDCVerifier` accepts RS256 ID tokens
 only at login, requiring issuer, subject, audience, expiry, issued-at and nonce.
-It verifies authorized-party claims for multiple audiences. PyJWT refreshes a
+It verifies authorized-party claims for multiple audiences. Issued-at, expiry and
+optional not-before claims must be finite JSON numbers; booleans and strings are
+rejected. Fractional NumericDate values are supported. PyJWT refreshes a
 missing key once; key-set cache lifetime is 60 seconds with no permanent per-key
 cache. Provider-specific algorithms and rotation policies require new configuration
 and verification before deployment.
@@ -54,7 +56,9 @@ without exception text, headers, tokens, paths, request bodies or tracebacks.
 ## Registry and provisioning
 
 `migrate(connect, CONTROL)` installs the shared users, memberships, workspace
-registry, challenges, sessions and rate-limit tables. The provisioning service
+registry, challenges, sessions and rate-limit tables. Additive control migration 2
+adds durable authorization-operation admissions, preserving the original version-1
+checksum and data. The provisioning service
 reserves one UUID/name per personal user and records `initializing` durably before
 external work. It uses a deterministic `ws-<uuid hex>` Turso database name, resolves
 create conflicts by retrieving the exact name, and mints a one-day database-scoped
@@ -85,32 +89,49 @@ database-scoped cross-database denial and exact deployed runtime permissions.
 ## Revocation racing an operation
 
 There is no cross-database atomic transaction and no PostgreSQL advisory lock.
-Every bounded request obtains `BEGIN IMMEDIATE` on the authoritative control
-database, checks session/current membership, then obtains the selected workspace
-transaction, verifies UUID/checksum, performs the handler, materializes its bounded
-response and commits the workspace before releasing the control transaction.
-Administrative membership changes and session logout use the same control write
-serialization. No caller can retain an authorized connection after the call.
+A request obtains a short `BEGIN IMMEDIATE` on the authoritative control database,
+checks session/current membership and quotas, and commits a random operation ID in
+`authorization_operations` as `active`. Only after this admission commit succeeds
+may workspace work begin. The workspace transaction verifies UUID/checksum, performs
+the handler, and materializes the bounded response. A confirmed commit or rollback
+is then recorded as `completed` with its outcome in a fresh control transaction.
+No live control connection or lock is relied on during workspace work.
 
-The ordering contract is: if revocation commits first, the operation is denied;
-if authorization obtains the control lock first, that operation may finish and
-revocation waits. After successful revocation, no later operation can use that
-membership. Bytes already materialized can arrive over the network after revocation;
-this does not retroactively retract previously authorized data. C3 workers require
-their own explicit cancellation/dispatch authorization policy, not a cached scope.
+Revocation uses the same control admission serialization to immediately deactivate
+the membership and inspect its outstanding operations. New admissions then fail.
+If any operation is `active` or `uncertain`, revocation commits the deactivation but
+returns stable `revocation_pending` (409), never successful acknowledgment. Previously
+admitted operations may finish while revocation is pending. The administrator must
+retry revocation after completion/reconciliation; success requires no outstanding
+operation for that user/workspace. An admission committing first therefore blocks
+successful revocation until its workspace outcome is known; revocation committing
+first blocks the admission. This holds even if the old control connection loses its
+lock, because the fence is a durable row rather than a live transaction.
 
-Control failure after a workspace commit can leave a committed operation with an
-unavailable response. No automatic retry is attempted. C3 must resolve uncertain
-outcomes using stable idempotency keys. A connection loss/unknown remote transaction
-outcome must not count as a successful revocation acknowledgment. Requests must be
-bounded by deployment timeouts; streaming, replay, object downloads/uploads and
-nested control transactions are prohibited inside handlers. Artifact handlers must
-return bounded bytes from private C4 storage under an authorized parent row.
+An interrupted process leaves an `active` record. A lost commit response or failed
+rollback leaves `uncertain`; failed final control recording leaves an outstanding
+record too. These fences have no automatic expiration and must not be cleared merely
+because a process died, a lease elapsed or a retry returned no data. Reconciliation
+must prove the authoritative workspace transaction outcome using stable C3 operation
+identities and idempotency keys before a privileged, audited state change. There is
+no reconciliation HTTP endpoint, default outcome or automatic retry in C2. Until C3
+supplies outcome evidence/reconciliation, uncertainty keeps revocation pending. This
+trades availability for a fail-closed successful-revocation guarantee.
 
-This conservative implementation serializes operations across the entire control
-database. It is a correctness baseline, not a scalability claim. Staging must test
-remote lock/connection-loss behavior, timeouts and throughput before enabling
-hosted writes. An optimized distributed fencing protocol requires a new review.
+Bytes already materialized may arrive over the network after successful revocation;
+previously authorized data cannot be retroactively retracted. Session logout removes
+the presented session and prevents future admissions; already admitted work may
+finish. C3 workers need an explicit dispatch/cancellation policy, not a cached scope.
+
+Only admission and completion transactions serialize globally; workspace operations
+need not hold the control database lock. Active/uncertain records must be preserved;
+completed-record retention/cleanup is a separate C7 policy. Handlers may not commit,
+roll back or retain their connection; the boundary owns the transaction. Streaming,
+replay and object downloads/uploads remain prohibited inside handlers. Artifact
+handlers return bounded bytes from private C4 storage under an authorized parent row.
+Staging must test remote admission/commit/rollback loss, timeouts, secret permissions
+and throughput before hosted writes are enabled. Local fault fixtures establish the
+ordering/fence behavior, not remote service reliability or deployed performance.
 
 ## Integration and evidence
 
@@ -126,7 +147,10 @@ two separate SQLite workspaces, fake secret/platform providers and spawned proce
 revocation races. It covers invalid identities, nonce reuse, stable user mapping,
 roles, ambiguous/expired/revoked sessions, registry binding/checksum faults, scoped
 resource/cursor/cache authorization, CSRF/origin/CORS, persisted quotas, parent
-foreign keys, bounded responses, rollback and safe errors. Existing local route
+foreign keys, bounded responses, rollback and safe errors. Fault fixtures also cover
+control connection loss, lost workspace commit responses with/without server commit,
+failed rollback, process interruption, failed completion recording, migration-2
+upgrade and malformed signed NumericDate types. Existing local route
 tests remain the regression evidence for B1–B5.
 
 This is implementation evidence, not hosted launch clearance. Production provider
@@ -142,8 +166,18 @@ workspace failures are deferred until quota counters commit, and all methods per
 a bounded read with explicit unknown-length truncation denial. The reviewer reran
 48 focused cases and separately reproduced the oversized chunked POST case, then
 reported no remaining material findings. Two additional POST regression cases bring
-the coordinator's focused suite to 50. This review does not substitute for the
-separate production Astra/human security and remote staging launch gates above.
+the coordinator's initial focused suite to 50.
+
+A second fresh standards/spec review found no standards breaches, but the security
+review reproduced successful revocation before a workspace commit after control
+connection loss, and acceptance of malformed signed temporal claim types. The fixes
+replace lock-only ordering with durable admission/pending-revocation fences and
+validate finite numeric claim types. Both reviewers independently checked the fixes and reported no remaining material
+findings. The standards reviewer independently passed all 69 focused cases and ran
+a local libSQL migration/admission smoke test. The full post-fix backend run passed
+453 tests; three subsequently added admission/migration cases passed in the expanded
+69-case focused run. `git diff --check` passed. These implementation reviews do
+not substitute for production Astra/human security and remote staging launch gates.
 
 Primary API references: [PyJWT verification and JWKS](https://pyjwt.readthedocs.io/en/latest/api.html),
 [Turso create database](https://docs.turso.tech/api-reference/databases/create), and

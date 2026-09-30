@@ -1,6 +1,7 @@
 """Provider-neutral OIDC ID-token verification at the login boundary only."""
 from dataclasses import dataclass
 import hmac
+import math
 from urllib.parse import urlsplit
 
 import jwt
@@ -37,6 +38,9 @@ class OIDCVerifier:
             key = self.jwks.get_signing_key_from_jwt(token)
             claims = jwt.decode(token, key, algorithms=["RS256"], audience=self.audience,
                                 issuer=self.issuer, options={"require": ["iss", "sub", "aud", "exp", "iat", "nonce"]})
+            for name in ("iat", "exp", "nbf"):
+                if name in claims and (type(claims[name]) not in (int, float) or not math.isfinite(claims[name])):
+                    raise ValueError()
             if not isinstance(claims["sub"], str) or not 1 <= len(claims["sub"]) <= 255:
                 raise ValueError()
             if not isinstance(claims["nonce"], str) or not hmac.compare_digest(claims["nonce"], expected_nonce):

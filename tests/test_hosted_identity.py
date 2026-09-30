@@ -206,32 +206,41 @@ def _operation_process(control_path, workspace_path, session, entered, release, 
     results.put(boundary.call(session, "status", handler))
 
 
-def _revoke_process(control_path, user, workspace, started, revoked):
+def _revoke_process(control_path, user, workspace, started, revoked, pending):
     started.set()
-    Control(lambda: sqlite3.connect(control_path, isolation_level=None, timeout=5)).revoke(user, workspace)
-    revoked.set()
+    try:
+        Control(lambda: sqlite3.connect(control_path, isolation_level=None, timeout=5)).revoke(user, workspace)
+    except Denied as exc:
+        assert exc.code == "revocation_pending"
+        pending.set()
+    else:
+        revoked.set()
 
 
-def test_revocation_serializes_across_processes(system):
+def test_revocation_blocks_new_admissions_and_waits_for_known_outcome(system):
     context = multiprocessing.get_context("spawn")
-    entered, release, started, revoked = [context.Event() for _ in range(4)]
+    entered, release, started, revoked, pending = [context.Event() for _ in range(5)]
     results = context.Queue()
     with transaction(system.connect) as conn:
         endpoint = conn.execute("SELECT endpoint FROM workspaces WHERE id=?", (system.a.tenant_id,)).fetchone()[0]
         control_path = conn.execute("PRAGMA database_list").fetchone()[2]
     operation = context.Process(target=_operation_process, args=(control_path, system.databases[endpoint], system.sa, entered, release, results))
-    revocation = context.Process(target=_revoke_process, args=(control_path, system.a.user_id, system.a.tenant_id, started, revoked))
+    revocation = context.Process(target=_revoke_process, args=(control_path, system.a.user_id, system.a.tenant_id, started, revoked, pending))
     try:
         operation.start()
         assert entered.wait(5)
         revocation.start()
         assert started.wait(5)
-        assert not revoked.wait(.2)
+        assert pending.wait(5)
+        assert not revoked.is_set()
+        with pytest.raises(Denied):
+            system.boundary.call(system.sa, "status", lambda *_: pytest.fail("new admission after revoke"))
         release.set()
         operation.join(5)
         revocation.join(5)
         assert operation.exitcode == revocation.exitcode == 0
-        assert revoked.is_set()
+        system.control.revoke(system.a.user_id, system.a.tenant_id)
+        assert not revoked.is_set()  # First revocation reported pending only.
         assert results.get(timeout=2) == "materialized"
         with pytest.raises(Denied):
             system.boundary.call(system.sa, "status", lambda *_: pytest.fail("late handler"))
@@ -484,3 +493,147 @@ def test_chunked_post_rejects_valid_json_prefix_with_oversized_tail(system, leng
     assert response.status_code == 413
     assert send(client, "/workspace").status_code == 200  # Logout never ran.
     assert send(client, "/auth/logout", "POST", data=prefix, content_type="application/json", headers={"Origin": ORIGIN}).status_code == 200
+
+
+@pytest.mark.parametrize("claim,value", [("iat", True), ("iat", "1"), ("exp", "9999999999"), ("exp", True), ("nbf", "1"), ("nbf", False), ("exp", float("inf")), ("iat", float("nan"))])
+def test_oidc_rejects_malformed_numeric_dates(claim, value):
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    signing_key = jwt.PyJWK(dict(json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(key.public_key())), kid="test", alg="RS256"))
+    verifier = OIDCVerifier(ISSUER, "demo-client", ISSUER + "/jwks", jwks=SimpleNamespace(get_signing_key_from_jwt=lambda _: signing_key))
+    claims = {"iss": ISSUER, "aud": "demo-client", "sub": "synthetic", "iat": time.time(), "exp": time.time() + 300, "nonce": "nonce"}
+    valid = jwt.encode(claims, key, algorithm="RS256", headers={"kid": "test"})
+    assert verifier.verify(valid, "nonce").subject == "synthetic"  # Fractional dates are valid.
+    claims[claim] = value
+    malformed = jwt.encode(claims, key, algorithm="RS256", headers={"kid": "test"})
+    with pytest.raises(Denied):
+        verifier.verify(malformed, "nonce")
+
+
+def operation_states(system):
+    with transaction(system.connect) as conn:
+        return conn.execute("SELECT state,outcome FROM authorization_operations WHERE user_id=? ORDER BY created,id", (system.a.user_id,)).fetchall()
+
+
+def test_control_connection_loss_cannot_acknowledge_early_revocation(system):
+    captured = []
+    def connect():
+        conn = system.connect()
+        captured.append(conn)
+        return conn
+    boundary = Boundary(Control(connect), system.connections, b"k" * 32)
+    def handler(conn, _):
+        captured[-1].close()  # Simulates loss of the old admission connection.
+        with pytest.raises(Denied) as error:
+            system.control.revoke(system.a.user_id, system.a.tenant_id)
+        assert error.value.code == "revocation_pending"
+        conn.execute("INSERT INTO runs VALUES ('admitted-before-pending')")
+        return "ok"
+    assert boundary.call(system.sa, "status", handler) == "ok"
+    assert operation_states(system) == [("completed", "committed")]
+    system.control.revoke(system.a.user_id, system.a.tenant_id)  # Success now, never before commit.
+    with pytest.raises(Denied):
+        boundary.call(system.sa, "status", lambda *_: pytest.fail("late operation"))
+
+
+@pytest.mark.parametrize("fault", ["commit_before_failure", "commit_without_server_commit", "rollback", "final_control", "crash"])
+def test_uncertain_operations_remain_durable_revocation_fences(system, fault):
+    class FaultyConnection:
+        def __init__(self, conn):
+            self.conn = conn
+        def __getattr__(self, name):
+            return getattr(self.conn, name)
+        def commit(self):
+            if fault == "commit_before_failure":
+                self.conn.commit()
+            if fault in {"commit_before_failure", "commit_without_server_commit"}:
+                raise RuntimeError("synthetic lost commit response")
+            self.conn.commit()
+        def rollback(self):
+            if fault == "rollback":
+                raise RuntimeError("synthetic lost rollback response")
+            self.conn.rollback()
+    count = [0]
+    def control_connect():
+        count[0] += 1
+        if fault == "final_control" and count[0] == 2:
+            raise RuntimeError("synthetic control loss")
+        return system.connect()
+    boundary = Boundary(Control(control_connect), lambda *args: FaultyConnection(system.connections(*args)), b"k" * 32)
+    class Crash(BaseException):
+        pass
+    def handler(conn, _):
+        conn.execute("INSERT INTO runs VALUES ('admitted')")
+        if fault == "crash":
+            raise Crash()
+        if fault == "rollback":
+            raise RuntimeError("synthetic handler error")
+    with pytest.raises((RuntimeError, Crash)):
+        boundary.call(system.sa, "status", handler)
+    states = operation_states(system)
+    assert len(states) == 1 and states[0][0] in {"active", "uncertain"}
+    assert states[0][1] is None
+    for _ in range(2):
+        with pytest.raises(Denied) as error:
+            system.control.revoke(system.a.user_id, system.a.tenant_id)
+        assert error.value.code == "revocation_pending"
+    with pytest.raises(Denied):
+        system.boundary.call(system.sa, "status", lambda *_: pytest.fail("revoked admission"))
+
+
+def test_confirmed_rollback_completes_admission(system):
+    def handler(conn, _):
+        conn.execute("INSERT INTO runs VALUES ('rolled-back')")
+        raise ValueError("synthetic handler error")
+    with pytest.raises(ValueError):
+        system.boundary.call(system.sa, "status", handler)
+    assert operation_states(system) == [("completed", "rolled_back")]
+    system.control.revoke(system.a.user_id, system.a.tenant_id)
+
+
+def test_control_schema_upgrade_preserves_v1_checksum(tmp_path):
+    connect = lambda: sqlite3.connect(tmp_path / "legacy-control.db", isolation_level=None)
+    with transaction(connect) as conn:
+        for statement in CONTROL:
+            conn.execute(statement)
+        conn.execute("CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY,checksum TEXT NOT NULL)")
+        conn.execute("INSERT INTO schema_migrations VALUES (1,?)", (digest("\n".join(CONTROL)),))
+        conn.execute("INSERT INTO users VALUES ('saved','https://synthetic.example','subject')")
+    migrate(connect, CONTROL)
+    migrate(connect, CONTROL)
+    with transaction(connect) as conn:
+        rows = conn.execute("SELECT version,checksum FROM schema_migrations ORDER BY version").fetchall()
+        assert [row[0] for row in rows] == [1, 2]
+        assert rows[0][1] == digest("\n".join(CONTROL))
+        assert conn.execute("SELECT id FROM users").fetchall() == [("saved",)]
+
+
+@pytest.mark.parametrize("server_committed", [False, True])
+def test_lost_control_admission_commit_never_starts_workspace_work(system, server_committed):
+    class Connection:
+        def __init__(self):
+            self.conn = system.connect()
+        def __getattr__(self, name):
+            return getattr(self.conn, name)
+        def commit(self):
+            if server_committed:
+                self.conn.commit()
+            raise RuntimeError("synthetic admission commit response lost")
+    boundary = Boundary(Control(Connection), lambda *_: pytest.fail("workspace opened after unknown admission"), b"k" * 32)
+    with pytest.raises(RuntimeError):
+        boundary.call(system.sa, "status", lambda *_: pytest.fail("handler after unknown admission"))
+    if server_committed:
+        assert operation_states(system) == [("active", None)]
+        with pytest.raises(Denied) as error:
+            system.control.revoke(system.a.user_id, system.a.tenant_id)
+        assert error.value.code == "revocation_pending"
+    else:
+        assert operation_states(system) == []
+        system.control.revoke(system.a.user_id, system.a.tenant_id)
+
+
+def test_control_v2_migration_drift_fails_closed(system):
+    with transaction(system.connect) as conn:
+        conn.execute("UPDATE schema_migrations SET checksum='drift' WHERE version=2")
+    with pytest.raises(Denied) as error:
+        migrate(system.connect, CONTROL)
+    assert error.value.code == "schema_mismatch"
