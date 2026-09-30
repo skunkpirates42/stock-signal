@@ -395,3 +395,92 @@ def test_http_cursor_rejected_before_handler_and_no_default_local_routes(system)
     assert send(client, "/research?limit=1&limit=2").status_code == 400
     assert send(client, "/research?limit=51").status_code == 400
     assert client.get("/api/demo/v1/strategies").status_code == 404
+
+
+@pytest.mark.parametrize("stage", ["database", "secret", "migration", "ready_commit"])
+def test_interrupted_provisioning_resumes_reserved_identity(system, stage):
+    workspace = system.a.tenant_id
+    with transaction(system.connect) as conn:
+        conn.execute("UPDATE workspaces SET state='reserved',endpoint=NULL,secret_ref=NULL,schema_version=0 WHERE id=?", (workspace,))
+    endpoint = next(key for key in system.databases if workspace.replace("-", "") in key)
+    system.databases[endpoint].unlink()  # Fresh synthetic workspace only.
+    provisioner = Provisioner(system.control, system.platform, system.secrets, system.connections)
+    class Interrupt(BaseException):
+        pass
+    def interrupt(*args):
+        raise Interrupt()
+    if stage == "database":
+        original = provisioner.platform.ensure_database
+        def after_database(name):
+            original(name)
+            interrupt()
+        provisioner.platform = SimpleNamespace(ensure_database=after_database)
+    elif stage == "secret":
+        original_put = system.secrets.put
+        def after_secret(ref, token):
+            original_put(ref, token)
+            interrupt()
+        provisioner.secrets = SimpleNamespace(put=after_secret)
+    elif stage == "migration":
+        provisioner.connections = interrupt
+    else:
+        original_connect = system.control.connect
+        class Connection:
+            def __init__(self):
+                self.conn = original_connect()
+            def execute(self, sql, params=()):
+                if "SET state='ready'" in sql:
+                    interrupt()
+                return self.conn.execute(sql, params)
+            def __getattr__(self, name):
+                return getattr(self.conn, name)
+        provisioner.control = Control(Connection)
+    with pytest.raises(Interrupt):
+        provisioner.provision(workspace)
+    with transaction(system.connect) as conn:
+        assert conn.execute("SELECT state FROM workspaces WHERE id=?", (workspace,)).fetchone() == ("initializing",)
+    Provisioner(system.control, system.platform, system.secrets, system.connections).provision(workspace)
+    assert system.control.reserve(system.a.user_id) == workspace
+    assert len(system.platform.names) == 2
+    assert system.boundary.call(system.sa, "workspace", lambda _, scope: scope.tenant_id) == workspace
+
+
+@pytest.mark.parametrize("failure", ["missing", "cursor", "exception", "oversize"])
+def test_failed_authorized_requests_consume_rate_budget(system, failure):
+    run, _, _ = seed_resources(system, system.a)
+    with transaction(system.connect) as conn:
+        conn.execute("DELETE FROM rate_limits")
+    system.boundary.user_limit = 1
+    calls = []
+    def handler(*_):
+        calls.append(1)
+        if failure == "exception":
+            raise RuntimeError("synthetic")
+        return "x" * (512 * 1024)
+    client = app_client(system, {"status": handler, "list": handler})
+    path = "/runs/" + (str(uuid.uuid4()) if failure == "missing" else run)
+    if failure == "cursor":
+        path = "/research?cursor=" + system.boundary.cursor(system.b, "position")
+    assert send(client, path).status_code in {400, 404, 413, 503}
+    assert send(client, path).status_code == 429
+    assert send(client, path).status_code == 429
+    assert len(calls) <= 1
+
+
+@pytest.mark.parametrize("method,path", [("GET", "/workspace"), ("GET", "/runs/" + str(uuid.uuid4())), ("GET", "/research"), ("OPTIONS", "/runs")])
+def test_every_http_method_enforces_request_body_limit(system, method, path):
+    client = app_client(system)
+    assert send(client, path, method, data=b"x" * 16385).status_code == 413
+    assert send(client, path, method, data=b"x").status_code == 400
+    # WSGI servers mark chunked/terminated input so Werkzeug bounds its stream.
+    assert send(client, path, method, data=b"x" * 16385, environ_overrides={"CONTENT_LENGTH": "", "wsgi.input_terminated": True}).status_code == 413
+
+
+@pytest.mark.parametrize("length", [None, ""])
+def test_chunked_post_rejects_valid_json_prefix_with_oversized_tail(system, length):
+    client = app_client(system)
+    prefix = b"{}" + b" " * 16382
+    response = send(client, "/auth/logout", "POST", data=prefix + b"hidden-tail", content_type="application/json", headers={"Origin": ORIGIN}, environ_overrides={"CONTENT_LENGTH": length, "wsgi.input_terminated": True})
+    assert response.status_code == 413
+    assert send(client, "/workspace").status_code == 200  # Logout never ran.
+    assert send(client, "/auth/logout", "POST", data=prefix, content_type="application/json", headers={"Origin": ORIGIN}).status_code == 200

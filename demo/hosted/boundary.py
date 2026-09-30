@@ -1,6 +1,5 @@
 """Authorization, rate limits and scoped cursor/cache identities."""
 import base64
-import hashlib
 import hmac
 import json
 
@@ -52,9 +51,14 @@ class Boundary:
             elif operation in {"submit", "cancel"} and role == "viewer":
                 denied = Denied("forbidden", 403)
             else:
-                with transaction(lambda: self.connections(endpoint, secret_ref)) as conn:
-                    check_binding(conn, workspace)
-                    result = handler(conn, scope)
+                try:
+                    with transaction(lambda: self.connections(endpoint, secret_ref)) as conn:
+                        check_binding(conn, workspace)
+                        result = handler(conn, scope)
+                except Exception as exc:
+                    # The workspace rolls back, but quota consumption must
+                    # survive failing/expensive handlers and malformed cursors.
+                    denied = exc
         if denied:
             raise denied
         return result

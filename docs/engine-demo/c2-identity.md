@@ -43,9 +43,12 @@ include user and workspace. Responses use `no-store`.
 Commands require exact Origin, JSON and session-bound `X-CSRF-Token`. Cross-origin
 requests/preflights and cross-site fetch metadata are denied; the API emits no CORS
 allow headers. Limits are 16 KiB request body, 512 KiB JSON response, 1 MiB artifact
-response, and 50 rows/page. A global 60/minute challenge budget bounds anonymous
+response, and 50 rows/page. Read/preflight bodies are rejected. Unknown-length
+terminated bodies reaching the exact request ceiling are conservatively rejected
+to avoid accepting framework-truncated input. A global 60/minute challenge budget bounds anonymous
 login work. Durable fixed-minute limits default to 60/user and 120/workspace;
-deployment may set explicit positive limits. Errors contain stable codes only,
+deployment may set explicit positive limits. Authorized handler failures consume
+quota even when workspace changes roll back. Errors contain stable codes only,
 without exception text, headers, tokens, paths, request bodies or tracebacks.
 
 ## Registry and provisioning
@@ -129,6 +132,18 @@ tests remain the regression evidence for B1–B5.
 This is implementation evidence, not hosted launch clearance. Production provider
 integration, remote revocation/fault evidence, token/secret-store permissions, C3–C7,
 independent Astra review and human security review remain launch prerequisites.
+
+## Independent implementation review
+
+PR #52 received a fresh read-only reviewer pass over the implementation and tests.
+The reviewer found (1) failing authorized handlers could roll back quota counters,
+and (2) GET bodies did not enforce the documented request ceiling. Both were fixed:
+workspace failures are deferred until quota counters commit, and all methods perform
+a bounded read with explicit unknown-length truncation denial. The reviewer reran
+48 focused cases and separately reproduced the oversized chunked POST case, then
+reported no remaining material findings. Two additional POST regression cases bring
+the coordinator's focused suite to 50. This review does not substitute for the
+separate production Astra/human security and remote staging launch gates above.
 
 Primary API references: [PyJWT verification and JWKS](https://pyjwt.readthedocs.io/en/latest/api.html),
 [Turso create database](https://docs.turso.tech/api-reference/databases/create), and

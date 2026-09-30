@@ -38,6 +38,17 @@ def create_hosted_app(control, verifier, boundary, *, origin, handlers=None):
 
     @app.before_request
     def guard():
+        if request.content_length is not None and request.content_length > app.config["MAX_CONTENT_LENGTH"]:
+            raise Denied("too_large", 413)
+        # Force the bounded WSGI read for every method, including chunked input.
+        # Resource reads and preflights have no body contract.
+        raw = request.get_data(cache=True)
+        if len(raw) > app.config["MAX_CONTENT_LENGTH"] or (not request.environ.get("CONTENT_LENGTH") and len(raw) == app.config["MAX_CONTENT_LENGTH"]):
+            # Werkzeug may truncate unknown-length terminated input at its
+            # ceiling. Reject that boundary rather than accepting truncation.
+            raise Denied("too_large", 413)
+        if request.method in {"GET", "HEAD", "OPTIONS"} and raw:
+            raise Denied("invalid_request", 400)
         if request.headers.get("Origin") not in {None, origin}:
             raise Denied("origin_denied", 403)
         if request.headers.get("Sec-Fetch-Site") not in {None, "same-origin", "none"}:
