@@ -192,8 +192,9 @@ class Store:
             conn.execute("UPDATE proof_jobs SET state='completed',result=? WHERE id=?", (document, run))
             return True
 
-    def recover(self):
+    def recover(self, *, run_id=None):
         with self.tx() as conn:
             conn.execute("UPDATE proof_jobs SET state=CASE WHEN attempt<2 THEN 'queued' ELSE 'failed' END,"
                          "token=NULL,expires=NULL WHERE state='running' "
-                         "AND expires<CAST(strftime('%s','now') AS INTEGER)")
+                         "AND expires<CAST(strftime('%s','now') AS INTEGER) "
+                         "AND (? IS NULL OR id=?)", (run_id, run_id))

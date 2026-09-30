@@ -2,7 +2,7 @@
 import pytest
 
 from experiments.turso import store
-from experiments.turso.probe import exercise, local_factory, require_empty, uid
+from experiments.turso.probe import exercise, expire, local_factory, require_empty, uid
 
 
 def test_two_workspace_contract(tmp_path):
@@ -20,6 +20,27 @@ def test_resume_retains_prior_synthetic_evidence(tmp_path):
     with store.transaction(a) as conn:
         assert conn.execute("SELECT id,state,result FROM proof_jobs WHERE id=?", (before[0],)).fetchone() == before
         assert conn.execute("SELECT COUNT(*) FROM proof_jobs").fetchone() == (2,)
+
+
+def test_resume_preserves_expired_jobs_from_interrupted_attempts(tmp_path):
+    a, b = local_factory(tmp_path / "a.db"), local_factory(tmp_path / "b.db")
+    workspace_a, workspace_b = uid(), uid()
+    prior = []
+    for connect, workspace in ((a, workspace_a), (b, workspace_b)):
+        store.migrate(connect, workspace)
+        jobs = store.Store(connect, workspace)
+        run = jobs.submit("interrupted", {})
+        jobs.claim(run_id=run)
+        expire(connect, run)
+        with store.transaction(connect) as conn:
+            row = conn.execute("SELECT * FROM proof_jobs WHERE id=?", (run,)).fetchone()
+        prior.append((connect, run, row))
+
+    exercise(a, b, workspace_a, workspace_b, resume=True)
+
+    for connect, run, row in prior:
+        with store.transaction(connect) as conn:
+            assert conn.execute("SELECT * FROM proof_jobs WHERE id=?", (run,)).fetchone() == row
 
 
 def test_rollback_failure_does_not_hide_original_error():

@@ -59,7 +59,8 @@ or the exported environment when no file is given. It refuses existing user tabl
 identical endpoints, creates only `proof_*` tables, and leaves remote evidence intact.
 A repeat can use fresh databases, or `--resume` to verify existing proof-only database
 bindings and add a scenario with a new idempotency key while retaining prior rows.
-Targeted claims model queue messages naming a run; they do not claim old proof jobs.
+Targeted claims model queue messages naming a run. Recovery is also scoped to each
+scenario's run IDs, preserving earlier interrupted proof rows and their lease data.
 It never prints tokens, URLs or driver
 exceptions. Exit 0 means all assertions passed; 1 means a failed check; 2 means
 missing credentials. A local pass does not establish remote transaction or driver
@@ -86,9 +87,11 @@ failing at concurrent submission. The resumed successful run revalidated checksu
 and workspace bindings. Offline tests additionally inject migration and transaction
 failures to verify rollback and preservation of the original error.
 
-Verification after the process-based repair: 12 focused tests and all 386 backend
-tests passed. `git diff --check` passed. The remote evidence includes driver/runtime
-versions and SHA-256 hashes of the exact store and probe sources tested.
+The [independent reviews](evidence/review.md) found and verified a fix for unscoped
+recovery changing earlier interrupted proof rows. After the fix, 13 focused tests,
+all 387 backend tests, and the remote proof passed. `git diff --check` passed. The remote evidence includes
+driver/runtime versions and SHA-256 hashes of the exact store and probe sources
+tested; the original evidence remains saved separately.
 
 Production still needs persistent provisioning/membership/credential management,
 OIDC integration, defined semantics for revocation racing an in-flight operation,

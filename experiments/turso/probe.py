@@ -107,7 +107,7 @@ def exercise(connect_a, connect_b, workspace_a, workspace_b, *, resume=False):
     assert claims[0][0] == run
     old_token = claims[0][1]
     expire(connect_a, run)
-    a.recover()
+    a.recover(run_id=run)
     retry = a.claim(run_id=run)
     assert retry[2] == 2 and retry[1] != old_token
     expect_error(LeaseLost, lambda: a.complete(run, old_token, {}))
@@ -116,7 +116,7 @@ def exercise(connect_a, connect_b, workspace_a, workspace_b, *, resume=False):
     assert a.complete(run, retry[1], result)
     assert not a.complete(run, retry[1], result)
     expect_error(LeaseLost, lambda: a.complete(run, retry[1], {"changed": True}))
-    a.recover()
+    a.recover(run_id=run)
     assert a.get(run)[0] == "completed"
     assert a.claim(run_id=run) is None
 
@@ -125,7 +125,7 @@ def exercise(connect_a, connect_b, workspace_a, workspace_b, *, resume=False):
         claim = b.claim(run_id=other)
         assert claim[0] == other and claim[2] == attempt
         expire(connect_b, other)
-        b.recover()
+        b.recover(run_id=other)
     assert b.get(other)[0] == "failed" and b.claim(run_id=other) is None
     return {"workspaces": 2, "schema_version": 2, "concurrent_clients": 4,
             "client_model": "spawned-processes", "isolation": "passed", "idempotency": "passed", "claims": "passed",

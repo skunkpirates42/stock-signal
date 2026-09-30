@@ -1,9 +1,9 @@
 {
-  "verified_at_utc": "2026-09-30T02:30:52.652353+00:00",
+  "verified_at_utc": "2026-09-30T02:20:27.276312+00:00",
   "base_commit": "5a182bf7a59763c44236fad1a3fc1a3a1ae94401",
   "source_sha256": {
-    "experiments/turso/store.py": "3f1b9d120d454620dc80e6e6b59d813f7f01b78b9e634d4d41523bde670a1c58",
-    "experiments/turso/probe.py": "ce12ebf4d5693d3b3c108e62d44466b859d06f73e21ccd52400ec513f36319ac"
+    "experiments/turso/store.py": "f16f984f9af4d4d3b204beef052894dea60d88954f752cff7f7576e0100fcecf",
+    "experiments/turso/probe.py": "fdf99dcc5c9b7682a59764df6e82a289ea53889c0c8b940878b2021d75117e6c"
   },
   "command": ".venv/bin/python -m experiments.turso.probe --remote --resume --env-file .env.turso-proof",
   "exit_code": 0,
@@ -39,7 +39,5 @@
     "No credential-scope denial, heartbeat, cancellation, outbox, object-storage or fleet-load gate.",
     "No network-fault or full staging launch verification.",
     "Remote databases and prior synthetic rows retained; credentials and endpoints omitted."
-  ],
-  "previous_evidence": "remote-proof-initial.json",
-  "review_repair": "Scope recovery to current scenario run IDs so resumed probes preserve prior expired running jobs."
+  ]
 }
