@@ -1,0 +1,2 @@
+# Optional remote proof driver; local tests use stdlib sqlite3.
+libsql==0.1.11

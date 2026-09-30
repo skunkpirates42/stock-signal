@@ -1,0 +1,45 @@
+{
+  "verified_at_utc": "2026-09-30T02:30:52.652353+00:00",
+  "base_commit": "5a182bf7a59763c44236fad1a3fc1a3a1ae94401",
+  "source_sha256": {
+    "experiments/turso/store.py": "3f1b9d120d454620dc80e6e6b59d813f7f01b78b9e634d4d41523bde670a1c58",
+    "experiments/turso/probe.py": "ce12ebf4d5693d3b3c108e62d44466b859d06f73e21ccd52400ec513f36319ac"
+  },
+  "command": ".venv/bin/python -m experiments.turso.probe --remote --resume --env-file .env.turso-proof",
+  "exit_code": 0,
+  "backend": "remote-libsql",
+  "driver": {
+    "package": "libsql",
+    "version": "0.1.11"
+  },
+  "python": "3.9.6",
+  "platform": "Darwin arm64",
+  "workspaces": 2,
+  "schema_version": 2,
+  "concurrent_clients": 4,
+  "client_model": "spawned-processes",
+  "checks": {
+    "routing_isolation": "passed",
+    "idempotency": "passed",
+    "competing_claims": "passed",
+    "lease_recovery": "passed",
+    "stale_worker_fencing": "passed",
+    "publication": "passed",
+    "migration_checksums_and_bindings": "passed"
+  },
+  "migration_evidence": "Migrations 1 and 2 applied to both fresh databases in initial remote attempt; resumed pass revalidated versions, checksums and workspace bindings.",
+  "prior_attempt": {
+    "client_model": "python-threads",
+    "result": "failed",
+    "error_category": "SQLITE_BUSY",
+    "resolution": "Independent spawned worker processes; preserve original error when rollback also fails."
+  },
+  "limitations": [
+    "Synthetic session resolver; no OIDC or concurrent revocation verification.",
+    "No credential-scope denial, heartbeat, cancellation, outbox, object-storage or fleet-load gate.",
+    "No network-fault or full staging launch verification.",
+    "Remote databases and prior synthetic rows retained; credentials and endpoints omitted."
+  ],
+  "previous_evidence": "remote-proof-initial.json",
+  "review_repair": "Scope recovery to current scenario run IDs so resumed probes preserve prior expired running jobs."
+}
