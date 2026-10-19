@@ -28,12 +28,12 @@ first.
 
 | ID | Task | Type | Size | Depends on |
 |---|---|---|---|---|
-| U1 | Fix currency signs, tones and axis labels | bug | S | none |
-| U2 | Give saved research results their own route | bug | S | none |
-| U3 | Replace the status header with a compact status line | enhancement | S | none |
-| U4 | Show the research catalog as a comparison table | enhancement | M | U2 |
-| U5 | Hide WAIT signals by default and make the threshold visible | enhancement | S | none |
-| U6 | Make the saved result page summary-first | enhancement | M-L | U1, U2 |
+| U1 (#53) | Fix currency signs, tones and axis labels | bug | S | none |
+| U2 (#54) | Give saved research results their own route | bug | S | none |
+| U3 (#55) | Replace the status header with a compact status line | enhancement | S | none |
+| U4 (#56) | Show the research catalog as a comparison table | enhancement | M | U2 |
+| U5 (#57) | Hide WAIT signals by default and make the threshold visible | enhancement | S | none |
+| U6 (#58) | Make the saved result page summary-first | enhancement | M-L | U1, U2 |
 
 ### U1: Fix currency signs, tones and axis labels
 
