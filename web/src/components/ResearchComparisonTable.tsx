@@ -48,7 +48,7 @@ export default function ResearchComparisonTable({ table }: ResearchComparisonTab
           </tbody>
         </table>
       </div>
-      <ul className="research-footnotes micro">
+      <ul className="research-footnotes">
         <li>Cells show realized net P&amp;L. Open a cell for the saved result.</li>
         {table.columns.map((column) => (
           <li key={column.key}>{column.name}: {column.exactRange}.</li>

@@ -246,5 +246,6 @@
   margin-top: var(--space);
   padding-left: calc(var(--space) * 1.25);
   color: var(--muted);
+  font-size: 0.8rem;
   line-height: 1.6;
 }
