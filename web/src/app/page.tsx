@@ -1,5 +1,5 @@
 import { getMetrics } from "@/lib/api";
-import { formatCurrency, formatPercent, formatRatio } from "@/lib/format";
+import { formatCurrency, formatPercent, formatPrice, formatRatio } from "@/lib/format";
 import ProvenanceBand from "@/components/ProvenanceBand";
 import HeroStat from "@/components/HeroStat";
 import StatTile from "@/components/StatTile";
@@ -67,7 +67,7 @@ export default async function OverviewPage({
         />
         <StatTile
           label="Max drawdown"
-          value={`${formatCurrency(-metrics.max_drawdown)} (${formatPercent(metrics.max_drawdown_pct)})`}
+          value={`${formatPrice(metrics.max_drawdown)} (${formatPercent(metrics.max_drawdown_pct)})`}
           tone="negative"
         />
         <StatTile label="Avg bars held" value={formatRatio(metrics.avg_bars_held)} />
