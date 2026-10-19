@@ -106,6 +106,43 @@
   padding: calc(var(--space) * 4);
 }
 
+.status-line {
+  margin-bottom: calc(var(--space) * 2);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--faint);
+}
+
+.status-line summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--space) * 1.5);
+  cursor: pointer;
+}
+
+.status-line summary:hover {
+  color: var(--muted);
+}
+
+.status-detail {
+  margin-top: var(--space);
+  padding-left: calc(var(--space) * 1.5);
+  border-left: 2px solid var(--line-strong);
+  line-height: 1.6;
+}
+
+.status-line [role="alert"],
+.status-api-unavailable,
+.status-heartbeat-stale,
+.status-attention {
+  color: var(--caution);
+}
+
+.status-line [role="alert"],
+.status-line > .status-attention {
+  margin-top: calc(var(--space) / 2);
+}
+
 .page-head {
   display: flex;
   align-items: baseline;
