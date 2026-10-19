@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterSignals } from "@/lib/filters";
+import { countHiddenWaitSignals, filterSignals } from "@/lib/filters";
 import type { Signal } from "@/lib/types";
 
 function signal(over: Partial<Signal>): Signal {
@@ -69,5 +69,49 @@ describe("filterSignals", () => {
     const exact = signal({ id: 7, bar_timestamp: "2026-07-15 09:30:00+00:00" });
     const result = filterSignals([exact], { to: "2026-07-15" });
     expect(result.map((s) => s.id)).toEqual([7]);
+  });
+
+  it("hides WAIT signals when hideWait is set", () => {
+    expect(filterSignals(all, { hideWait: true }).map((s) => s.id)).toEqual([1, 2]);
+  });
+
+  it("keeps WAIT signals when hideWait is false", () => {
+    expect(filterSignals(all, { hideWait: false }).map((s) => s.id)).toEqual([1, 2, 3]);
+  });
+
+  it("lets an explicit WAIT direction override hideWait", () => {
+    expect(filterSignals(all, { hideWait: true, direction: "WAIT" }).map((s) => s.id))
+      .toEqual([3]);
+  });
+
+  it("combines hideWait with a LONG or SHORT direction", () => {
+    expect(filterSignals(all, { hideWait: true, direction: "LONG" }).map((s) => s.id))
+      .toEqual([1]);
+  });
+});
+
+describe("countHiddenWaitSignals", () => {
+  const all = [
+    signal({ id: 1, ticker: "AAPL", direction: "LONG" }),
+    signal({ id: 2, ticker: "AAPL", direction: "WAIT" }),
+    signal({ id: 3, ticker: "NVDA", direction: "WAIT" }),
+    signal({ id: 4, ticker: "AAPL", direction: "WAIT" }),
+  ];
+
+  it("counts WAIT signals hidden by hideWait", () => {
+    expect(countHiddenWaitSignals(all, { hideWait: true })).toBe(3);
+  });
+
+  it("counts only WAIT signals that match the other criteria", () => {
+    expect(countHiddenWaitSignals(all, { hideWait: true, ticker: "AAPL" })).toBe(2);
+  });
+
+  it("is zero when WAIT signals are included", () => {
+    expect(countHiddenWaitSignals(all, {})).toBe(0);
+    expect(countHiddenWaitSignals(all, { hideWait: false })).toBe(0);
+  });
+
+  it("is zero when the direction filter selects WAIT", () => {
+    expect(countHiddenWaitSignals(all, { hideWait: true, direction: "WAIT" })).toBe(0);
   });
 });
