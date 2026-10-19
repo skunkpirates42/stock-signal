@@ -169,3 +169,82 @@
   color: var(--muted);
   font-size: 0.85rem;
 }
+
+/* ResearchComparisonTable */
+
+.research-comparison table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--line);
+  background: linear-gradient(to bottom, var(--surface-2), var(--surface));
+}
+
+.research-comparison th,
+.research-comparison td {
+  text-align: left;
+  vertical-align: top;
+  padding: calc(var(--space) * 0.75) var(--space);
+  border-bottom: 1px solid var(--line);
+}
+
+.research-comparison thead th,
+.research-comparison tbody th {
+  font-family: var(--font-mono);
+  color: var(--faint);
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.research-comparison tbody th {
+  color: var(--muted);
+}
+
+.research-comparison tr:last-child th,
+.research-comparison tr:last-child td {
+  border-bottom: none;
+}
+
+.research-window-name,
+.research-window-dates {
+  display: block;
+}
+
+.research-window-dates {
+  margin-top: calc(var(--space) / 3);
+  text-transform: none;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+.research-cell + .research-cell {
+  margin-top: calc(var(--space) / 2);
+}
+
+.research-cell a {
+  font-size: 1rem;
+}
+
+.research-cell-flag,
+.research-cell-note {
+  display: block;
+  margin-top: calc(var(--space) / 4);
+  font-size: 0.72rem;
+}
+
+.research-cell-flag {
+  color: var(--caution);
+}
+
+.research-cell-note,
+.research-cell-empty {
+  color: var(--muted);
+}
+
+.research-footnotes {
+  margin-top: var(--space);
+  padding-left: calc(var(--space) * 1.25);
+  color: var(--muted);
+  line-height: 1.6;
+}
