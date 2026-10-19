@@ -3,7 +3,7 @@ import { Children, isValidElement, type ReactNode } from "react";
 
 vi.mock("@/lib/demo", () => ({
   isOpaqueDemoId: vi.fn(() => true),
-  getResearchResults: vi.fn(async () => ({ data: { results: [{ id: "saved-result", run_id: "saved-run", window: { name: "fixture", role: "fixture", start: "2026-01-01T00:00:00Z", end_exclusive: "2026-01-02T00:00:00Z" }, variant: "baseline", provenance: { retrospective: false, synthetic: true }, accounting: { coverage: "incomplete" }, metrics: { realized_net_pnl: { observation: { availability: "available", value: 0 }, unit: "USD", basis: "Synthetic saved value", source_pointer: "/comparison" } } }], next_cursor: "123e4567-e89b-12d3-a456-426614174000" }, warnings: ["Catalog only."] })),
+  getResearchResults: vi.fn(async () => ({ data: { results: [{ id: "saved-result", run_id: "saved-run", window: { name: "fixture", role: "fixture", start: "2026-01-01T00:00:00Z", end_exclusive: "2026-01-02T00:00:00Z" }, variant: "baseline", provenance: { retrospective: false, synthetic: true }, accounting: { coverage: "incomplete" }, metrics: { realized_net_pnl: { observation: { availability: "available", value: 0 }, unit: "USD", basis: "Synthetic saved value", source_pointer: "/comparison" } } }], next_cursor: "123e4567-e89b-12d3-a456-426614174000" }, warnings: ["Saved-source research catalog only; it does not authorize execution or replay.", "Catalog only."] })),
 }));
 
 import Page from "./page";
@@ -27,6 +27,8 @@ describe("research page", () => {
     expect(textOf(page)).toContain("Synthetic correctness");
     expect(hasHref(page, "/runs/saved-result")).toBe(true);
     expect(textOf(page)).toContain("Catalog only.");
+    expect(textOf(page)).not.toContain("Saved-source research catalog only");
+    expect(textOf(page)).toContain("do not authorize replay");
     expect(textOf(page)).toContain("inclusive");
     expect(textOf(page)).toContain("results on this page");
     expect(hasHref(page, "/research?cursor=123e4567-e89b-12d3-a456-426614174000")).toBe(true);

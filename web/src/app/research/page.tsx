@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getResearchResults, isOpaqueDemoId } from "@/lib/demo";
 import { formatCurrency, formatTimestamp } from "@/lib/format";
+import { warningsBeyondScopeNote } from "@/lib/research";
 import { notFound } from "next/navigation";
 
 function labels(result: Awaited<ReturnType<typeof getResearchResults>>["data"]["results"][number]) {
@@ -22,7 +23,7 @@ export default async function ResearchPage({ searchParams }: { searchParams: Pro
         <span className="micro">{data.results.length} results on this page</span>
       </div>
       <p className="scope-note">These are read-only saved research descriptions. They do not authorize replay, execution, activation, or a profitability claim.</p>
-      {warnings.map((warning) => <p className="research-warning" key={warning}>{warning}</p>)}
+      {warningsBeyondScopeNote(warnings).map((warning) => <p className="research-warning" key={warning}>{warning}</p>)}
       <div className="research-list">
         {data.results.map((result) => {
           const pnl = result.metrics.realized_net_pnl;
