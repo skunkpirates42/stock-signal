@@ -15,7 +15,7 @@ export default function ProvenanceBand({ source, nClosed, nLiveClosed }: Provena
 
   return (
     <div className="provenance">
-      <p className="provenance-statement micro">
+      <p className="provenance-statement note">
         {isLive ? (
           <>
             Showing {nClosed} live trades. Backtest rows excluded.{" "}

@@ -19,7 +19,7 @@
 
 .filter-field select,
 .filter-field input:not([type="checkbox"]) {
-  font-size: 0.9rem;
+  font-size: var(--text-body);
   padding: 0.35rem 0.5rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
@@ -31,7 +31,7 @@
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.9rem;
+  font-size: var(--text-body);
   padding: 0.35rem 0;
   color: var(--ink);
 }
@@ -44,7 +44,7 @@
 
 .signal-list-count {
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--text-body);
   margin-bottom: 0.75rem;
 }
 
@@ -96,14 +96,14 @@
 
 .signal-badge {
   font-weight: 700;
-  font-size: 0.8rem;
+  font-size: var(--text-small);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 
 .signal-row-timestamp {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-small);
   color: var(--faint);
   text-align: right;
 }
@@ -152,11 +152,11 @@
 
 .rationale-provenance {
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--text-small);
 }
 
 .rationale-votes h3 {
-  font-size: 0.9rem;
+  font-size: var(--text-body);
   margin-bottom: 0.5rem;
   color: var(--muted);
   font-weight: 600;
@@ -173,7 +173,7 @@
 }
 
 .rationale-level-grid dt {
-  font-size: 0.75rem;
+  font-size: var(--text-label);
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -181,21 +181,21 @@
 }
 
 .rationale-level-grid dd {
-  font-size: 1rem;
+  font-size: var(--text-lead);
   font-weight: 600;
 }
 
 .rationale-atr-note {
   margin-top: 0.75rem;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--text-small);
   line-height: 1.5;
 }
 
 .rationale-volume-note {
   margin-top: 0.5rem;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--text-small);
 }
 
 .rationale-columns {
@@ -248,7 +248,7 @@
 }
 
 .meter-value {
-  font-size: 0.8rem;
+  font-size: var(--text-small);
   color: var(--muted);
   min-width: 3.5rem;
   text-align: right;
@@ -282,13 +282,13 @@
 .level-scale-labels {
   display: flex;
   justify-content: space-between;
-  font-size: 0.8rem;
+  font-size: var(--text-small);
 }
 
 .level-scale-entry-label {
   position: relative;
   height: 1.3em;
-  font-size: 0.8rem;
+  font-size: var(--text-small);
 }
 
 .level-scale-entry-label span {
@@ -316,18 +316,18 @@
 .level-scale-warning {
   margin-top: var(--space);
   color: var(--caution);
-  font-size: 0.8rem;
+  font-size: var(--text-small);
 }
 
 .level-scale-empty {
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--text-small);
 }
 
 .button-inline {
   margin-top: 0.5rem;
   padding: 0.3rem 0.75rem;
-  font-size: 0.8rem;
+  font-size: var(--text-small);
 }
 
 .button-inline:disabled {
@@ -338,5 +338,5 @@
 .rationale-explain-error {
   margin-top: 0.4rem;
   color: var(--loss);
-  font-size: 0.8rem;
+  font-size: var(--text-small);
 }

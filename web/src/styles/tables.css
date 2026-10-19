@@ -27,7 +27,7 @@
 .breakdown-table th {
   font-family: var(--font-mono);
   color: var(--faint);
-  font-size: 0.7rem;
+  font-size: var(--text-label);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.18em;
@@ -69,7 +69,7 @@
 
 .fills-table h2 {
   margin-bottom: 0.5rem;
-  font-size: 1.1rem;
+  font-size: var(--text-lead);
 }
 
 .fills-table table {
@@ -91,7 +91,7 @@
 .fills-table th {
   font-family: var(--font-mono);
   color: var(--faint);
-  font-size: 0.7rem;
+  font-size: var(--text-label);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.18em;
@@ -100,7 +100,7 @@
 .fills-table td {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: 0.85rem;
+  font-size: var(--text-body);
 }
 
 .fills-table tr:last-child td {
@@ -110,7 +110,7 @@
 .positions-stale-badge {
   margin-left: 0.5rem;
   color: var(--caution);
-  font-size: 0.7rem;
+  font-size: var(--text-label);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -145,7 +145,7 @@
 .vote-table th {
   font-family: var(--font-mono);
   color: var(--faint);
-  font-size: 0.7rem;
+  font-size: var(--text-label);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.18em;
@@ -153,7 +153,7 @@
 
 .vote-table td {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-small);
 }
 
 .vote-table tr:last-child td {
@@ -162,12 +162,12 @@
 
 .vote-table-detail {
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--text-body);
 }
 
 .vote-table-empty {
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--text-body);
 }
 
 /* ResearchComparisonTable */
@@ -191,7 +191,7 @@
 .research-comparison tbody th {
   font-family: var(--font-mono);
   color: var(--faint);
-  font-size: 0.7rem;
+  font-size: var(--text-label);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -223,14 +223,14 @@
 }
 
 .research-cell a {
-  font-size: 1rem;
+  font-size: var(--text-lead);
 }
 
 .research-cell-flag,
 .research-cell-note {
   display: block;
   margin-top: calc(var(--space) / 4);
-  font-size: 0.72rem;
+  font-size: var(--text-label);
 }
 
 .research-cell-flag {
@@ -246,6 +246,6 @@
   margin-top: var(--space);
   padding-left: calc(var(--space) * 1.25);
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--text-small);
   line-height: 1.6;
 }

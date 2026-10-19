@@ -69,7 +69,7 @@ export default function JobDetail({ detail, warnings }: { detail: Detail; warnin
         {result.limitations.length > 0 && <ul className="research-listing">{result.limitations.map((item) => <li key={item}>{item}</li>)}</ul>}
         <h3>Published artifacts</h3><ul className="artifact-list">{artifacts.map((artifact) => <li key={artifact.id}>
           <a href={`/api/demo/v1/runs/${status.run_id}/artifacts/${artifact.id}`}>{artifact.kind.replaceAll("_", " ")}</a>
-          <span className="micro">{artifact.mime_type} · {artifact.byte_size} bytes · SHA-256 {artifact.sha256}</span>
+          <span className="note">{artifact.mime_type} · {artifact.byte_size} bytes · SHA-256 {artifact.sha256}</span>
         </li>)}</ul>
       </> : <p className="unavailable-note">{status.state === "completed" ? "Unavailable: this completed legacy job has no published result record." : "No result is published for this job."}</p>}
     </section>

@@ -35,7 +35,7 @@ export default function JobActions({ status }: { status: JobStatus }) {
   }
 
   return <div className="run-actions">
-    {active && <p className="micro" aria-live="polite">Status refreshes every 3 seconds.</p>}
+    {active && <p className="note" aria-live="polite">Status refreshes every 3 seconds.</p>}
     {(status.state === "queued" || status.state === "running") &&
       <button className="button" type="button" onClick={cancel} disabled={busy}>{busy ? "Cancelling…" : "Cancel run"}</button>}
     {error && <p role="alert" className="research-warning">{error}</p>}

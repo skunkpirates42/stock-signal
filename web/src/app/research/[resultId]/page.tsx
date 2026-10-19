@@ -19,7 +19,7 @@ function countList(counts: Record<string, number>) {
 function artifactList(resultId: string, artifacts: Artifact[]) {
   return artifacts.length ? <ul className="artifact-list">{artifacts.map((artifact) => <li key={artifact.id}>
     <a href={artifactHref(resultId, artifact.id)}>{artifact.kind.replaceAll("_", " ")}</a>
-    <span className="micro">{artifact.mime_type} · {artifact.byte_size} bytes · SHA-256 {artifact.sha256}</span>
+    <span className="note">{artifact.mime_type} · {artifact.byte_size} bytes · SHA-256 {artifact.sha256}</span>
   </li>)}</ul> : <p className="card-note">No indexed artifacts in this category.</p>;
 }
 
