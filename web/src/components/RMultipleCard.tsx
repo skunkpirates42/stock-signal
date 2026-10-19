@@ -1,24 +1,24 @@
-import { formatR } from "@/lib/format";
+import { formatR, toneForSign } from "@/lib/format";
 
 export interface RMultipleCardProps {
-  avgR: number;
-  avgWinR: number;
-  avgLossR: number;
+  avgR: number | null;
+  avgWinR: number | null;
+  avgLossR: number | null;
 }
 
 export default function RMultipleCard({ avgR, avgWinR, avgLossR }: RMultipleCardProps) {
   return (
     <section className="card">
       <h2 className="micro">R-multiples</h2>
-      <p className={`card-figure num tone-${avgR >= 0 ? "positive" : "negative"}`}>{formatR(avgR)}</p>
+      <p className={`card-figure num tone-${toneForSign(avgR)}`}>{formatR(avgR)}</p>
       <dl className="pair-grid">
         <div>
           <dt className="micro">Avg win</dt>
-          <dd className="num tone-positive">{formatR(avgWinR)}</dd>
+          <dd className={`num tone-${toneForSign(avgWinR)}`}>{formatR(avgWinR)}</dd>
         </div>
         <div>
           <dt className="micro">Avg loss</dt>
-          <dd className="num tone-negative">{formatR(avgLossR)}</dd>
+          <dd className={`num tone-${toneForSign(avgLossR)}`}>{formatR(avgLossR)}</dd>
         </div>
       </dl>
       <p className="card-note">

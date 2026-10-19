@@ -2,15 +2,16 @@ import Link from "next/link";
 import JobDetail from "@/components/JobDetail";
 import { getJob } from "@/lib/jobs";
 import { artifactHref, availabilityText, getSavedDiagnostics, getSavedResult, type Artifact, type Availability, type Metric } from "@/lib/demo";
-import { formatCurrency, formatTimestamp } from "@/lib/format";
+import { formatTimestamp } from "@/lib/format";
+import { formatMetricAmount } from "@/lib/metrics";
 import { notFound } from "next/navigation";
 
 const METRICS = ["realized_net_pnl", "gross_pnl", "recorded_costs", "realized_max_drawdown", "marked_net_pnl", "marked_max_drawdown", "marked_net_per_session", "max_gross_exposure", "closed_trades", "censored_positions", "borrow_cost", "dividend_cashflow", "spread_cost", "slippage_cost", "fees"];
 
-function metricValue(metric: Metric | undefined) {
+function metricValue(name: string, metric: Metric | undefined) {
   if (!metric) return "Unavailable";
   if (metric.observation.availability !== "available") return `Unavailable: ${metric.observation.detail}`;
-  if (metric.unit === "USD" || metric.unit === "USD/session") return formatCurrency(metric.observation.value);
+  if (metric.unit === "USD" || metric.unit === "USD/session") return formatMetricAmount(name, metric.observation.value);
   return String(metric.observation.value);
 }
 
@@ -75,7 +76,7 @@ export default async function SavedRunPage({ params }: { params: Promise<{ runId
     </dl></section>
 
     <section className="card"><h2>Saved metrics</h2><p className="card-note">Values are displayed as supplied by the saved Python projection; this page does not recompute P&amp;L.</p><dl className="metric-grid">
-      {METRICS.map((name) => <div key={name}><dt>{name.replaceAll("_", " ")}</dt><dd className="num">{metricValue(result.metrics[name])}</dd><small>{result.metrics[name]?.basis}</small></div>)}
+      {METRICS.map((name) => <div key={name}><dt>{name.replaceAll("_", " ")}</dt><dd className="num">{metricValue(name, result.metrics[name])}</dd><small>{result.metrics[name]?.basis}</small></div>)}
     </dl></section>
 
     <section className="card"><h2>Exact saved configuration</h2><dl className="config-grid">
@@ -93,7 +94,7 @@ export default async function SavedRunPage({ params }: { params: Promise<{ runId
     </dl></section>
 
     <section className="card"><h2>Accounting audit</h2><p className="card-note">Every amount below is a saved Python observation. Missing cost attribution remains unavailable and is never filled with zero.</p><dl className="metric-grid audit-metrics">
-      {["gross_pnl", "realized_net_pnl", "recorded_costs", "spread_cost", "slippage_cost", "fees", "borrow_cost", "dividend_cashflow"].map((name) => <div key={name}><dt>{name.replaceAll("_", " ")}</dt><dd className="num">{metricValue(result.metrics[name])}</dd><small>{result.metrics[name]?.basis ?? "No saved basis."}</small></div>)}
+      {["gross_pnl", "realized_net_pnl", "recorded_costs", "spread_cost", "slippage_cost", "fees", "borrow_cost", "dividend_cashflow"].map((name) => <div key={name}><dt>{name.replaceAll("_", " ")}</dt><dd className="num">{metricValue(name, result.metrics[name])}</dd><small>{result.metrics[name]?.basis ?? "No saved basis."}</small></div>)}
     </dl><dl className="config-grid"><div><dt>Coverage</dt><dd>{result.accounting.coverage}</dd></div><div><dt>Mode</dt><dd>{result.accounting.mode}</dd></div><div><dt>Policy version</dt><dd>{availabilityText(result.accounting.version)}</dd></div></dl>
       {result.accounting.unresolved.length ? <ul className="research-listing">{result.accounting.unresolved.map((item) => <li key={item}>Unresolved accounting: {item}</li>)}</ul> : <p className="card-note">The saved result declares no unresolved accounting fields.</p>}
     </section>
