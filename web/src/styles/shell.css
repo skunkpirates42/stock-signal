@@ -17,7 +17,7 @@
 
 .rail-mark {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-small);
   letter-spacing: 0.2em;
   color: var(--faint);
 }
@@ -41,7 +41,7 @@
   padding: calc(var(--space) * 0.75) var(--space);
   border-radius: var(--radius-sm);
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: var(--text-body);
   font-weight: 500;
   transition: color 150ms, background-color 150ms;
 }
@@ -82,7 +82,7 @@
   background: none;
   color: var(--muted);
   font: inherit;
-  font-size: 0.8rem;
+  font-size: var(--text-small);
   text-align: center;
   cursor: pointer;
   transition: color 150ms, background-color 150ms;
@@ -109,7 +109,7 @@
 .status-line {
   margin-bottom: calc(var(--space) * 2);
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-label);
   color: var(--faint);
 }
 
@@ -212,7 +212,7 @@
 .error-detail {
   margin-top: calc(var(--space) * 1.5);
   color: var(--faint);
-  font-size: 0.85rem;
+  font-size: var(--text-body);
   font-family: var(--font-mono);
 }
 

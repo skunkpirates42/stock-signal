@@ -31,7 +31,7 @@
 }
 
 .hero-value {
-  font-size: clamp(2.5rem, 6vw, 4rem);
+  font-size: var(--text-hero);
   font-weight: 600;
   line-height: 1.05;
   letter-spacing: -0.03em;
@@ -40,7 +40,7 @@
 
 .hero-qualifier {
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: var(--text-body);
 }
 
 /* ProvenanceBand */
@@ -56,7 +56,7 @@
 .provenance-warning {
   margin-top: var(--space);
   color: var(--caution);
-  font-size: 0.85rem;
+  font-size: var(--text-body);
   max-width: 68ch;
 }
 
@@ -70,7 +70,7 @@
 }
 
 .scope-note p {
-  font-size: 0.85rem;
+  font-size: var(--text-body);
   line-height: 1.6;
   color: var(--muted);
 }
@@ -117,7 +117,7 @@
 .ratio-legend {
   display: flex;
   justify-content: space-between;
-  font-size: 0.8rem;
+  font-size: var(--text-small);
 }
 
 /* Card internals */
@@ -130,12 +130,12 @@
 }
 
 .card-figure {
-  font-size: 1.75rem;
+  font-size: var(--text-title);
   font-weight: 600;
 }
 
 .card-figure-sm {
-  font-size: 1.25rem;
+  font-size: var(--text-stat);
   font-weight: 600;
 }
 
@@ -143,7 +143,7 @@
 .cost-adjusted-crossing {
   margin-top: var(--space);
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--text-small);
   line-height: 1.5;
 }
 
@@ -164,7 +164,7 @@
 .research-result h2,
 .card h2 {
   margin-top: calc(var(--space) / 2);
-  font-size: 1.15rem;
+  font-size: var(--text-lead);
 }
 
 .research-summary,
@@ -180,7 +180,7 @@
 .metric-grid dt {
   color: var(--faint);
   font-family: var(--font-mono);
-  font-size: .68rem;
+  font-size: var(--text-label);
   letter-spacing: .08em;
   text-transform: uppercase;
 }
@@ -192,19 +192,19 @@
 .metric-grid small { display: block; margin-top: calc(var(--space) / 3); color: var(--faint); line-height: 1.4; }
 .comparison-summary { margin-top: calc(var(--space) * 1.5); }
 .config-grid { margin-top: calc(var(--space) * 1.5); }
-.config-value { font-family: var(--font-mono); font-size: .78rem; }
+.config-value { font-family: var(--font-mono); font-size: var(--text-small); }
 .run-head { margin-top: calc(var(--space) * 2); }
-.research-warning { margin: 0 0 var(--space); color: var(--caution); font-size: .85rem; }
+.research-warning { margin: 0 0 var(--space); color: var(--caution); font-size: var(--text-body); }
 .research-listing, .artifact-list { margin: calc(var(--space) * 1.5) 0 0 calc(var(--space) * 1.5); color: var(--muted); line-height: 1.6; }
 .artifact-list span { display: block; overflow-wrap: anywhere; }
 .research-pagination { margin-top: calc(var(--space) * 2); }
 .audit-metrics, .artifact-groups { margin-bottom: calc(var(--space) * 2); }
 .audit-columns, .artifact-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(var(--space) * 2); margin-top: calc(var(--space) * 1.5); }
-.audit-columns h3, .artifact-groups h3 { font-size: .95rem; }
+.audit-columns h3, .artifact-groups h3 { font-size: var(--text-body); }
 .audit-counts { margin-top: var(--space); }
 .audit-counts div { display: flex; justify-content: space-between; gap: var(--space); padding: calc(var(--space) / 2) 0; border-bottom: 1px solid var(--line); }
 .audit-counts dt { color: var(--muted); overflow-wrap: anywhere; }
-.unavailable-note { margin-top: var(--space); padding: var(--space); border-left: 2px solid var(--caution); color: var(--muted); font-size: .8rem; line-height: 1.5; }
+.unavailable-note { margin-top: var(--space); padding: var(--space); border-left: 2px solid var(--caution); color: var(--muted); font-size: var(--text-small); line-height: 1.5; }
 
 @media (max-width: 700px) {
   .research-result { grid-template-columns: 1fr; }
@@ -226,7 +226,7 @@
 
 .stat-tile-label {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: var(--text-label);
   color: var(--faint);
   text-transform: uppercase;
   letter-spacing: 0.18em;
@@ -236,12 +236,12 @@
 .stat-tile-value {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: 1.5rem;
+  font-size: var(--text-stat);
   font-weight: 600;
 }
 
 .stat-tile-note {
-  font-size: 0.8rem;
+  font-size: var(--text-small);
   color: var(--muted);
   margin-top: calc(var(--space) / 2);
 }
@@ -265,7 +265,7 @@
   flex-direction: column;
   gap: calc(var(--space) / 2);
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: var(--text-label);
   color: var(--faint);
   text-transform: uppercase;
   letter-spacing: 0.18em;
@@ -274,7 +274,7 @@
 .cost-adjusted-input input {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: 1rem;
+  font-size: var(--text-lead);
   padding: calc(var(--space) / 2) var(--space);
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
@@ -286,7 +286,7 @@
 .cost-adjusted-note {
   margin-top: var(--space);
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--text-small);
   line-height: 1.5;
 }
 
@@ -314,7 +314,7 @@
 }
 
 .position-card-ticker {
-  font-size: 1.1rem;
+  font-size: var(--text-lead);
   font-weight: 600;
 }
 
@@ -324,7 +324,7 @@
 
 .positions-note {
   color: var(--caution);
-  font-size: 0.85rem;
+  font-size: var(--text-body);
   max-width: 72ch;
   margin: var(--space) 0 calc(var(--space) * 2);
 }
@@ -332,11 +332,11 @@
 /* Tone helpers (shared by SignalRow, VoteTable, RationalePanel) */
 
 .tone-positive {
-  color: var(--win);
+  color: var(--positive);
 }
 
 .tone-negative {
-  color: var(--loss);
+  color: var(--negative);
 }
 
 .tone-muted {

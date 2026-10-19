@@ -14,6 +14,22 @@
   --win: #4ade80;
   --loss: #ff6b6b;
 
+  --positive: var(--win);
+  --negative: var(--loss);
+
+  --grid-line: rgba(150, 180, 255, 0.055);
+  --glow-accent: rgba(53, 232, 210, 0.1);
+  --glow-caution: rgba(255, 180, 84, 0.05);
+  --mask-opaque: #000;
+
+  --text-label: 0.7rem;
+  --text-small: 0.8rem;
+  --text-body: 0.9rem;
+  --text-lead: 1.1rem;
+  --text-stat: 1.5rem;
+  --text-title: 1.75rem;
+  --text-hero: clamp(2.5rem, 6vw, 4rem);
+
   --radius: 10px;
   --radius-sm: 6px;
   --space: 8px;
