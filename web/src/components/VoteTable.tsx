@@ -1,3 +1,4 @@
+import DataTable from "@/components/DataTable";
 import type { VoteRow } from "@/lib/types";
 
 export interface VoteTableProps {
@@ -16,7 +17,7 @@ export default function VoteTable({ rows }: VoteTableProps) {
   }
 
   return (
-    <table className="vote-table">
+    <DataTable compact>
       <thead>
         <tr>
           <th>Indicator</th>
@@ -33,6 +34,6 @@ export default function VoteTable({ rows }: VoteTableProps) {
           </tr>
         ))}
       </tbody>
-    </table>
+    </DataTable>
   );
 }
