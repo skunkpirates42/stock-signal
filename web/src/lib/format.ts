@@ -24,6 +24,10 @@ export function formatWholeDollars(value: number | null | undefined): string {
   return `$${Math.round(Math.abs(value)).toLocaleString("en-US")}`;
 }
 
+export function labelFromKey(key: string): string {
+  return key.replaceAll("_", " ");
+}
+
 export type Tone = "positive" | "negative" | "muted";
 
 export function toneForSign(value: number | null | undefined): Tone {

@@ -1,5 +1,5 @@
 import type { Artifact, Metric } from "@/lib/demo";
-import { toneForSign, type Tone } from "@/lib/format";
+import { labelFromKey, toneForSign, type Tone } from "@/lib/format";
 import { formatMetricAmount } from "@/lib/metrics";
 
 export interface HeadlineFigure {
@@ -43,10 +43,6 @@ const ARTIFACT_KINDS = {
   data: ["data_health", "dataset_metadata"],
 };
 
-export function metricLabel(name: string): string {
-  return name.replaceAll("_", " ");
-}
-
 export function metricValue(name: string, metric: Metric | undefined): string {
   if (!metric) return "Unavailable";
   if (metric.observation.availability !== "available") return `Unavailable: ${metric.observation.detail}`;
@@ -88,7 +84,7 @@ function metricGroup(title: string, metrics: Record<string, Metric>, names: stri
     basis,
     rows: names.map((name) => {
       const ownBasis = metrics[name]?.basis ?? null;
-      return { name, label: metricLabel(name), value: metricValue(name, metrics[name]), ownBasis: ownBasis === basis ? null : ownBasis };
+      return { name, label: labelFromKey(name), value: metricValue(name, metrics[name]), ownBasis: ownBasis === basis ? null : ownBasis };
     }),
   };
 }

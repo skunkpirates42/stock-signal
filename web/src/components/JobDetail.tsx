@@ -2,7 +2,7 @@ import Link from "next/link";
 import JobActions from "@/components/JobActions";
 import { availabilityText, type Availability, type Metric } from "@/lib/demo";
 import type { JobDetail as Detail } from "@/lib/jobs";
-import { formatTimestamp } from "@/lib/format";
+import { formatTimestamp, labelFromKey } from "@/lib/format";
 import { formatMetricAmount } from "@/lib/metrics";
 
 function recorded<T>(value: Availability<T>, format: (item: T) => string): string {
@@ -22,11 +22,11 @@ export default function JobDetail({ detail, warnings }: { detail: Detail; warnin
   const label = run.provenance.synthetic ? "Synthetic correctness" : run.provenance.retrospective ? "Retrospective market data" : "Historical simulation";
   return <main>
     <Link className="micro" href="/runs">← Run history</Link>
-    <div className="page-head run-head"><div><p className="micro">{label}</p><h1>Historical run</h1></div><span className="micro">{status.state.replaceAll("_", " ")}</span></div>
+    <div className="page-head run-head"><div><p className="micro">{label}</p><h1>Historical run</h1></div><span className="micro">{labelFromKey(status.state)}</span></div>
     <p className="scope-note">This local replay is paper-only. Its outcome cannot activate collection, place an order, or promote a strategy.</p>
     {warnings.map((warning) => <p className="research-warning" key={warning}>{warning}</p>)}
     <section className="card"><h2>Progress</h2><dl className="config-grid">
-      <div><dt>State</dt><dd>{status.state.replaceAll("_", " ")}</dd></div>
+      <div><dt>State</dt><dd>{labelFromKey(status.state)}</dd></div>
       <div><dt>Phase</dt><dd>{recorded(status.phase, String)}</dd></div>
       <div><dt>Attempt</dt><dd>{recorded(status.attempt, String)}</dd></div>
       <div><dt>Created</dt><dd>{recorded(status.created_at, formatTimestamp)}</dd></div>
@@ -49,7 +49,7 @@ export default function JobDetail({ detail, warnings }: { detail: Detail; warnin
       <div><dt>Selected data digest</dt><dd className="num">{availabilityText(run.selected_data_sha256)}</dd></div>
       <div><dt>Window</dt><dd>{run.window.name} ({run.window.role}): {formatTimestamp(run.window.start)} inclusive to {formatTimestamp(run.window.end_exclusive)} exclusive</dd></div>
       <div><dt>Symbols</dt><dd>{run.symbols.join(", ") || "Unavailable: no symbols were recorded."}</dd></div>
-      {Object.entries(run.observed_bounds).map(([name, value]) => <div key={name}><dt>Observed {name.replaceAll("_", " ")}</dt><dd>{availabilityText(value)}</dd></div>)}
+      {Object.entries(run.observed_bounds).map(([name, value]) => <div key={name}><dt>Observed {labelFromKey(name)}</dt><dd>{availabilityText(value)}</dd></div>)}
       <div><dt>Feed</dt><dd>{availabilityText(run.feed)}</dd></div>
       <div><dt>Fill policy</dt><dd>{availabilityText(run.fill_policy)}</dd></div>
       <div><dt>Session policy</dt><dd>{availabilityText(run.session_policy)}</dd></div>
@@ -64,11 +64,11 @@ export default function JobDetail({ detail, warnings }: { detail: Detail; warnin
     <section className="card"><h2>Result</h2>
       {result ? <><p className="card-note">Python saved these metrics under its declared basis. Missing amounts remain unavailable.</p>
         <dl className="metric-grid">{Object.entries(result.metrics).map(([name, value]) =>
-          <div key={name}><dt>{name.replaceAll("_", " ")}</dt><dd className="num">{metric(name, value)}</dd><small>{value.unit} · {value.basis}</small></div>)}</dl>
+          <div key={name}><dt>{labelFromKey(name)}</dt><dd className="num">{metric(name, value)}</dd><small>{value.unit} · {value.basis}</small></div>)}</dl>
         <p className="card-note">Accounting coverage: {result.accounting.coverage}. Result ID: <span className="num">{result.id}</span>.</p>
         {result.limitations.length > 0 && <ul className="research-listing">{result.limitations.map((item) => <li key={item}>{item}</li>)}</ul>}
         <h3>Published artifacts</h3><ul className="artifact-list">{artifacts.map((artifact) => <li key={artifact.id}>
-          <a href={`/api/demo/v1/runs/${status.run_id}/artifacts/${artifact.id}`}>{artifact.kind.replaceAll("_", " ")}</a>
+          <a href={`/api/demo/v1/runs/${status.run_id}/artifacts/${artifact.id}`}>{labelFromKey(artifact.kind)}</a>
           <span className="note">{artifact.mime_type} · {artifact.byte_size} bytes · SHA-256 {artifact.sha256}</span>
         </li>)}</ul>
       </> : <p className="unavailable-note">{status.state === "completed" ? "Unavailable: this completed legacy job has no published result record." : "No result is published for this job."}</p>}

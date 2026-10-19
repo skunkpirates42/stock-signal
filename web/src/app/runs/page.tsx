@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { formatTimestamp } from "@/lib/format";
+import { formatTimestamp, labelFromKey } from "@/lib/format";
 import { getJobs } from "@/lib/jobs";
 import { isOpaqueDemoId } from "@/lib/demo";
 
@@ -14,7 +14,7 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
     {warnings.map((warning) => <p className="research-warning" key={warning}>{warning}</p>)}
     <div className="research-list">
       {data.runs.map((status) => <article className="card research-result" key={status.run_id}>
-        <div><p className="micro">{status.state.replaceAll("_", " ")} · attempt {status.attempt.availability === "available" ? status.attempt.value : "unavailable"}</p><h2 className="num">{status.run_id}</h2></div>
+        <div><p className="micro">{labelFromKey(status.state)} · attempt {status.attempt.availability === "available" ? status.attempt.value : "unavailable"}</p><h2 className="num">{status.run_id}</h2></div>
         <p className="card-note">Created {status.created_at.availability === "available" ? formatTimestamp(status.created_at.value) : "at an unavailable time"}</p>
         <Link className="button research-link" href={`/runs/${status.run_id}`}>View run</Link>
       </article>)}

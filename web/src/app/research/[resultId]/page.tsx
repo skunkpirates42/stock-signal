@@ -1,7 +1,7 @@
 import Link from "next/link";
 import StatTile from "@/components/StatTile";
 import { artifactHref, availabilityText, getSavedDiagnostics, getSavedResult, type Artifact, type Availability } from "@/lib/demo";
-import { formatTimestamp } from "@/lib/format";
+import { formatTimestamp, labelFromKey } from "@/lib/format";
 import { groupArtifactsByKind, headlineFigures, savedMetricGroups, untrackedCostComponents } from "@/lib/savedResult";
 import { notFound } from "next/navigation";
 
@@ -12,13 +12,13 @@ function field(label: string, value: Availability<string>) {
 function countList(counts: Record<string, number>) {
   const entries = Object.entries(counts);
   return entries.length
-    ? <dl className="audit-counts">{entries.map(([name, count]) => <div key={name}><dt>{name.replaceAll("_", " ")}</dt><dd className="num">{count}</dd></div>)}</dl>
+    ? <dl className="audit-counts">{entries.map(([name, count]) => <div key={name}><dt>{labelFromKey(name)}</dt><dd className="num">{count}</dd></div>)}</dl>
     : <p className="card-note">The saved count map is present and empty.</p>;
 }
 
 function artifactList(resultId: string, artifacts: Artifact[]) {
   return artifacts.length ? <ul className="artifact-list">{artifacts.map((artifact) => <li key={artifact.id}>
-    <a href={artifactHref(resultId, artifact.id)}>{artifact.kind.replaceAll("_", " ")}</a>
+    <a href={artifactHref(resultId, artifact.id)}>{labelFromKey(artifact.kind)}</a>
     <span className="note">{artifact.mime_type} · {artifact.byte_size} bytes · SHA-256 {artifact.sha256}</span>
   </li>)}</ul> : <p className="card-note">No indexed artifacts in this category.</p>;
 }
@@ -73,7 +73,7 @@ export default async function SavedResultPage({ params }: { params: Promise<{ re
 
     <section className="card"><h2>Saved data health</h2><dl className="config-grid">
       {field("Recorded feed", run.feed)}<div><dt>Saved symbols</dt><dd>{run.symbols.join(", ") || "Unavailable: no symbols were recorded."}</dd></div>
-      {Object.entries(run.observed_bounds).map(([name, value]) => <div key={name}><dt>Saved observed {name.replaceAll("_", " ")}</dt><dd>{availabilityText(value)}</dd></div>)}
+      {Object.entries(run.observed_bounds).map(([name, value]) => <div key={name}><dt>Saved observed {labelFromKey(name)}</dt><dd>{availabilityText(value)}</dd></div>)}
     </dl>{artifactsByKind.data.length ? <p className="card-note">Indexed data-health evidence is linked under Reproducibility. Its presence does not make fields available in this normalized view.</p> : <p className="unavailable-note">Unavailable: no indexed data-health or dataset-metadata artifact is linked to this result.</p>}
       <p className="unavailable-note"><strong>Source-specific health unavailable.</strong> Latest bar, stale fraction, missing sessions and calendar alignment aren&apos;t saved in a form this page can read yet, and it does not infer them.</p>
     </section>
@@ -90,7 +90,7 @@ export default async function SavedResultPage({ params }: { params: Promise<{ re
         {field("Working diff SHA-256", run.code.working_diff_sha256)}
         <div><dt>Dataset ID</dt><dd className="config-value">{run.dataset_id}</dd></div>
         <div><dt>Selected window</dt><dd>{formatTimestamp(run.window.start)} inclusive to {formatTimestamp(run.window.end_exclusive)} exclusive ({run.window.role})</dd></div>
-        {Object.entries(run.observed_bounds).map(([name, value]) => <div key={name}><dt>Observed {name.replaceAll("_", " ")}</dt><dd className="config-value">{availabilityText(value)}</dd></div>)}
+        {Object.entries(run.observed_bounds).map(([name, value]) => <div key={name}><dt>Observed {labelFromKey(name)}</dt><dd className="config-value">{availabilityText(value)}</dd></div>)}
         <div><dt>Symbols</dt><dd>{run.symbols.join(", ")}</dd></div><div><dt>Cost policy</dt><dd>{run.cost_policy.id}: {run.cost_policy.spread_bps} spread bps, {run.cost_policy.slippage_bps_per_fill} slippage bps/fill, {run.cost_policy.fee_per_share_per_fill} fee/share.</dd></div>
         <div><dt>Cost evidence</dt><dd>{run.cost_policy.evidence}</dd></div>
         <div><dt>Accounting</dt><dd>{run.accounting.mode}; {run.accounting.coverage}; {availabilityText(run.accounting.version)}</dd></div>
