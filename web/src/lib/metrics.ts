@@ -11,8 +11,12 @@ const UNSIGNED_AMOUNT_METRICS = new Set([
   "fees",
 ]);
 
+export function isUnsignedAmount(name: string): boolean {
+  return UNSIGNED_AMOUNT_METRICS.has(name);
+}
+
 export function formatMetricAmount(name: string, value: number): string {
-  return UNSIGNED_AMOUNT_METRICS.has(name) ? formatPrice(value) : formatCurrency(value);
+  return isUnsignedAmount(name) ? formatPrice(value) : formatCurrency(value);
 }
 
 export function averageOrNull(count: number, average: number): number | null {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Artifact, Metric } from "@/lib/demo";
-import { groupArtifactsByKind, headlineFigures, metricValue, savedMetricGroups, untrackedCostComponents } from "@/lib/savedResult";
+import { groupArtifactsByKind, headlineFigures, savedMetricGroups, untrackedCostComponents } from "@/lib/savedResult";
 
 const REALIZED = "Realized closed trades; net of recorded costs";
 const MARKED = "Marked portfolio; latest observed close";
@@ -31,13 +31,6 @@ const metrics: Record<string, Metric> = {
 
 const artifact = (kind: string): Artifact => ({
   record_type: "artifact", id: `${kind}-id`, result_id: "result", kind, sha256: "a".repeat(64), mime_type: "application/json", byte_size: 1,
-});
-
-describe("metricValue", () => {
-  it("formats saved amounts", () => expect(metricValue("realized_net_pnl", metrics.realized_net_pnl)).toBe("+$2,220.33"));
-  it("keeps counts as plain numbers", () => expect(metricValue("closed_trades", metrics.closed_trades)).toBe("2734"));
-  it("says why a value is unavailable", () => expect(metricValue("fees", metrics.fees)).toBe("Unavailable: Fees were not saved."));
-  it("marks a missing metric unavailable", () => expect(metricValue("fees", undefined)).toBe("Unavailable"));
 });
 
 describe("headlineFigures", () => {
@@ -75,13 +68,13 @@ describe("savedMetricGroups", () => {
     const withoutCensored = { ...metrics };
     delete withoutCensored.censored_positions;
     const [realized] = savedMetricGroups(withoutCensored);
-    expect(realized.rows.find((row) => row.name === "censored_positions")).toMatchObject({ value: "Unavailable", ownBasis: null });
+    expect(realized.rows.find((row) => row.name === "censored_positions")).toMatchObject({ value: { text: "Unavailable", reason: "No saved metric." }, ownBasis: null });
   });
 
   it("adds a cost group only for components that were saved", () => {
     expect(savedMetricGroups(metrics)).toHaveLength(2);
     const groups = savedMetricGroups({ ...metrics, fees: saved(3, "Saved fee total") });
-    expect(groups[2]).toMatchObject({ title: "Cost components", basis: "Saved fee total", rows: [expect.objectContaining({ name: "fees", value: "$3.00" })] });
+    expect(groups[2]).toMatchObject({ title: "Cost components", basis: "Saved fee total", rows: [expect.objectContaining({ name: "fees", value: expect.objectContaining({ text: "$3.00" }) })] });
   });
 });
 
