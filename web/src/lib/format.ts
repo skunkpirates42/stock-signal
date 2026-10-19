@@ -24,7 +24,9 @@ export function formatWholeDollars(value: number | null | undefined): string {
   return `$${Math.round(Math.abs(value)).toLocaleString("en-US")}`;
 }
 
-export function toneForSign(value: number | null | undefined): "positive" | "negative" | "muted" {
+export type Tone = "positive" | "negative" | "muted";
+
+export function toneForSign(value: number | null | undefined): Tone {
   if (value === null || value === undefined || value === 0) return "muted";
   return value > 0 ? "positive" : "negative";
 }

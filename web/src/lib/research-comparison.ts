@@ -1,12 +1,12 @@
 import type { Accounting, Result } from "@/lib/demo";
-import { formatCurrency, formatTimestamp, toneForSign } from "@/lib/format";
+import { formatCurrency, formatTimestamp, toneForSign, type Tone } from "@/lib/format";
 
 const VARIANT_ORDER = ["baseline", "strength", "rvol", "both"];
 
 export interface ComparisonEntry {
   id: string;
   pnlLabel: string;
-  tone: "positive" | "negative" | "muted";
+  tone: Tone;
   synthetic: boolean;
   retrospective: boolean | null;
   coverage: Accounting["coverage"] | null;

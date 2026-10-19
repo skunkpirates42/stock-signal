@@ -1,11 +1,11 @@
 import type { Artifact, Metric } from "@/lib/demo";
-import { toneForSign } from "@/lib/format";
+import { toneForSign, type Tone } from "@/lib/format";
 import { formatMetricAmount } from "@/lib/metrics";
 
 export interface HeadlineFigure {
   label: string;
   value: string;
-  tone: "positive" | "negative" | "neutral";
+  tone: Tone;
   note?: string;
 }
 
@@ -54,19 +54,17 @@ export function metricValue(name: string, metric: Metric | undefined): string {
   return String(metric.observation.value);
 }
 
-function signedTone(metric: Metric | undefined): HeadlineFigure["tone"] {
-  const value = metric?.observation.availability === "available" ? metric.observation.value : null;
-  const tone = toneForSign(value);
-  return tone === "muted" ? "neutral" : tone;
+function signedTone(metric: Metric | undefined): Tone {
+  return toneForSign(metric?.observation.availability === "available" ? metric.observation.value : null);
 }
 
 export function headlineFigures(metrics: Record<string, Metric>): HeadlineFigure[] {
   return [
     { label: "Realized net P&L", value: metricValue("realized_net_pnl", metrics.realized_net_pnl), tone: signedTone(metrics.realized_net_pnl) },
-    { label: "Closed trades", value: metricValue("closed_trades", metrics.closed_trades), tone: "neutral" },
-    { label: "Realized max drawdown", value: metricValue("realized_max_drawdown", metrics.realized_max_drawdown), tone: "neutral" },
+    { label: "Closed trades", value: metricValue("closed_trades", metrics.closed_trades), tone: "muted" },
+    { label: "Realized max drawdown", value: metricValue("realized_max_drawdown", metrics.realized_max_drawdown), tone: "muted" },
     { label: "Marked net P&L", value: metricValue("marked_net_pnl", metrics.marked_net_pnl), tone: signedTone(metrics.marked_net_pnl), note: "Marked to latest close" },
-    { label: "Marked max drawdown", value: metricValue("marked_max_drawdown", metrics.marked_max_drawdown), tone: "neutral", note: "Marked to latest close" },
+    { label: "Marked max drawdown", value: metricValue("marked_max_drawdown", metrics.marked_max_drawdown), tone: "muted", note: "Marked to latest close" },
   ];
 }
 
