@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { Children, isValidElement, type ReactNode } from "react";
+import AvailableValue from "@/components/AvailableValue";
 
 const available = (value: string) => ({ availability: "available" as const, value, reason: null, detail: null });
 const unavailable = (detail: string) => ({ availability: "unavailable" as const, value: null, reason: "not_recorded" as const, detail });
@@ -52,6 +53,7 @@ import { getSavedDiagnostics, getSavedResult } from "@/lib/demo";
 function textOf(node: unknown): string {
   if (typeof node === "string" || typeof node === "number") return String(node);
   if (!isValidElement<{ children?: unknown }>(node)) return "";
+  if (node.type === AvailableValue) return textOf(AvailableValue(node.props as Parameters<typeof AvailableValue>[0]));
   return Children.toArray(node.props.children as ReactNode).map(textOf).join(" ");
 }
 

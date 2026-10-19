@@ -1,5 +1,6 @@
 import type { Accounting, Result } from "@/lib/demo";
-import { formatCurrency, formatTimestamp, toneForSign, type Tone } from "@/lib/format";
+import { formatTimestamp, type Tone } from "@/lib/format";
+import { describeObservation } from "@/lib/observation";
 
 const VARIANT_ORDER = ["baseline", "strength", "rvol", "both"];
 
@@ -45,11 +46,6 @@ export function formatWindowDates(start: string, endExclusive: string): string {
   return `${startLabel} – ${MONTH_DAY.format(endDate)}, ${endYear}`;
 }
 
-function realizedNetPnl(result: Result): number | null {
-  const observation = result.metrics.realized_net_pnl?.observation;
-  return observation?.availability === "available" ? observation.value : null;
-}
-
 function windowKey(result: Result): string {
   return `${result.window.name}|${result.window.start}|${result.window.end_exclusive}`;
 }
@@ -93,11 +89,11 @@ export function buildComparisonTable(results: Result[]): ComparisonTable {
   for (const result of results) {
     const cells = cellsByVariant.get(result.variant) ?? columns.map(() => []);
     cellsByVariant.set(result.variant, cells);
-    const pnl = realizedNetPnl(result);
+    const pnl = describeObservation("realized_net_pnl", result.metrics.realized_net_pnl);
     cells[columnIndex.get(windowKey(result))!].push({
       id: result.id,
-      pnlLabel: pnl === null ? "Unavailable" : formatCurrency(pnl),
-      tone: toneForSign(pnl),
+      pnlLabel: pnl.text,
+      tone: pnl.tone,
       synthetic: result.provenance.synthetic,
       retrospective: sharedRetrospective === null ? result.provenance.retrospective : null,
       coverage: sharedCoverage === null ? result.accounting.coverage : null,

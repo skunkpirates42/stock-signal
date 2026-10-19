@@ -1,20 +1,13 @@
 import Link from "next/link";
+import AvailableValue from "@/components/AvailableValue";
 import JobActions from "@/components/JobActions";
-import { availabilityText, type Availability, type Metric } from "@/lib/demo";
+import { availabilityText, type Availability } from "@/lib/demo";
 import type { JobDetail as Detail } from "@/lib/jobs";
 import { formatTimestamp, labelFromKey } from "@/lib/format";
-import { formatMetricAmount } from "@/lib/metrics";
+import { describeObservation } from "@/lib/observation";
 
 function recorded<T>(value: Availability<T>, format: (item: T) => string): string {
   return value.availability === "available" ? format(value.value) : `Unavailable: ${value.detail}`;
-}
-
-function metric(name: string, metric: Metric | undefined): string {
-  if (!metric) return "Unavailable: no saved metric.";
-  if (metric.observation.availability !== "available") return `Unavailable: ${metric.observation.detail}`;
-  if (metric.unit === "USD") return formatMetricAmount(name, metric.observation.value);
-  if (metric.unit === "USD/session") return `${formatMetricAmount(name, metric.observation.value)}/session`;
-  return `${metric.observation.value} ${metric.unit}`;
 }
 
 export default function JobDetail({ detail, warnings }: { detail: Detail; warnings: string[] }) {
@@ -64,7 +57,7 @@ export default function JobDetail({ detail, warnings }: { detail: Detail; warnin
     <section className="card"><h2>Result</h2>
       {result ? <><p className="card-note">Python saved these metrics under its declared basis. Missing amounts remain unavailable.</p>
         <dl className="metric-grid">{Object.entries(result.metrics).map(([name, value]) =>
-          <div key={name}><dt>{labelFromKey(name)}</dt><dd className="num">{metric(name, value)}</dd><small>{value.unit} · {value.basis}</small></div>)}</dl>
+          <div key={name}><dt>{labelFromKey(name)}</dt><dd className="num"><AvailableValue {...describeObservation(name, value)} /></dd><small>{value.unit} · {value.basis}</small></div>)}</dl>
         <p className="card-note">Accounting coverage: {result.accounting.coverage}. Result ID: <span className="num">{result.id}</span>.</p>
         {result.limitations.length > 0 && <ul className="research-listing">{result.limitations.map((item) => <li key={item}>{item}</li>)}</ul>}
         <h3>Published artifacts</h3><ul className="artifact-list">{artifacts.map((artifact) => <li key={artifact.id}>

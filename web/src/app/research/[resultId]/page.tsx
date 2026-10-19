@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AvailableValue from "@/components/AvailableValue";
 import StatTile from "@/components/StatTile";
 import { artifactHref, availabilityText, getSavedDiagnostics, getSavedResult, type Artifact, type Availability } from "@/lib/demo";
 import { formatTimestamp, labelFromKey } from "@/lib/format";
@@ -52,7 +53,7 @@ export default async function SavedResultPage({ params }: { params: Promise<{ re
     <section className="card"><h2>Saved metrics</h2><p className="card-note">Values are displayed as supplied by the saved Python projection; this page does not recompute P&amp;L.</p>
       {savedMetricGroups(result.metrics).map((group) => <div className="metric-group" key={group.title}>
         <h3>{group.title}</h3>{group.basis && <p className="card-note">{group.basis}</p>}
-        <dl className="metric-grid">{group.rows.map((row) => <div key={row.name}><dt>{row.label}</dt><dd className="num">{row.value}</dd>{row.ownBasis && <small>{row.ownBasis}</small>}</div>)}</dl>
+        <dl className="metric-grid">{group.rows.map((row) => <div key={row.name}><dt>{row.label}</dt><dd className="num"><AvailableValue {...row.value} /></dd>{row.ownBasis && <small>{row.ownBasis}</small>}</div>)}</dl>
       </div>)}
       {untrackedCosts.length > 0 && <details className="untracked-costs">
         <summary>Not tracked in this result: {untrackedCosts.map((item) => item.label).join(", ")}. Shown as unavailable, never as zero.</summary>

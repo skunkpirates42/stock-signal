@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Children, isValidElement, type ReactNode } from "react";
+import AvailableValue from "./AvailableValue";
 import JobDetail from "./JobDetail";
 import type { JobDetail as Detail } from "@/lib/jobs";
 
@@ -10,6 +11,7 @@ const RUN_ID = "123e4567-e89b-12d3-a456-426614174000";
 function content(node: unknown): string {
   if (typeof node === "string" || typeof node === "number") return String(node);
   if (!isValidElement<{ children?: unknown; href?: string }>(node)) return "";
+  if (node.type === AvailableValue) return content(AvailableValue(node.props as Parameters<typeof AvailableValue>[0]));
   return [node.props.href, ...Children.toArray(node.props.children as ReactNode)].map(content).join(" ");
 }
 

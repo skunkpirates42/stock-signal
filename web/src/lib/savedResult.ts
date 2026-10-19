@@ -1,6 +1,6 @@
 import type { Artifact, Metric } from "@/lib/demo";
-import { labelFromKey, toneForSign, type Tone } from "@/lib/format";
-import { formatMetricAmount } from "@/lib/metrics";
+import { labelFromKey, type Tone } from "@/lib/format";
+import { describeObservation, type ObservedValue } from "@/lib/observation";
 
 export interface HeadlineFigure {
   label: string;
@@ -12,7 +12,7 @@ export interface HeadlineFigure {
 export interface MetricRow {
   name: string;
   label: string;
-  value: string;
+  value: ObservedValue;
   ownBasis: string | null;
 }
 
@@ -43,24 +43,18 @@ const ARTIFACT_KINDS = {
   data: ["data_health", "dataset_metadata"],
 };
 
-export function metricValue(name: string, metric: Metric | undefined): string {
-  if (!metric) return "Unavailable";
-  if (metric.observation.availability !== "available") return `Unavailable: ${metric.observation.detail}`;
-  if (metric.unit === "USD" || metric.unit === "USD/session") return formatMetricAmount(name, metric.observation.value);
-  return String(metric.observation.value);
-}
-
-function signedTone(metric: Metric | undefined): Tone {
-  return toneForSign(metric?.observation.availability === "available" ? metric.observation.value : null);
+function headlineFigure(label: string, name: string, metrics: Record<string, Metric>, note?: string): HeadlineFigure {
+  const { text, tone } = describeObservation(name, metrics[name]);
+  return note ? { label, value: text, tone, note } : { label, value: text, tone };
 }
 
 export function headlineFigures(metrics: Record<string, Metric>): HeadlineFigure[] {
   return [
-    { label: "Realized net P&L", value: metricValue("realized_net_pnl", metrics.realized_net_pnl), tone: signedTone(metrics.realized_net_pnl) },
-    { label: "Closed trades", value: metricValue("closed_trades", metrics.closed_trades), tone: "muted" },
-    { label: "Realized max drawdown", value: metricValue("realized_max_drawdown", metrics.realized_max_drawdown), tone: "muted" },
-    { label: "Marked net P&L", value: metricValue("marked_net_pnl", metrics.marked_net_pnl), tone: signedTone(metrics.marked_net_pnl), note: "Marked to latest close" },
-    { label: "Marked max drawdown", value: metricValue("marked_max_drawdown", metrics.marked_max_drawdown), tone: "muted", note: "Marked to latest close" },
+    headlineFigure("Realized net P&L", "realized_net_pnl", metrics),
+    headlineFigure("Closed trades", "closed_trades", metrics),
+    headlineFigure("Realized max drawdown", "realized_max_drawdown", metrics),
+    headlineFigure("Marked net P&L", "marked_net_pnl", metrics, "Marked to latest close"),
+    headlineFigure("Marked max drawdown", "marked_max_drawdown", metrics, "Marked to latest close"),
   ];
 }
 
@@ -84,7 +78,7 @@ function metricGroup(title: string, metrics: Record<string, Metric>, names: stri
     basis,
     rows: names.map((name) => {
       const ownBasis = metrics[name]?.basis ?? null;
-      return { name, label: labelFromKey(name), value: metricValue(name, metrics[name]), ownBasis: ownBasis === basis ? null : ownBasis };
+      return { name, label: labelFromKey(name), value: describeObservation(name, metrics[name]), ownBasis: ownBasis === basis ? null : ownBasis };
     }),
   };
 }
