@@ -6,6 +6,7 @@ import {
   formatR,
   formatRatio,
   formatTimestamp,
+  formatWholeDollars,
   toneForSign,
 } from "@/lib/format";
 
@@ -23,6 +24,14 @@ describe("formatPrice", () => {
   it("groups thousands", () => expect(formatPrice(99778.11)).toBe("$99,778.11"));
   it("renders null as a dash", () => expect(formatPrice(null)).toBe("—"));
   it("does not crash on a negative input", () => expect(formatPrice(-31.25)).toBe("$31.25"));
+});
+
+describe("formatWholeDollars", () => {
+  it("rounds to whole dollars with grouping", () => expect(formatWholeDollars(100350.4)).toBe("$100,350"));
+  it("keeps the dollar sign below 100k", () => expect(formatWholeDollars(99900)).toBe("$99,900"));
+  it("renders zero unsigned", () => expect(formatWholeDollars(0)).toBe("$0"));
+  it("renders a negative input unsigned", () => expect(formatWholeDollars(-31.6)).toBe("$32"));
+  it("renders null as a dash", () => expect(formatWholeDollars(null)).toBe("—"));
 });
 
 describe("toneForSign", () => {
