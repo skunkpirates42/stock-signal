@@ -42,7 +42,7 @@ export default async function OverviewPage({
         <ProvenanceBand source={bandSource} nClosed={metrics.n_closed} nLiveClosed={nLiveClosed} />
       </HeroStat>
 
-      <p className="micro">{metrics.metric_basis}</p>
+      <p className="note">{metrics.metric_basis}</p>
       <div className="grid-8-4">
         <EquityCurve points={metrics.equity} />
         <WinLossCard

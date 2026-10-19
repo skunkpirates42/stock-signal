@@ -23,7 +23,7 @@ export default async function ResearchPage({ searchParams }: { searchParams: Pro
       {data.results.length > 0 && <ResearchComparisonTable table={table} />}
       {data.results.length === 0 && <p className="scope-note">No saved results are indexed for this local operator.</p>}
       {nextCursor && <nav className="research-pagination" aria-label="Research catalog pages">
-        <p className="micro">This table compares the results on this page only. More saved results are on the next page.</p>
+        <p className="note">This table compares the results on this page only. More saved results are on the next page.</p>
         <Link className="button" href={`/research?cursor=${encodeURIComponent(nextCursor)}`}>Next saved results</Link>
       </nav>}
     </main>

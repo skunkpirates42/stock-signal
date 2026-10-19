@@ -16,7 +16,7 @@ export default function WinLossCard({ nWins, nLosses, nBreakeven = 0, winRate, a
       <h2 className="micro">Win / loss</h2>
       <p className="card-figure num">{formatPercent(winRate)}</p>
       <RatioBar left={nWins} right={nLosses} leftLabel="wins" rightLabel="losses" />
-      {nBreakeven > 0 && <p className="micro">{nBreakeven} breakeven trades included in win-rate denominator; excluded from win/loss bar.</p>}
+      {nBreakeven > 0 && <p className="note">{nBreakeven} breakeven trades included in win-rate denominator; excluded from win/loss bar.</p>}
       <dl className="pair-grid">
         <div>
           <dt className="micro">Avg win</dt>

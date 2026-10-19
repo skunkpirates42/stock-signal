@@ -85,6 +85,12 @@ a:hover {
   color: var(--faint);
 }
 
+.note {
+  font-size: var(--text-small);
+  line-height: 1.5;
+  color: var(--faint);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
