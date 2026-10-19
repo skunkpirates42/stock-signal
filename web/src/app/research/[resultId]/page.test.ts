@@ -65,7 +65,8 @@ describe("saved result page", () => {
     expect(text).toContain("saved-run-uuid");
     expect(text).toContain("Marks exclude hypothetical exit costs.");
     expect(text).toContain("metrics");
-    expect(text).toContain("borrow cost");
+    expect(text).toContain("Not tracked in this result:");
+    expect(text).toContain("Reproducibility");
     expect(text).toContain("inclusive");
     expect(text).toContain("Accounting audit");
     expect(text).toContain("quality gate");
@@ -80,10 +81,15 @@ describe("saved result page", () => {
   it("keeps incomplete values unavailable instead of treating them as zero", async () => {
     const page = await Page({ params: Promise.resolve({ resultId: "result-uuid" }) });
     const text = textOf(page);
-    expect(text).toContain("Unavailable: Separate fees were not saved.");
+    expect(text).toContain("fees : Unavailable.  Separate fees were not saved.");
     expect(text).toContain("Unresolved accounting:");
     expect(text).toContain("Borrow is not modeled.");
     expect(text).not.toContain("+$0.00");
+  });
+
+  it("keeps internal read-model names out of the copy", async () => {
+    const page = await Page({ params: Promise.resolve({ resultId: "result-uuid" }) });
+    expect(textOf(page)).not.toMatch(/\b(A3|R1|R2|R3|T05)\b/);
   });
 
   it("shows an honest unavailable state when aggregate diagnostics cannot be read", async () => {
@@ -91,7 +97,7 @@ describe("saved result page", () => {
     const page = await Page({ params: Promise.resolve({ resultId: "result-uuid" }) });
     const text = textOf(page);
     expect(text).toContain("No indexed diagnostics artifact is available");
-    expect(text).toContain("Latest bar, stale fraction, missing sessions, and calendar alignment require the R2 read model");
+    expect(text).toContain("Latest bar, stale fraction, missing sessions and calendar alignment aren't saved");
     expect(text).not.toContain("Promote result");
     expect(text).not.toContain("Execute trade");
   });

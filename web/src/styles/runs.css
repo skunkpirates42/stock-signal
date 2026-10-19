@@ -8,3 +8,15 @@
 .run-form .button:disabled, .run-actions .button:disabled { opacity: 0.5; cursor: not-allowed; }
 .run-actions { margin-top: calc(var(--space) * 2); }
 @media (max-width: 700px) { .run-fields { grid-template-columns: 1fr; } }
+
+/* Saved result */
+
+.metric-group { margin-top: calc(var(--space) * 2); }
+.metric-group h3 { font-size: .95rem; }
+.metric-group .metric-grid { margin-top: var(--space); }
+.untracked-costs { margin-top: calc(var(--space) * 2); padding: var(--space); border-left: 2px solid var(--caution); color: var(--muted); font-size: .85rem; }
+.untracked-costs summary { cursor: pointer; }
+.reproducibility summary { cursor: pointer; }
+.reproducibility summary h2 { display: inline; margin: 0 calc(var(--space) * 1.5) 0 0; }
+.reproducibility h3 { margin-top: calc(var(--space) * 2); font-size: .95rem; }
+.artifact-groups h4 { font-size: .9rem; }
