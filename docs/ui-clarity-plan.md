@@ -169,12 +169,12 @@ unknown-stays-unknown, sign and tone, and spacing right without reading this doc
 
 | ID | Task | Type | Size | Depends on |
 |---|---|---|---|---|
-| D1 | Add a type scale and semantic tokens | enhancement | S | none |
-| D2 | One tone vocabulary | enhancement | S | none |
-| D3 | `AvailableValue`: one way to render an observation | enhancement | M | D2 |
-| D4 | `Card`, `Disclosure` and `DataTable` primitives | enhancement | M | D1 |
-| D5 | A `/system` page showing every primitive and its states | enhancement | S | D3, D4 |
-| D6 | Guardrails that fail on drift | enhancement | S | D1, D3 |
+| D1 (#66) | Add a type scale and semantic tokens | enhancement | S | none |
+| D2 (#67) | One tone vocabulary | enhancement | S | none |
+| D3 (#68) | `AvailableValue`: one way to render an observation | enhancement | M | D2 |
+| D4 (#69) | `Card`, `Disclosure` and `DataTable` primitives | enhancement | M | D1 |
+| D5 (#70) | A `/system` page showing every primitive and its states | enhancement | S | D3, D4 |
+| D6 (#71) | Guardrails that fail on drift | enhancement | S | D1, D3 |
 
 D1 and D2 can run in parallel. D3 and D4 touch different files and can too.
 
