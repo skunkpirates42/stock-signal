@@ -1,6 +1,7 @@
 import type { Direction } from "@/lib/types";
 import type { SignalCriteria } from "@/lib/filters";
 import Segmented from "@/components/Segmented";
+import { formatRatio } from "@/lib/format";
 
 export interface FilterBarProps {
   criteria: SignalCriteria;
@@ -54,7 +55,7 @@ export default function FilterBar({ criteria, tickers, onChange }: FilterBarProp
       </label>
 
       <label className="filter-field">
-        <span className="micro">Min confidence: {(criteria.minConfidence ?? 0).toFixed(2)}</span>
+        <span className="micro">Min confidence: {formatRatio(criteria.minConfidence ?? 0)}</span>
         <input
           type="range"
           min={0}

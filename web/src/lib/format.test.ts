@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatCurrency,
+  formatMultiplier,
   formatPercent,
   formatPrice,
   formatR,
@@ -46,6 +47,11 @@ describe("formatRatio", () => {
   it("does not add a sign prefix beyond the number's own", () =>
     expect(formatRatio(-0.4)).toBe("-0.40"));
   it("renders null as a dash", () => expect(formatRatio(null)).toBe("—"));
+});
+
+describe("formatMultiplier", () => {
+  it("renders one decimal place", () => expect(formatMultiplier(1.5)).toBe("1.5"));
+  it("pads a whole multiplier", () => expect(formatMultiplier(2)).toBe("2.0"));
 });
 
 describe("formatPercent", () => {

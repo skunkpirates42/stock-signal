@@ -40,6 +40,10 @@ export function formatRatio(value: number | null | undefined): string {
   return value.toFixed(2);
 }
 
+export function formatMultiplier(value: number): string {
+  return value.toFixed(1);
+}
+
 export function formatPercent(fraction: number | null | undefined): string {
   if (fraction === null || fraction === undefined) return DASH;
   return `${(fraction * 100).toFixed(1)}%`;
