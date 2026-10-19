@@ -239,10 +239,12 @@
 
 .meter-threshold {
   position: absolute;
-  top: -2px;
-  bottom: -2px;
-  width: 1px;
-  background: var(--line-strong);
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-1px);
+  background: var(--ink);
+  box-shadow: 0 0 0 1px var(--ground);
 }
 
 .meter-value {
