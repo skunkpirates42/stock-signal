@@ -1,0 +1,50 @@
+/* /system reference page */
+
+.system > .card,
+.system > .stat-grid,
+.system-grid {
+  margin-bottom: calc(var(--space) * 2);
+}
+
+.system-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: calc(var(--space) * 2);
+}
+
+.system-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space);
+}
+
+.system-swatch {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.system-swatch-chip {
+  height: calc(var(--space) * 6);
+}
+
+.system-swatch figcaption {
+  padding: var(--space);
+  font-size: var(--text-small);
+  color: var(--muted);
+}
+
+.system-type-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space) calc(var(--space) * 2);
+  padding: var(--space) 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.system-type-row .note {
+  flex: 0 0 120px;
+}
