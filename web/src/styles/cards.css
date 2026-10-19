@@ -109,6 +109,10 @@
   margin: var(--space) 0;
 }
 
+.ratio-track-empty {
+  background: var(--line-strong);
+}
+
 .ratio-fill-left {
   height: 100%;
   background: var(--win);

@@ -1,5 +1,5 @@
 import { getMetrics } from "@/lib/api";
-import { formatCurrency, formatPercent, formatPrice, formatRatio } from "@/lib/format";
+import { formatCurrency, formatPercent, formatPrice, formatRatio, toneForSign } from "@/lib/format";
 import { averageOrNull } from "@/lib/metrics";
 import ProvenanceBand from "@/components/ProvenanceBand";
 import HeroStat from "@/components/HeroStat";
@@ -24,17 +24,19 @@ export default async function OverviewPage({
     bandSource === "live" ? Promise.resolve(null) : getMetrics("live"),
   ]);
   const nLiveClosed = liveMetrics === null ? metrics.n_closed : liveMetrics.n_closed;
+  const winRate = averageOrNull(metrics.n_closed, metrics.win_rate);
+  const expectancy = averageOrNull(metrics.n_closed, metrics.expectancy);
 
   return (
     <main>
       <HeroStat
         label="Closed-trade net P&L"
         value={formatCurrency(metrics.total_pnl)}
-        tone={metrics.total_pnl >= 0 ? "positive" : "negative"}
+        tone={toneForSign(metrics.total_pnl)}
         qualifier={
           <>
             <span className="num">{metrics.n_closed}</span> closed ·{" "}
-            <span className="num">{formatPercent(metrics.win_rate)}</span> win ·{" "}
+            <span className="num">{formatPercent(winRate)}</span> win ·{" "}
             <span className="num">{metrics.n_open}</span> open
           </>
         }
@@ -49,7 +51,7 @@ export default async function OverviewPage({
           nWins={metrics.n_wins}
           nLosses={metrics.n_losses}
           nBreakeven={metrics.n_breakeven}
-          winRate={averageOrNull(metrics.n_closed, metrics.win_rate)}
+          winRate={winRate}
           avgWin={averageOrNull(metrics.n_wins, metrics.avg_win)}
           avgLoss={averageOrNull(metrics.n_losses, metrics.avg_loss)}
         />
@@ -58,24 +60,24 @@ export default async function OverviewPage({
       <div className="stat-grid">
         <StatTile
           label="Expectancy"
-          value={formatCurrency(metrics.expectancy)}
-          tone={metrics.expectancy >= 0 ? "positive" : "negative"}
+          value={formatCurrency(expectancy)}
+          tone={toneForSign(expectancy)}
         />
         <StatTile
           label="Profit factor"
           value={metrics.profit_factor === null ? "—" : formatRatio(metrics.profit_factor)}
-          tone={metrics.profit_factor !== null && metrics.profit_factor >= 1 ? "positive" : "negative"}
+          tone={metrics.profit_factor === null ? "muted" : metrics.profit_factor >= 1 ? "positive" : "negative"}
         />
         <StatTile
           label="Max drawdown"
           value={`${formatPrice(metrics.max_drawdown)} (${formatPercent(metrics.max_drawdown_pct)})`}
-          tone="negative"
+          tone={toneForSign(-metrics.max_drawdown)}
         />
-        <StatTile label="Avg bars held" value={formatRatio(metrics.avg_bars_held)} />
+        <StatTile label="Avg bars held" value={formatRatio(averageOrNull(metrics.n_closed, metrics.avg_bars_held))} />
       </div>
 
       <div className="grid-6-6">
-        <CostAdjustedExpectancy recordedExpectancy={metrics.expectancy} />
+        <CostAdjustedExpectancy recordedExpectancy={expectancy} />
         <RMultipleCard
           avgR={averageOrNull(metrics.n_closed, metrics.avg_r_multiple)}
           avgWinR={averageOrNull(metrics.n_wins, metrics.avg_win_r)}

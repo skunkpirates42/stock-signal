@@ -12,7 +12,7 @@ export default function RatioBar({ left, right, leftLabel, rightLabel }: RatioBa
   return (
     <div className="ratio">
       <div
-        className="ratio-track"
+        className={total === 0 ? "ratio-track ratio-track-empty" : "ratio-track"}
         role="img"
         aria-label={`${left} ${leftLabel}, ${right} ${rightLabel}`}
       >

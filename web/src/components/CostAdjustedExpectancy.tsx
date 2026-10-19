@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { DEFAULT_COST_PER_TRADE, breakEvenCost, netExpectancy } from "@/lib/costs";
-import { formatCurrency, formatPrice } from "@/lib/format";
+import { formatCurrency, formatPrice, toneForSign } from "@/lib/format";
 
 export interface CostAdjustedExpectancyProps {
-  recordedExpectancy: number;
+  recordedExpectancy: number | null;
 }
 
 export default function CostAdjustedExpectancy({ recordedExpectancy }: CostAdjustedExpectancyProps) {
@@ -19,13 +19,13 @@ export default function CostAdjustedExpectancy({ recordedExpectancy }: CostAdjus
       <div className="cost-adjusted-row">
         <div className="cost-adjusted-stat">
           <div className="stat-tile-label">Recorded net</div>
-          <div className={`stat-tile-value ${recordedExpectancy >= 0 ? "tone-positive" : "tone-negative"}`}>
+          <div className={`stat-tile-value tone-${toneForSign(recordedExpectancy)}`}>
             {formatCurrency(recordedExpectancy)}
           </div>
         </div>
         <div className="cost-adjusted-stat">
           <div className="stat-tile-label">After extra cost</div>
-          <div className={`stat-tile-value ${net >= 0 ? "tone-positive" : "tone-negative"}`}>
+          <div className={`stat-tile-value tone-${toneForSign(net)}`}>
             {formatCurrency(net)}
           </div>
         </div>
@@ -47,7 +47,9 @@ export default function CostAdjustedExpectancy({ recordedExpectancy }: CostAdjus
         </label>
       </div>
       <p className="cost-adjusted-crossing">
-        {breakEven > 0
+        {recordedExpectancy === null
+          ? "No closed trades yet, so there is no expectancy to adjust."
+          : breakEven > 0
           ? `Net expectancy reaches zero at ${formatPrice(breakEven)} of cost per trade. Above that, the edge is gone.`
           : "Recorded expectancy is already at or below zero, so no cost level makes this profitable."}
       </p>
