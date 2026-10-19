@@ -6,6 +6,7 @@ import {
   formatR,
   formatRatio,
   formatTimestamp,
+  toneForSign,
 } from "@/lib/format";
 
 describe("formatCurrency", () => {
@@ -24,6 +25,13 @@ describe("formatPrice", () => {
   it("does not crash on a negative input", () => expect(formatPrice(-31.25)).toBe("$31.25"));
 });
 
+describe("toneForSign", () => {
+  it("is positive above zero", () => expect(toneForSign(0.5)).toBe("positive"));
+  it("is negative below zero", () => expect(toneForSign(-1.2)).toBe("negative"));
+  it("is muted at zero", () => expect(toneForSign(0)).toBe("muted"));
+  it("is muted with no value", () => expect(toneForSign(null)).toBe("muted"));
+});
+
 describe("formatRatio", () => {
   it("renders a plain decimal with no sign or suffix", () => expect(formatRatio(2)).toBe("2.00"));
   it("does not add a sign prefix beyond the number's own", () =>
@@ -40,6 +48,7 @@ describe("formatPercent", () => {
 describe("formatR", () => {
   it("signs and suffixes", () => expect(formatR(-0.4)).toBe("-0.40R"));
   it("signs positives", () => expect(formatR(2)).toBe("+2.00R"));
+  it("renders null as a dash", () => expect(formatR(null)).toBe("—"));
 });
 
 describe("formatTimestamp", () => {

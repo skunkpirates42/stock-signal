@@ -1,5 +1,6 @@
 import { getMetrics } from "@/lib/api";
 import { formatCurrency, formatPercent, formatPrice, formatRatio } from "@/lib/format";
+import { averageOrNull } from "@/lib/metrics";
 import ProvenanceBand from "@/components/ProvenanceBand";
 import HeroStat from "@/components/HeroStat";
 import StatTile from "@/components/StatTile";
@@ -76,9 +77,9 @@ export default async function OverviewPage({
       <div className="grid-6-6">
         <CostAdjustedExpectancy recordedExpectancy={metrics.expectancy} />
         <RMultipleCard
-          avgR={metrics.avg_r_multiple}
-          avgWinR={metrics.avg_win_r}
-          avgLossR={metrics.avg_loss_r}
+          avgR={averageOrNull(metrics.n_closed, metrics.avg_r_multiple)}
+          avgWinR={averageOrNull(metrics.n_wins, metrics.avg_win_r)}
+          avgLossR={averageOrNull(metrics.n_losses, metrics.avg_loss_r)}
         />
       </div>
 

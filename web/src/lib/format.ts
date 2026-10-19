@@ -19,6 +19,11 @@ export function formatPrice(value: number | null | undefined): string {
   return `$${abs}`;
 }
 
+export function toneForSign(value: number | null | undefined): "positive" | "negative" | "muted" {
+  if (value === null || value === undefined || value === 0) return "muted";
+  return value > 0 ? "positive" : "negative";
+}
+
 export function formatRatio(value: number | null | undefined): string {
   if (value === null || value === undefined) return DASH;
   return value.toFixed(2);

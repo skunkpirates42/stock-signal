@@ -14,3 +14,7 @@ const UNSIGNED_AMOUNT_METRICS = new Set([
 export function formatMetricAmount(name: string, value: number): string {
   return UNSIGNED_AMOUNT_METRICS.has(name) ? formatPrice(value) : formatCurrency(value);
 }
+
+export function averageOrNull(count: number, average: number): number | null {
+  return count > 0 ? average : null;
+}
