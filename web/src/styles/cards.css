@@ -342,3 +342,7 @@
 .tone-muted {
   color: var(--muted);
 }
+
+main > .card + .card {
+  margin-top: calc(var(--space) * 2);
+}
