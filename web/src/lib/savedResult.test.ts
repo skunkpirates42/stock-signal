@@ -47,16 +47,16 @@ describe("headlineFigures", () => {
     expect(figures.slice(3).every((figure) => figure.note === "Marked to latest close")).toBe(true);
   });
 
-  it("colors P&L by sign and leaves amounts neutral", () => {
+  it("colors P&L by sign and leaves amounts muted", () => {
     const [realized, , drawdown, marked] = headlineFigures(metrics);
     expect(realized.tone).toBe("positive");
     expect(marked.tone).toBe("negative");
-    expect(drawdown).toMatchObject({ value: "$3,856.80", tone: "neutral" });
+    expect(drawdown).toMatchObject({ value: "$3,856.80", tone: "muted" });
   });
 
   it("never shows a missing headline as zero", () => {
     const [realized] = headlineFigures({});
-    expect(realized).toMatchObject({ value: "Unavailable", tone: "neutral" });
+    expect(realized).toMatchObject({ value: "Unavailable", tone: "muted" });
   });
 });
 

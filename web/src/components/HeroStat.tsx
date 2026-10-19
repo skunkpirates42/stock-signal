@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
+import type { Tone } from "@/lib/format";
 
 export interface HeroStatProps {
   label: string;
   value: string;
-  tone: "positive" | "negative";
+  tone: Exclude<Tone, "muted">;
   qualifier: ReactNode;
   children?: ReactNode;
 }
