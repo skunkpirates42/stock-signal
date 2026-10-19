@@ -141,6 +141,116 @@ read-model names in the copy.
   catch the equity curve mid-animation, so check charts in a real browser.
 - No value that was "Unavailable" before is shown as a number after.
 
+## Phase 2: design system
+
+The U-tasks fix individual screens. This phase makes the fixes stick. Right now the same
+decisions get made per page: three separate ways to render an unavailable value, two
+names for the same tone ("neutral" in `StatTile`, "muted" from `toneForSign`), 17
+different font sizes, and a `micro` label style that ends up on running text. Each
+screen drifts a little, and nothing stops the next one from drifting too.
+
+The goal is a small set of primitives that carry the repo's rules, a page that shows
+them, and checks that fail when code goes around them. The test for success: someone who
+has never touched the frontend can build a new screen from the primitives and get
+unknown-stays-unknown, sign and tone, and spacing right without reading this doc.
+
+### Principles
+
+- **Extract what repeats, nothing else.** Every primitive below has at least three call
+  sites today. No speculative components.
+- **The invariants live in the primitives.** "Unavailable is never zero" and "sign means
+  profit" are enforced by the component and its `lib/` helper, not by each page
+  remembering.
+- **No new dependencies.** No Storybook, no Tailwind, no stylelint. A `/system` route and
+  Vitest checks do the same job for an app this size.
+- **Same rules as the rest of the app.** Logic in `lib/` with tests, components props-only.
+
+### Tasks
+
+| ID | Task | Type | Size | Depends on |
+|---|---|---|---|---|
+| D1 | Add a type scale and semantic tokens | enhancement | S | none |
+| D2 | One tone vocabulary | enhancement | S | none |
+| D3 | `AvailableValue`: one way to render an observation | enhancement | M | D2 |
+| D4 | `Card`, `Disclosure` and `DataTable` primitives | enhancement | M | D1 |
+| D5 | A `/system` page showing every primitive and its states | enhancement | S | D3, D4 |
+| D6 | Guardrails that fail on drift | enhancement | S | D1, D3 |
+
+D1 and D2 can run in parallel. D3 and D4 touch different files and can too.
+
+### D1: Add a type scale and semantic tokens
+
+`styles/` uses 17 distinct `font-size` values (0.68rem to 1.75rem, several within 0.02rem
+of each other). Colors are nearly all tokenized in `tokens.css`; the exceptions are six
+background literals in `base.css`. Type and label styles are not tokenized.
+
+- Add a five or six step type scale to `tokens.css` (`--text-label`, `--text-small`,
+  `--text-body`, `--text-lead`, `--text-stat`, `--text-title`) and move every `font-size`
+  onto it.
+- Move the six color literals in `base.css` into tokens.
+- Add semantic aliases for the color roles pages actually use: `--positive` and
+  `--negative` for P&L, `--caution` for unavailable and warnings. `--win` and `--loss`
+  stay as the raw palette.
+- Split `.micro` into a label style (uppercase, mono, for short labels) and a note style
+  (sentence case, for running text). The research footnotes bug in #56 came from using
+  the label style on sentences.
+
+### D2: One tone vocabulary
+
+`toneForSign` returns `positive | negative | muted`; `StatTile` takes
+`positive | negative | neutral`. #58 maps one to the other by hand.
+
+- One exported `Tone` type in `lib/format.ts`, used by `toneForSign`, `StatTile`,
+  `RMultipleCard` and the comparison table.
+- One `tone-*` class per value in CSS.
+
+### D3: `AvailableValue`: one way to render an observation
+
+The "unknown stays unknown" rule is currently enforced three separate times:
+`metric()` in `JobDetail.tsx`, `metricValue()` in `lib/savedResult.ts`, and the
+"Unavailable" handling in `lib/research-comparison.ts`. They agree today by coincidence.
+
+- `lib/observation.ts`: `describeObservation(name, metric)` returns
+  `{ text, tone, reason }`, picking the signed or unsigned formatter through
+  `formatMetricAmount`. Tests cover available, unavailable with a reason, missing,
+  zero, negative and count units.
+- `components/AvailableValue.tsx`: renders the text, the tone class and the reason as a
+  `title`. Unavailable values always render the word "Unavailable", never a number.
+- Replace the three call sites. Also move the 12 inline `replaceAll("_", " ")` label
+  conversions to one `metricLabel` helper.
+
+### D4: `Card`, `Disclosure` and `DataTable` primitives
+
+- `Card`: 18 elements use the `card` surface, 14 of them as
+  `<section className="card"><h2>`. A `Card` with an optional title and note replaces
+  that pattern.
+- `Disclosure`: `StatusLine`, the untracked-costs line and Reproducibility each hand-roll
+  `<details>` with different markers and spacing. One component with a summary slot.
+- `DataTable`: `VoteTable`, `FillsTable`, `BreakdownTable` and the research comparison
+  table each restyle `<table>`. One base table style (header labels, numeric alignment,
+  row rules, horizontal scroll on narrow screens) with the four keeping their own columns.
+
+Migrate the existing call sites in the same PR so nothing is left on the old pattern.
+
+### D5: A `/system` page showing every primitive and its states
+
+- A `/system` route, linked from nowhere in the rail, that renders each primitive from
+  fixtures: tokens (type scale, colors), `AvailableValue` in every state, `StatTile` in
+  each tone, `Card`, `Disclosure` open and closed, and `DataTable` with an empty state.
+- Fixtures live next to the page as plain objects. No network calls.
+- This is the reference for anyone adding a screen, and the demo for the design-system
+  part of the presentation.
+
+### D6: Guardrails that fail on drift
+
+- An ESLint `no-restricted-syntax` rule in `eslint.config.mjs` that flags `.toFixed`,
+  `.toLocaleString` and `Intl.*` inside `components/` and `app/`. Formatting goes through
+  `lib/format.ts`. The current `RationalePanel` and `FilterBar` hits move to `lib/` first.
+- A Vitest check that reads `styles/*.css` and fails on a raw color outside `tokens.css`
+  or a `font-size` that isn't a scale token.
+- A Vitest check that every primitive renders its unavailable or empty state without a
+  number in it.
+
 ## Out of scope
 
 Visual redesign beyond these screens, new data, backend read models (R1–R3) and the
