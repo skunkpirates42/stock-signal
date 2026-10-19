@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AvailableValue from "@/components/AvailableValue";
+import Card from "@/components/Card";
 import JobActions from "@/components/JobActions";
 import { availabilityText, type Availability } from "@/lib/demo";
 import type { JobDetail as Detail } from "@/lib/jobs";
@@ -18,7 +19,7 @@ export default function JobDetail({ detail, warnings }: { detail: Detail; warnin
     <div className="page-head run-head"><div><p className="micro">{label}</p><h1>Historical run</h1></div><span className="micro">{labelFromKey(status.state)}</span></div>
     <p className="scope-note">This local replay is paper-only. Its outcome cannot activate collection, place an order, or promote a strategy.</p>
     {warnings.map((warning) => <p className="research-warning" key={warning}>{warning}</p>)}
-    <section className="card"><h2>Progress</h2><dl className="config-grid">
+    <Card title="Progress"><dl className="config-grid">
       <div><dt>State</dt><dd>{labelFromKey(status.state)}</dd></div>
       <div><dt>Phase</dt><dd>{recorded(status.phase, String)}</dd></div>
       <div><dt>Attempt</dt><dd>{recorded(status.attempt, String)}</dd></div>
@@ -33,8 +34,8 @@ export default function JobDetail({ detail, warnings }: { detail: Detail; warnin
       {status.state === "cancelled" && <p className="card-note">This run was cancelled before a result was published.</p>}
       {status.state === "failed" && <p role="alert" className="research-warning">{("code" in status.failure) ? `${status.failure.code}: ${status.failure.summary}` : "The run failed without a recorded summary."}</p>}
       <JobActions status={status} />
-    </section>
-    <section className="card"><h2>Exact queued configuration</h2><dl className="config-grid">
+    </Card>
+    <Card title="Exact queued configuration"><dl className="config-grid">
       <div><dt>Strategy</dt><dd>{run.strategy_id} · {availabilityText(run.strategy_version)}</dd></div>
       <div><dt>Variant</dt><dd>{run.variant}</dd></div>
       <div><dt>Dataset ID</dt><dd className="num">{run.dataset_id}</dd></div>
@@ -53,8 +54,8 @@ export default function JobDetail({ detail, warnings }: { detail: Detail; warnin
       <div><dt>Code revision</dt><dd>{availabilityText(run.code.revision)}</dd></div>
       <div><dt>Source digest</dt><dd className="num">{availabilityText(run.code.source_sha256)}</dd></div>
       <div><dt>Working diff digest</dt><dd className="num">{availabilityText(run.code.working_diff_sha256)}</dd></div>
-    </dl></section>
-    <section className="card"><h2>Result</h2>
+    </dl></Card>
+    <Card title="Result">
       {result ? <><p className="card-note">Python saved these metrics under its declared basis. Missing amounts remain unavailable.</p>
         <dl className="metric-grid">{Object.entries(result.metrics).map(([name, value]) =>
           <div key={name}><dt>{labelFromKey(name)}</dt><dd className="num"><AvailableValue {...describeObservation(name, value)} /></dd><small>{value.unit} · {value.basis}</small></div>)}</dl>
@@ -65,6 +66,6 @@ export default function JobDetail({ detail, warnings }: { detail: Detail; warnin
           <span className="note">{artifact.mime_type} · {artifact.byte_size} bytes · SHA-256 {artifact.sha256}</span>
         </li>)}</ul>
       </> : <p className="unavailable-note">{status.state === "completed" ? "Unavailable: this completed legacy job has no published result record." : "No result is published for this job."}</p>}
-    </section>
+    </Card>
   </main>;
 }

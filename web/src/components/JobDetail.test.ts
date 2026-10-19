@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { Children, isValidElement, type ReactNode } from "react";
 import AvailableValue from "./AvailableValue";
+import Card from "./Card";
+import Disclosure from "./Disclosure";
 import JobDetail from "./JobDetail";
 import type { JobDetail as Detail } from "@/lib/jobs";
 
@@ -8,10 +10,12 @@ const available = <T,>(value: T) => ({ availability: "available" as const, value
 const unavailable = (detail: string) => ({ availability: "unavailable" as const, value: null, reason: "not_recorded" as const, detail });
 const RUN_ID = "123e4567-e89b-12d3-a456-426614174000";
 
+const PRIMITIVES: unknown[] = [AvailableValue, Card, Disclosure];
+
 function content(node: unknown): string {
   if (typeof node === "string" || typeof node === "number") return String(node);
   if (!isValidElement<{ children?: unknown; href?: string }>(node)) return "";
-  if (node.type === AvailableValue) return content(AvailableValue(node.props as Parameters<typeof AvailableValue>[0]));
+  if (PRIMITIVES.includes(node.type)) return content((node.type as (props: unknown) => ReactNode)(node.props));
   return [node.props.href, ...Children.toArray(node.props.children as ReactNode)].map(content).join(" ");
 }
 
