@@ -1,3 +1,4 @@
+import Card from "@/components/Card";
 import RatioBar from "@/components/RatioBar";
 import { formatCurrency, formatPercent } from "@/lib/format";
 
@@ -12,8 +13,7 @@ export interface WinLossCardProps {
 
 export default function WinLossCard({ nWins, nLosses, nBreakeven = 0, winRate, avgWin, avgLoss }: WinLossCardProps) {
   return (
-    <section className="card">
-      <h2 className="micro">Win / loss</h2>
+    <Card title="Win / loss" titleVariant="label">
       <p className="card-figure num">{formatPercent(winRate)}</p>
       <RatioBar left={nWins} right={nLosses} leftLabel="wins" rightLabel="losses" />
       {nBreakeven > 0 && <p className="note">{nBreakeven} breakeven trades included in win-rate denominator; excluded from win/loss bar.</p>}
@@ -27,6 +27,6 @@ export default function WinLossCard({ nWins, nLosses, nBreakeven = 0, winRate, a
           <dd className="num tone-negative">{formatCurrency(avgLoss)}</dd>
         </div>
       </dl>
-    </section>
+    </Card>
   );
 }

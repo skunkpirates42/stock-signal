@@ -1,3 +1,4 @@
+import Card from "@/components/Card";
 import { formatR, toneForSign } from "@/lib/format";
 
 export interface RMultipleCardProps {
@@ -8,8 +9,7 @@ export interface RMultipleCardProps {
 
 export default function RMultipleCard({ avgR, avgWinR, avgLossR }: RMultipleCardProps) {
   return (
-    <section className="card">
-      <h2 className="micro">R-multiples</h2>
+    <Card title="R-multiples" titleVariant="label">
       <p className={`card-figure num tone-${toneForSign(avgR)}`}>{formatR(avgR)}</p>
       <dl className="pair-grid">
         <div>
@@ -24,6 +24,6 @@ export default function RMultipleCard({ avgR, avgWinR, avgLossR }: RMultipleCard
       <p className="card-note">
         Realized R against the 2:1 reward-to-risk the engine targets at entry.
       </p>
-    </section>
+    </Card>
   );
 }

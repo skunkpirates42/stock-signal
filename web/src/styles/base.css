@@ -112,3 +112,30 @@ a:hover {
     transition-duration: 0.01ms !important;
   }
 }
+
+.disclosure > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.disclosure > summary::before {
+  content: "";
+  display: inline-block;
+  flex: none;
+  width: 0.4em;
+  height: 0.4em;
+  margin-right: calc(var(--space) * 0.75);
+  vertical-align: 0.15em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s;
+}
+
+.disclosure[open] > summary::before {
+  transform: rotate(45deg);
+}

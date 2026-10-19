@@ -116,8 +116,8 @@
 .status-line summary {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: calc(var(--space) * 1.5);
-  cursor: pointer;
 }
 
 .status-line summary:hover {
