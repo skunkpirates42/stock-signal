@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { Signal, Trade } from "@/lib/types";
-import { filterSignals, type SignalCriteria } from "@/lib/filters";
+import { countHiddenWaitSignals, filterSignals, type SignalCriteria } from "@/lib/filters";
 import FilterBar from "@/components/FilterBar";
 import SignalRow from "@/components/SignalRow";
 
@@ -12,7 +12,7 @@ export interface SignalListProps {
 }
 
 export default function SignalList({ signals, outcomeBySignalId }: SignalListProps) {
-  const [criteria, setCriteria] = useState<SignalCriteria>({});
+  const [criteria, setCriteria] = useState<SignalCriteria>({ hideWait: true });
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const tickers = useMemo(
@@ -21,6 +21,10 @@ export default function SignalList({ signals, outcomeBySignalId }: SignalListPro
   );
 
   const filtered = useMemo(() => filterSignals(signals, criteria), [signals, criteria]);
+  const hiddenWaitCount = useMemo(
+    () => countHiddenWaitSignals(signals, criteria),
+    [signals, criteria],
+  );
 
   return (
     <div className="signal-list">
@@ -28,6 +32,7 @@ export default function SignalList({ signals, outcomeBySignalId }: SignalListPro
 
       <p className="signal-list-count">
         Showing {filtered.length} of {signals.length}
+        {hiddenWaitCount > 0 && ` · ${hiddenWaitCount} WAIT hidden`}
       </p>
 
       <div className="signal-rows">

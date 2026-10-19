@@ -42,6 +42,18 @@ export default function FilterBar({ criteria, tickers, onChange }: FilterBarProp
       </div>
 
       <label className="filter-field">
+        <span className="micro">WAIT signals</span>
+        <span className="filter-toggle">
+          <input
+            type="checkbox"
+            checked={!criteria.hideWait}
+            onChange={(e) => onChange({ ...criteria, hideWait: !e.target.checked })}
+          />
+          Include WAIT
+        </span>
+      </label>
+
+      <label className="filter-field">
         <span className="micro">Min confidence: {(criteria.minConfidence ?? 0).toFixed(2)}</span>
         <input
           type="range"
