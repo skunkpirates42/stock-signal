@@ -6,7 +6,7 @@ import {
   parseVolumeRatio,
   voteTally,
 } from "@/lib/indicators";
-import { formatPrice, formatRatio } from "@/lib/format";
+import { formatMultiplier, formatPrice, formatRatio } from "@/lib/format";
 import LevelScale from "@/components/LevelScale";
 import SignalReasoning from "@/components/SignalReasoning";
 import VoteTable from "@/components/VoteTable";
@@ -40,7 +40,7 @@ export default function RationalePanel({ signal }: RationalePanelProps) {
           {volumeRatio !== null && (
             <p className="rationale-volume-note">
               Confidence also factors in a volume modifier (volume ratio{" "}
-              {volumeRatio.toFixed(2)}×) beyond these six directional votes.
+              {formatRatio(volumeRatio)}×) beyond these six directional votes.
             </p>
           )}
         </div>
@@ -84,14 +84,14 @@ export default function RationalePanel({ signal }: RationalePanelProps) {
           )}
           {arithmetic && signal.entry !== null && (
             <p className="rationale-atr-note">
-              Stop = entry {arithmetic.stopOperator} (ATR × {arithmetic.stopMultiplier.toFixed(1)})
+              Stop = entry {arithmetic.stopOperator} (ATR × {formatMultiplier(arithmetic.stopMultiplier)})
               {" "}= {formatPrice(signal.entry)} {arithmetic.stopOperator} (
-              {formatPrice(arithmetic.atr)} × {arithmetic.stopMultiplier.toFixed(1)})
+              {formatPrice(arithmetic.atr)} × {formatMultiplier(arithmetic.stopMultiplier)})
               <br />
               Target = entry {arithmetic.targetOperator} (ATR ×{" "}
-              {arithmetic.targetMultiplier.toFixed(1)}) = {formatPrice(signal.entry)}{" "}
+              {formatMultiplier(arithmetic.targetMultiplier)}) = {formatPrice(signal.entry)}{" "}
               {arithmetic.targetOperator} ({formatPrice(arithmetic.atr)} ×{" "}
-              {arithmetic.targetMultiplier.toFixed(1)})
+              {formatMultiplier(arithmetic.targetMultiplier)})
             </p>
           )}
         </div>
