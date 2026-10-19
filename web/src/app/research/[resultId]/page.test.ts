@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { Children, isValidElement, type ReactNode } from "react";
 import AvailableValue from "@/components/AvailableValue";
+import Disclosure from "@/components/Disclosure";
 
 const available = (value: string) => ({ availability: "available" as const, value, reason: null, detail: null });
 const unavailable = (detail: string) => ({ availability: "unavailable" as const, value: null, reason: "not_recorded" as const, detail });
@@ -50,10 +51,12 @@ vi.mock("@/lib/demo", async (importOriginal) => {
 import Page from "./page";
 import { getSavedDiagnostics, getSavedResult } from "@/lib/demo";
 
+const PRIMITIVES: unknown[] = [AvailableValue, Disclosure];
+
 function textOf(node: unknown): string {
   if (typeof node === "string" || typeof node === "number") return String(node);
   if (!isValidElement<{ children?: unknown }>(node)) return "";
-  if (node.type === AvailableValue) return textOf(AvailableValue(node.props as Parameters<typeof AvailableValue>[0]));
+  if (PRIMITIVES.includes(node.type)) return textOf((node.type as (props: unknown) => ReactNode)(node.props));
   return Children.toArray(node.props.children as ReactNode).map(textOf).join(" ");
 }
 

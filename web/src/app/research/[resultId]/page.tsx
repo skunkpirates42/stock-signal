@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AvailableValue from "@/components/AvailableValue";
+import Disclosure from "@/components/Disclosure";
 import StatTile from "@/components/StatTile";
 import { artifactHref, availabilityText, getSavedDiagnostics, getSavedResult, type Artifact, type Availability } from "@/lib/demo";
 import { formatTimestamp, labelFromKey } from "@/lib/format";
@@ -55,10 +56,9 @@ export default async function SavedResultPage({ params }: { params: Promise<{ re
         <h3>{group.title}</h3>{group.basis && <p className="card-note">{group.basis}</p>}
         <dl className="metric-grid">{group.rows.map((row) => <div key={row.name}><dt>{row.label}</dt><dd className="num"><AvailableValue {...row.value} /></dd>{row.ownBasis && <small>{row.ownBasis}</small>}</div>)}</dl>
       </div>)}
-      {untrackedCosts.length > 0 && <details className="untracked-costs">
-        <summary>Not tracked in this result: {untrackedCosts.map((item) => item.label).join(", ")}. Shown as unavailable, never as zero.</summary>
+      {untrackedCosts.length > 0 && <Disclosure className="untracked-costs" summary={<>Not tracked in this result: {untrackedCosts.map((item) => item.label).join(", ")}. Shown as unavailable, never as zero.</>}>
         <ul className="research-listing">{untrackedCosts.map((item) => <li key={item.label}><strong>{item.label}</strong>: Unavailable. {item.reason}</li>)}</ul>
-      </details>}
+      </Disclosure>}
     </section>
 
     <section className="card"><h2>Accounting audit</h2><dl className="config-grid"><div><dt>Coverage</dt><dd>{result.accounting.coverage}</dd></div><div><dt>Mode</dt><dd>{result.accounting.mode}</dd></div><div><dt>Policy version</dt><dd>{availabilityText(result.accounting.version)}</dd></div></dl>
@@ -81,7 +81,7 @@ export default async function SavedResultPage({ params }: { params: Promise<{ re
 
     <section className="card"><h2>Shadow comparison</h2><p className="unavailable-note"><strong>Unavailable.</strong> A read-only baseline versus candidate comparison isn&apos;t built yet. No portfolio action is available here.</p></section>
 
-    <details className="card reproducibility"><summary><h2>Reproducibility</h2><span className="micro">Configuration, hashes and source artifacts</span></summary>
+    <Disclosure className="card reproducibility" summary={<><h2>Reproducibility</h2><span className="micro">Configuration, hashes and source artifacts</span></>}>
       <p className="card-note">Result ID <span className="num">{result.id}</span>, saved run ID <span className="num">{run.id}</span>. The completed status refers to saved artifacts; it is not evidence that a job ran or that this configuration is approved.</p>
       <h3>Exact saved configuration</h3><dl className="config-grid">
         {field("Strategy version", run.strategy_version)} {field("Dataset SHA-256", run.dataset_sha256)}
@@ -102,6 +102,6 @@ export default async function SavedResultPage({ params }: { params: Promise<{ re
         <div><h4>Data-health evidence</h4>{artifactList(result.id, artifactsByKind.data)}</div>
         <div><h4>Reproducibility and results</h4>{artifactList(result.id, artifactsByKind.reproducibility)}</div>
       </div>{artifacts.length === 0 && <p className="unavailable-note">No safe, indexed artifacts are available for this saved result.</p>}
-    </details>
+    </Disclosure>
   </main>;
 }
