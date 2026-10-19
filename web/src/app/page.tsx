@@ -49,9 +49,9 @@ export default async function OverviewPage({
           nWins={metrics.n_wins}
           nLosses={metrics.n_losses}
           nBreakeven={metrics.n_breakeven}
-          winRate={metrics.win_rate}
-          avgWin={metrics.avg_win}
-          avgLoss={metrics.avg_loss}
+          winRate={averageOrNull(metrics.n_closed, metrics.win_rate)}
+          avgWin={averageOrNull(metrics.n_wins, metrics.avg_win)}
+          avgLoss={averageOrNull(metrics.n_losses, metrics.avg_loss)}
         />
       </div>
 

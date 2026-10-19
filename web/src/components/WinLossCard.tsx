@@ -1,14 +1,14 @@
 import Card from "@/components/Card";
 import RatioBar from "@/components/RatioBar";
-import { formatCurrency, formatPercent } from "@/lib/format";
+import { formatCurrency, formatPercent, toneForSign } from "@/lib/format";
 
 export interface WinLossCardProps {
   nWins: number;
   nLosses: number;
   nBreakeven?: number;
-  winRate: number;
-  avgWin: number;
-  avgLoss: number;
+  winRate: number | null;
+  avgWin: number | null;
+  avgLoss: number | null;
 }
 
 export default function WinLossCard({ nWins, nLosses, nBreakeven = 0, winRate, avgWin, avgLoss }: WinLossCardProps) {
@@ -20,11 +20,11 @@ export default function WinLossCard({ nWins, nLosses, nBreakeven = 0, winRate, a
       <dl className="pair-grid">
         <div>
           <dt className="micro">Avg win</dt>
-          <dd className="num tone-positive">{formatCurrency(avgWin)}</dd>
+          <dd className={`num tone-${toneForSign(avgWin)}`}>{formatCurrency(avgWin)}</dd>
         </div>
         <div>
           <dt className="micro">Avg loss</dt>
-          <dd className="num tone-negative">{formatCurrency(avgLoss)}</dd>
+          <dd className={`num tone-${toneForSign(avgLoss)}`}>{formatCurrency(avgLoss)}</dd>
         </div>
       </dl>
     </Card>

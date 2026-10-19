@@ -162,7 +162,7 @@
 }
 
 .research-result h2,
-.card h2 {
+.card h2:not(.micro) {
   margin-top: calc(var(--space) / 2);
   font-size: var(--text-lead);
 }
@@ -341,4 +341,8 @@
 
 .tone-muted {
   color: var(--muted);
+}
+
+main > .card + .card {
+  margin-top: calc(var(--space) * 2);
 }
