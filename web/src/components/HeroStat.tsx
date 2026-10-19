@@ -4,7 +4,7 @@ import type { Tone } from "@/lib/format";
 export interface HeroStatProps {
   label: string;
   value: string;
-  tone: Exclude<Tone, "muted">;
+  tone: Tone;
   qualifier: ReactNode;
   children?: ReactNode;
 }

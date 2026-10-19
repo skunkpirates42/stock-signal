@@ -17,6 +17,10 @@ describe("netExpectancy", () => {
   it("returns gross when the cost is zero", () => {
     expect(netExpectancy(-14.79, 0)).toBe(-14.79);
   });
+
+  it("stays unknown when there is no recorded expectancy", () => {
+    expect(netExpectancy(null, 2)).toBeNull();
+  });
 });
 
 describe("breakEvenCost", () => {
@@ -26,6 +30,10 @@ describe("breakEvenCost", () => {
 
   it("reports zero for an edge that is already negative", () => {
     expect(breakEvenCost(-14.79)).toBe(0);
+  });
+
+  it("reports zero when there is no recorded expectancy", () => {
+    expect(breakEvenCost(null)).toBe(0);
   });
 
   it("reports zero for a flat edge", () => {
