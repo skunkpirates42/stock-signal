@@ -156,12 +156,22 @@ export async function getResearchResults(cursor?: string) {
 }
 
 /**
- * A3 has a result-detail endpoint only. The /runs/[runId] UI route uses its opaque
+ * A3 has a result-detail endpoint only. The /research/[resultId] UI route uses its opaque
  * segment as that result ID and renders the saved normalized run ID separately.
  */
 export async function getSavedResult(resultId: string) {
   if (!isOpaqueDemoId(resultId)) throw new DemoNotFound("Saved demo result was not found");
   return demoGet<SavedResultDetail>(`/results/${encodeURIComponent(resultId)}`);
+}
+
+export async function savedResultExists(resultId: string): Promise<boolean> {
+  try {
+    await getSavedResult(resultId);
+    return true;
+  } catch (error) {
+    if (error instanceof Error && error.name === "DemoNotFound") return false;
+    throw error;
+  }
 }
 
 const MAX_ARTIFACT_BYTES = 1024 * 1024;

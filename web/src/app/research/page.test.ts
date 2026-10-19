@@ -25,7 +25,7 @@ describe("research page", () => {
   it("labels synthetic saved results and links by the opaque result ID", async () => {
     const page = await Page({ searchParams: Promise.resolve({}) });
     expect(textOf(page)).toContain("Synthetic correctness");
-    expect(hasHref(page, "/runs/saved-result")).toBe(true);
+    expect(hasHref(page, "/research/saved-result")).toBe(true);
     expect(textOf(page)).toContain("Catalog only.");
     expect(textOf(page)).not.toContain("Saved-source research catalog only");
     expect(textOf(page)).toContain("do not authorize replay");

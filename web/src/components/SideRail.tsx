@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { isActiveRailLink } from "@/lib/navigation";
 
 const LINKS = [
   { href: "/", label: "Overview" },
@@ -29,8 +30,8 @@ export default function SideRail() {
           <Link
             key={link.href}
             href={keepScope(link.href)}
-            className={`rail-link${pathname === link.href || (link.href === "/runs" && pathname.startsWith("/runs/")) ? " rail-link-active" : ""}`}
-            aria-current={pathname === link.href || (link.href === "/runs" && pathname.startsWith("/runs/")) ? "page" : undefined}
+            className={`rail-link${isActiveRailLink(pathname, link.href) ? " rail-link-active" : ""}`}
+            aria-current={isActiveRailLink(pathname, link.href) ? "page" : undefined}
           >
             {link.label}
           </Link>

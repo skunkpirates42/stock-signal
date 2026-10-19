@@ -34,7 +34,7 @@ export default async function ResearchPage({ searchParams }: { searchParams: Pro
               <div><dt>Realized net P&amp;L</dt><dd className="num">{pnl?.observation.availability === "available" ? formatCurrency(pnl.observation.value) : "Unavailable"}</dd></div>
               <div><dt>Accounting</dt><dd>{result.accounting.coverage}</dd></div>
             </dl>
-            <Link className="button research-link" href={`/runs/${result.id}`}>View saved result<span className="sr-only"> for {result.window.name} / {result.variant}</span></Link>
+            <Link className="button research-link" href={`/research/${result.id}`}>View saved result<span className="sr-only"> for {result.window.name} / {result.variant}</span></Link>
           </article>;
         })}
         {data.results.length === 0 && <p className="scope-note">No saved results are indexed for this local operator.</p>}

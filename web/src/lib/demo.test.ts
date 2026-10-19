@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getSavedDiagnostics, type Artifact } from "@/lib/demo";
+import { getSavedDiagnostics, savedResultExists, type Artifact } from "@/lib/demo";
 
 const RESULT_ID = "123e4567-e89b-12d3-a456-426614174000";
 const ARTIFACT_ID = "123e4567-e89b-12d3-a456-426614174001";
@@ -67,5 +67,31 @@ describe("saved diagnostics adapter", () => {
     await expect(getSavedDiagnostics(RESULT_ID, [{ ...artifact, result_id: "123e4567-e89b-12d3-a456-426614174099" }]))
       .resolves.toMatchObject({ availability: "unavailable", reason: "unverified" });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("savedResultExists", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("is true when the result endpoint answers", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 200, headers: { "content-type": "application/json" } })));
+    await expect(savedResultExists(RESULT_ID)).resolves.toBe(true);
+  });
+
+  it("is false for a 404", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 404 })));
+    await expect(savedResultExists(RESULT_ID)).resolves.toBe(false);
+  });
+
+  it("is false for a non-opaque ID without fetching", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(savedResultExists("not-an-id")).resolves.toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("surfaces an upstream failure instead of reporting a missing result", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 500 })));
+    await expect(savedResultExists(RESULT_ID)).rejects.toThrow("responded 500");
   });
 });
