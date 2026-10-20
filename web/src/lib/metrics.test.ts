@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { averageOrNull, formatMetricAmount } from "@/lib/metrics";
+import { observedOrNull, formatMetricAmount } from "@/lib/metrics";
 
 describe("formatMetricAmount", () => {
   it("signs P&L", () => expect(formatMetricAmount("realized_net_pnl", 2220.33)).toBe("+$2,220.33"));
@@ -20,8 +20,8 @@ describe("formatMetricAmount", () => {
     expect(formatMetricAmount(name, value)).toBe(expected));
 });
 
-describe("averageOrNull", () => {
-  it("passes the average through when trades were observed", () => expect(averageOrNull(9, -1.227)).toBe(-1.227));
-  it("keeps a real zero average", () => expect(averageOrNull(3, 0)).toBe(0));
-  it("is null with no observations, so zero is not shown as data", () => expect(averageOrNull(0, 0)).toBeNull());
+describe("observedOrNull", () => {
+  it("passes the average through when trades were observed", () => expect(observedOrNull(9, -1.227)).toBe(-1.227));
+  it("keeps a real zero average", () => expect(observedOrNull(3, 0)).toBe(0));
+  it("is null with no observations, so zero is not shown as data", () => expect(observedOrNull(0, 0)).toBeNull());
 });

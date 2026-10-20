@@ -1,6 +1,6 @@
 import { getMetrics } from "@/lib/api";
 import { formatCurrency, formatPercent, formatPrice, formatRatio, toneForSign } from "@/lib/format";
-import { averageOrNull } from "@/lib/metrics";
+import { observedOrNull } from "@/lib/metrics";
 import ProvenanceBand from "@/components/ProvenanceBand";
 import HeroStat from "@/components/HeroStat";
 import StatTile from "@/components/StatTile";
@@ -24,8 +24,8 @@ export default async function OverviewPage({
     bandSource === "live" ? Promise.resolve(null) : getMetrics("live"),
   ]);
   const nLiveClosed = liveMetrics === null ? metrics.n_closed : liveMetrics.n_closed;
-  const winRate = averageOrNull(metrics.n_closed, metrics.win_rate);
-  const expectancy = averageOrNull(metrics.n_closed, metrics.expectancy);
+  const winRate = observedOrNull(metrics.n_closed, metrics.win_rate);
+  const expectancy = observedOrNull(metrics.n_closed, metrics.expectancy);
 
   return (
     <main>
@@ -52,8 +52,8 @@ export default async function OverviewPage({
           nLosses={metrics.n_losses}
           nBreakeven={metrics.n_breakeven}
           winRate={winRate}
-          avgWin={averageOrNull(metrics.n_wins, metrics.avg_win)}
-          avgLoss={averageOrNull(metrics.n_losses, metrics.avg_loss)}
+          avgWin={observedOrNull(metrics.n_wins, metrics.avg_win)}
+          avgLoss={observedOrNull(metrics.n_losses, metrics.avg_loss)}
         />
       </div>
 
@@ -73,15 +73,15 @@ export default async function OverviewPage({
           value={`${formatPrice(metrics.max_drawdown)} (${formatPercent(metrics.max_drawdown_pct)})`}
           tone={toneForSign(-metrics.max_drawdown)}
         />
-        <StatTile label="Avg bars held" value={formatRatio(averageOrNull(metrics.n_closed, metrics.avg_bars_held))} />
+        <StatTile label="Avg bars held" value={formatRatio(observedOrNull(metrics.n_closed, metrics.avg_bars_held))} />
       </div>
 
       <div className="grid-6-6">
         <CostAdjustedExpectancy recordedExpectancy={expectancy} />
         <RMultipleCard
-          avgR={averageOrNull(metrics.n_closed, metrics.avg_r_multiple)}
-          avgWinR={averageOrNull(metrics.n_wins, metrics.avg_win_r)}
-          avgLossR={averageOrNull(metrics.n_losses, metrics.avg_loss_r)}
+          avgR={observedOrNull(metrics.n_closed, metrics.avg_r_multiple)}
+          avgWinR={observedOrNull(metrics.n_wins, metrics.avg_win_r)}
+          avgLossR={observedOrNull(metrics.n_losses, metrics.avg_loss_r)}
         />
       </div>
 
