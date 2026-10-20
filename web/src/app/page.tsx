@@ -26,13 +26,15 @@ export default async function OverviewPage({
   const nLiveClosed = liveMetrics === null ? metrics.n_closed : liveMetrics.n_closed;
   const winRate = observedOrNull(metrics.n_closed, metrics.win_rate);
   const expectancy = observedOrNull(metrics.n_closed, metrics.expectancy);
+  const closedTradePnl = observedOrNull(metrics.n_closed, metrics.total_pnl);
+  const maxDrawdown = observedOrNull(metrics.n_closed, metrics.max_drawdown);
 
   return (
     <main>
       <HeroStat
         label="Closed-trade net P&L"
-        value={formatCurrency(metrics.total_pnl)}
-        tone={toneForSign(metrics.total_pnl)}
+        value={formatCurrency(closedTradePnl)}
+        tone={toneForSign(closedTradePnl)}
         qualifier={
           <>
             <span className="num">{metrics.n_closed}</span> closed ·{" "}
@@ -70,8 +72,8 @@ export default async function OverviewPage({
         />
         <StatTile
           label="Max drawdown"
-          value={`${formatPrice(metrics.max_drawdown)} (${formatPercent(metrics.max_drawdown_pct)})`}
-          tone={toneForSign(-metrics.max_drawdown)}
+          value={maxDrawdown === null ? "—" : `${formatPrice(maxDrawdown)} (${formatPercent(metrics.max_drawdown_pct)})`}
+          tone={maxDrawdown === null ? "muted" : toneForSign(-maxDrawdown)}
         />
         <StatTile label="Avg bars held" value={formatRatio(observedOrNull(metrics.n_closed, metrics.avg_bars_held))} />
       </div>
