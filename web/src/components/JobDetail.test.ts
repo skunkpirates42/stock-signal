@@ -55,6 +55,7 @@ describe("historical job detail", () => {
 
   it("shows the saved Python metric basis and published artifact link", () => {
     const text = content(JobDetail({ detail: detail("completed"), warnings: [] }));
+    expect(text).toContain("Last phase");
     expect(text).toContain("Saved Python result");
     expect(text).toContain("+$3.00/session");
     expect(text).toContain("dirty-digest");

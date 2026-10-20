@@ -37,6 +37,12 @@ export interface JobDetail {
   artifacts: Artifact[];
 }
 
+const ENDED_STATES: ReadonlySet<JobStatus["state"]> = new Set(["completed", "failed", "cancelled"]);
+
+export function phaseLabel(state: JobStatus["state"]): string {
+  return ENDED_STATES.has(state) ? "Last phase" : "Phase";
+}
+
 export function getReplayCatalog() {
   return demoGet<ReplayCatalog>("/replay-catalog");
 }
