@@ -19,6 +19,6 @@ export function formatMetricAmount(name: string, value: number): string {
   return isUnsignedAmount(name) ? formatPrice(value) : formatCurrency(value);
 }
 
-export function averageOrNull(count: number, average: number): number | null {
-  return count > 0 ? average : null;
+export function observedOrNull(count: number, value: number): number | null {
+  return count > 0 ? value : null;
 }

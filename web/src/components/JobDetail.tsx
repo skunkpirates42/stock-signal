@@ -3,7 +3,7 @@ import AvailableValue from "@/components/AvailableValue";
 import Card from "@/components/Card";
 import JobActions from "@/components/JobActions";
 import { availabilityText, type Availability } from "@/lib/demo";
-import type { JobDetail as Detail } from "@/lib/jobs";
+import { phaseLabel, type JobDetail as Detail } from "@/lib/jobs";
 import { formatTimestamp, labelFromKey } from "@/lib/format";
 import { describeObservation } from "@/lib/observation";
 
@@ -21,7 +21,7 @@ export default function JobDetail({ detail, warnings }: { detail: Detail; warnin
     {warnings.map((warning) => <p className="research-warning" key={warning}>{warning}</p>)}
     <Card title="Progress"><dl className="config-grid">
       <div><dt>State</dt><dd>{labelFromKey(status.state)}</dd></div>
-      <div><dt>Phase</dt><dd>{recorded(status.phase, String)}</dd></div>
+      <div><dt>{phaseLabel(status.state)}</dt><dd>{recorded(status.phase, String)}</dd></div>
       <div><dt>Attempt</dt><dd>{recorded(status.attempt, String)}</dd></div>
       <div><dt>Created</dt><dd>{recorded(status.created_at, formatTimestamp)}</dd></div>
       <div><dt>Started</dt><dd>{recorded(status.started_at, formatTimestamp)}</dd></div>
