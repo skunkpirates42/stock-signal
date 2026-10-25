@@ -1,6 +1,7 @@
 "use client";
 
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import Card from "@/components/Card";
 import type { EquityPoint } from "@/lib/types";
 import { formatDate, formatPrice, formatWholeDollars } from "@/lib/format";
 import { summarizeEquityCurve } from "@/lib/equity";
@@ -12,14 +13,14 @@ export interface EquityCurveProps {
 export default function EquityCurve({ points }: EquityCurveProps) {
   if (points.length < 2) {
     return (
-      <div className="equity-curve">
+      <Card title="Equity" titleVariant="label" className="equity-curve">
         <p className="equity-curve-empty">Not enough closed trades to plot</p>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="equity-curve">
+    <Card title="Equity" titleVariant="label" className="equity-curve">
       <p className="sr-only">{summarizeEquityCurve(points)}</p>
       <ResponsiveContainer width="100%" height={260}>
         <AreaChart data={points} margin={{ top: 5, right: 20, bottom: 5, left: 5 }}>
@@ -46,6 +47,6 @@ export default function EquityCurve({ points }: EquityCurveProps) {
           <Area type="monotone" dataKey="equity" stroke="var(--accent)" strokeWidth={2} fill="url(#equity-fill)" />
         </AreaChart>
       </ResponsiveContainer>
-    </div>
+    </Card>
   );
 }
