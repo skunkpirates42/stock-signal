@@ -11,6 +11,7 @@ import BreakdownTable from "@/components/BreakdownTable";
 import EquityCurve from "@/components/EquityCurve";
 import DateRangeFilter from "@/components/DateRangeFilter";
 import { closedDateRange } from "@/lib/dateRange";
+import Page from "@/components/Page";
 
 export default async function OverviewPage({
   searchParams,
@@ -33,7 +34,7 @@ export default async function OverviewPage({
   const maxDrawdown = observedOrNull(metrics.n_closed, metrics.max_drawdown);
 
   return (
-    <main>
+    <Page>
       <HeroStat
         label="Closed-trade net P&L"
         value={formatCurrency(closedTradePnl)}
@@ -95,6 +96,6 @@ export default async function OverviewPage({
         <BreakdownTable title="By regime" rows={metrics.by_regime} />
         <BreakdownTable title="By ticker" rows={metrics.by_ticker} />
       </div>
-    </main>
+    </Page>
   );
 }

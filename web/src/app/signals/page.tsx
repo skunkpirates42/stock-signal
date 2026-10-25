@@ -3,6 +3,7 @@ import type { Trade } from "@/lib/types";
 import SignalList from "@/components/SignalList";
 import ScopeNote from "@/components/ScopeNote";
 import PageHeader from "@/components/PageHeader";
+import Page from "@/components/Page";
 
 export default async function SignalsPage({
   searchParams,
@@ -27,7 +28,7 @@ export default async function SignalsPage({
   }
 
   return (
-    <main>
+    <Page>
       <PageHeader title="Signals" aside={<span className="micro">{signals.length} signals</span>} />
       <ScopeNote>
         {scope === "live"
@@ -35,6 +36,6 @@ export default async function SignalsPage({
           : `Showing ${signals.length} signals, live and backtest replay combined. Replay signals come from a different period.`}
       </ScopeNote>
       <SignalList signals={signals} outcomeBySignalId={outcomeBySignalId} />
-    </main>
+    </Page>
   );
 }

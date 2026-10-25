@@ -6,6 +6,7 @@ import { buildComparisonTable } from "@/lib/research-comparison";
 import { notFound } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 import ScopeNote from "@/components/ScopeNote";
+import Page from "@/components/Page";
 
 export default async function ResearchPage({ searchParams }: { searchParams: Promise<{ cursor?: string }> }) {
   const { cursor } = await searchParams;
@@ -15,7 +16,7 @@ export default async function ResearchPage({ searchParams }: { searchParams: Pro
   const nextCursor = data.next_cursor && isOpaqueDemoId(data.next_cursor) ? data.next_cursor : null;
 
   return (
-    <main>
+    <Page>
       <PageHeader eyebrow="Saved-source catalog" title="Research" aside={<span className="micro">{data.results.length} results on this page</span>} />
       <ScopeNote>Saved research results, read-only. Nothing here runs a replay or a trade, and none of it shows a strategy is profitable.</ScopeNote>
       {warningsBeyondScopeNote(warnings).map((warning) => <p className="research-warning" key={warning}>{warning}</p>)}
@@ -25,6 +26,6 @@ export default async function ResearchPage({ searchParams }: { searchParams: Pro
         <p className="note">This table compares the results on this page only. More saved results are on the next page.</p>
         <Link className="button" href={`/research?cursor=${encodeURIComponent(nextCursor)}`}>Next saved results</Link>
       </nav>}
-    </main>
+    </Page>
   );
 }
