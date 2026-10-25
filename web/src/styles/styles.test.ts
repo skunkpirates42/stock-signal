@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const STYLES_DIR = fileURLToPath(new URL(".", import.meta.url));
 const COLOR_LITERAL = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(/;
+const NAMED_COLOR = /\b(?:white|black|red|green|blue|yellow|orange|purple|pink|gray|grey|silver|navy|teal|aqua|cyan|magenta|lime|maroon|olive)\b/i;
 const SCALE_TOKEN = /^var\(--text-[a-z]+\)$/;
 const SPACING_PROPERTY = /^(?:padding|margin|gap|row-gap|column-gap)(?:-[a-z-]+)?$/;
 const SPACE_TERM = /calc\([^()]*var\(--space\)[^()]*\)|var\(--space\)/g;
@@ -29,7 +30,7 @@ describe("stylesheets", () => {
   it("finds declarations to check", () => expect(declarations().length).toBeGreaterThan(100));
 
   it("take every color from tokens.css", () => {
-    const literals = declarations().filter(({ value }) => COLOR_LITERAL.test(value));
+    const literals = declarations().filter(({ value }) => COLOR_LITERAL.test(value) || NAMED_COLOR.test(value));
     expect(literals).toEqual([]);
   });
 
