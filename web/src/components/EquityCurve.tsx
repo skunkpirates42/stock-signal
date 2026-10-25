@@ -23,7 +23,7 @@ export default function EquityCurve({ points }: EquityCurveProps) {
     <Card title="Equity" titleVariant="label" className="equity-curve">
       <p className="sr-only">{summarizeEquityCurve(points)}</p>
       <ResponsiveContainer width="100%" height={260}>
-        <AreaChart data={points} margin={{ top: 5, right: 20, bottom: 5, left: 5 }}>
+        <AreaChart data={points} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
           <defs>
             <linearGradient id="equity-fill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.28} />
@@ -32,7 +32,7 @@ export default function EquityCurve({ points }: EquityCurveProps) {
           </defs>
           <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" />
           <XAxis dataKey="label" tickFormatter={formatDate} stroke="var(--faint)" fontSize={11} />
-          <YAxis domain={["auto", "auto"]} tickFormatter={formatWholeDollars} width={72} stroke="var(--faint)" fontSize={11} />
+          <YAxis domain={["auto", "auto"]} tickFormatter={formatWholeDollars} width="auto" stroke="var(--faint)" fontSize={11} />
           <Tooltip
             labelFormatter={(label) => formatDate(String(label))}
             formatter={(value) => formatPrice(typeof value === "number" ? value : undefined)}
