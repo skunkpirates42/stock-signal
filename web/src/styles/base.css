@@ -119,7 +119,7 @@ a:hover {
   top: calc(var(--space) * 2);
 }
 
-.canvas:focus {
+main:focus {
   outline: none;
 }
 

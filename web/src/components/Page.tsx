@@ -6,5 +6,5 @@ export interface PageProps {
 }
 
 export default function Page({ className, children }: PageProps) {
-  return <main className={className}>{children}</main>;
+  return <main id="content" tabIndex={-1} className={className}>{children}</main>;
 }
