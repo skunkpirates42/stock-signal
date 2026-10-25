@@ -43,10 +43,10 @@ export default async function OverviewPage({
           </>
         }
       >
+        {metrics.metric_basis && <p className="note">P&amp;L is {metrics.metric_basis}.</p>}
         <ProvenanceBand source={bandSource} nClosed={metrics.n_closed} nLiveClosed={nLiveClosed} />
       </HeroStat>
 
-      <p className="note">{metrics.metric_basis}</p>
       <div className="grid-8-4">
         <EquityCurve points={metrics.equity} />
         <WinLossCard
