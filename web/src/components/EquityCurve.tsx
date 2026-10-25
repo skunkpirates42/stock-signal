@@ -3,6 +3,7 @@
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { EquityPoint } from "@/lib/types";
 import { formatPrice, formatTimestamp, formatWholeDollars } from "@/lib/format";
+import { summarizeEquityCurve } from "@/lib/equity";
 
 export interface EquityCurveProps {
   points: EquityPoint[];
@@ -19,6 +20,7 @@ export default function EquityCurve({ points }: EquityCurveProps) {
 
   return (
     <div className="equity-curve">
+      <p className="sr-only">{summarizeEquityCurve(points)}</p>
       <ResponsiveContainer width="100%" height={260}>
         <AreaChart data={points} margin={{ top: 5, right: 20, bottom: 5, left: 5 }}>
           <defs>
