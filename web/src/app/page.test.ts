@@ -8,8 +8,8 @@ const metrics: Metrics = {
   avg_bars_held: 0, avg_r_multiple: 0, avg_win_r: 0, avg_loss_r: 0, by_ticker: {}, by_regime: {},
   starting_capital: 100000, ending_capital: 100000, equity: [],
 };
-const getMetrics = vi.fn(async (): Promise<Metrics> => metrics);
-vi.mock("@/lib/api", () => ({ getMetrics: () => getMetrics() }));
+const getMetrics = vi.fn<(...args: unknown[]) => Promise<Metrics>>(async () => metrics);
+vi.mock("@/lib/api", () => ({ getMetrics: (...args: unknown[]) => getMetrics(...args) }));
 
 import Page from "./page";
 
@@ -30,6 +30,12 @@ describe("overview", () => {
     const page = await Page({ searchParams: Promise.resolve({}) });
     expect(valueOf(page, "Closed-trade net P&L")).toBe("—");
     expect(valueOf(page, "Max drawdown")).toBe("—");
+  });
+
+  it("asks for metrics within the closed-date range in the URL, ignoring a malformed bound", async () => {
+    await Page({ searchParams: Promise.resolve({ source: "all", from: "2026-03-01", to: "garbage" }) });
+    expect(getMetrics).toHaveBeenCalledWith(undefined, { from: "2026-03-01" });
+    expect(getMetrics).toHaveBeenCalledWith("live", { from: "2026-03-01" });
   });
 
   it("keeps real figures once trades have closed, including a real zero", async () => {

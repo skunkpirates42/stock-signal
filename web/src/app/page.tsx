@@ -9,19 +9,22 @@ import RMultipleCard from "@/components/RMultipleCard";
 import CostAdjustedExpectancy from "@/components/CostAdjustedExpectancy";
 import BreakdownTable from "@/components/BreakdownTable";
 import EquityCurve from "@/components/EquityCurve";
+import DateRangeFilter from "@/components/DateRangeFilter";
+import { closedDateRange } from "@/lib/dateRange";
 
 export default async function OverviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ source?: string }>;
+  searchParams: Promise<{ source?: string; from?: string; to?: string }>;
 }) {
-  const { source } = await searchParams;
+  const { source, from, to } = await searchParams;
   const scope = source === "all" ? undefined : "live";
   const bandSource = scope === undefined ? "all" : "live";
+  const range = closedDateRange({ from, to });
 
   const [metrics, liveMetrics] = await Promise.all([
-    getMetrics(scope),
-    bandSource === "live" ? Promise.resolve(null) : getMetrics("live"),
+    getMetrics(scope, range),
+    bandSource === "live" ? Promise.resolve(null) : getMetrics("live", range),
   ]);
   const nLiveClosed = liveMetrics === null ? metrics.n_closed : liveMetrics.n_closed;
   const winRate = observedOrNull(metrics.n_closed, metrics.win_rate);
@@ -47,6 +50,7 @@ export default async function OverviewPage({
         <ProvenanceBand source={bandSource} nClosed={metrics.n_closed} nLiveClosed={nLiveClosed} />
       </HeroStat>
 
+      <DateRangeFilter range={range} scope={bandSource} />
       <div className="grid-8-4">
         <EquityCurve points={metrics.equity} />
         <WinLossCard
