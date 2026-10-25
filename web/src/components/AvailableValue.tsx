@@ -1,5 +1,7 @@
 import type { ObservedValue } from "@/lib/observation";
 
 export default function AvailableValue({ text, tone, reason }: ObservedValue) {
-  return <span className={tone === "muted" ? undefined : `tone-${tone}`} title={reason ?? undefined}>{text}</span>;
+  const value = <span className={tone === "muted" ? undefined : `tone-${tone}`}>{text}</span>;
+  if (!reason) return value;
+  return <>{value}<span className="value-reason">{reason}</span></>;
 }

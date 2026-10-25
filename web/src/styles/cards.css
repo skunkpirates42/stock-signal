@@ -207,6 +207,7 @@
 .audit-counts { margin-top: var(--space); }
 .audit-counts div { display: flex; justify-content: space-between; gap: var(--space); padding: calc(var(--space) / 2) 0; border-bottom: 1px solid var(--line); }
 .audit-counts dt { color: var(--muted); overflow-wrap: anywhere; }
+.value-reason { display: block; margin-top: calc(var(--space) / 3); font-family: var(--font-sans); font-size: var(--text-small); line-height: 1.4; color: var(--faint); }
 .unavailable-note { margin-top: var(--space); padding: var(--space); border-left: 2px solid var(--caution); color: var(--muted); font-size: var(--text-small); line-height: 1.5; }
 
 @media (max-width: 700px) {
