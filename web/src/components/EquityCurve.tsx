@@ -2,7 +2,7 @@
 
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { EquityPoint } from "@/lib/types";
-import { formatDate, formatPrice, formatTimestamp, formatWholeDollars } from "@/lib/format";
+import { formatDate, formatPrice, formatWholeDollars } from "@/lib/format";
 import { summarizeEquityCurve } from "@/lib/equity";
 
 export interface EquityCurveProps {
@@ -33,7 +33,7 @@ export default function EquityCurve({ points }: EquityCurveProps) {
           <XAxis dataKey="label" tickFormatter={formatDate} stroke="var(--faint)" fontSize={11} />
           <YAxis domain={["auto", "auto"]} tickFormatter={formatWholeDollars} width={72} stroke="var(--faint)" fontSize={11} />
           <Tooltip
-            labelFormatter={(label) => formatTimestamp(String(label))}
+            labelFormatter={(label) => formatDate(String(label))}
             formatter={(value) => formatPrice(typeof value === "number" ? value : undefined)}
             contentStyle={{
               background: "var(--ground)",
