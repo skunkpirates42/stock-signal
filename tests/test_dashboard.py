@@ -76,6 +76,36 @@ def test_metrics_endpoint_filters_by_source(tmp_path):
     assert unfiltered["total_pnl"] == 540.0
 
 
+def test_metrics_endpoint_filters_by_close_date(tmp_path):
+    db = str(tmp_path / "d.db")
+    init_db(db)
+    for ticker, exit_at, pnl in [("AAA", "2026-02-10 15:00:00+00:00", 10.0),
+                                 ("BBB", "2026-03-15 15:00:00+00:00", 20.0),
+                                 ("CCC", "2026-03-31T19:55:00+00:00", 30.0),
+                                 ("DDD", "2026-04-01 14:30:00+00:00", 40.0)]:
+        tid = log_trade_open({"signal_id": None, "ticker": ticker, "direction": "LONG", "entry": 10,
+                              "stop": 9, "target": 12, "shares": 1, "entry_bar": 1}, db_path=db)
+        close_trade(tid, {"exit_price": 12, "outcome": "WIN", "pnl": pnl, "exit_bar": 2,
+                          "bars_held": 1, "exit_at": exit_at}, db_path=db)
+    log_trade_open({"signal_id": None, "ticker": "EEE", "direction": "LONG", "entry": 10,
+                    "stop": 9, "target": 12, "shares": 1, "entry_bar": 1}, db_path=db)
+    c = create_app(db_path=db).test_client()
+
+    march = c.get("/api/metrics?from=2026-03-01&to=2026-03-31").get_json()
+    assert march["n_closed"] == 2
+    assert march["total_pnl"] == 50.0
+    # open positions are current state, not history, so a date window keeps them
+    assert march["n_open"] == 1
+    assert c.get("/api/metrics?from=2026-03-20").get_json()["total_pnl"] == 70.0
+    assert c.get("/api/metrics?to=2026-02-28").get_json()["total_pnl"] == 10.0
+
+
+def test_metrics_endpoint_rejects_malformed_dates(tmp_path):
+    c = _client(tmp_path)
+    assert c.get("/api/metrics?from=03/01/2026").status_code == 400
+    assert c.get("/api/metrics?to=2026-13-40").status_code == 400
+
+
 def test_open_trades_endpoint(tmp_path):
     data = _client(tmp_path).get("/api/open").get_json()
     assert len(data) == 1 and data[0]["ticker"] == "BBB"
