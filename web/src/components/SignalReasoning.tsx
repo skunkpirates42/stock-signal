@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { explainSignal } from "@/lib/actions";
-import { hasLlmReasoning } from "@/lib/synthesis";
+import { describeSynthesisSource, hasLlmReasoning } from "@/lib/synthesis";
 
 export interface SignalReasoningProps {
   signalId: number;
@@ -39,7 +39,7 @@ export default function SignalReasoning({
     <div className="rationale-reasoning">
       <p>{text ?? "No reasoning recorded for this signal."}</p>
       <p className="rationale-provenance">
-        Source: {source ?? "provenance not recorded"}
+        Source: {describeSynthesisSource(source)}
       </p>
       {!explained && (
         <button
