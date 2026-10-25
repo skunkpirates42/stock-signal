@@ -27,6 +27,8 @@
   --text-body: 0.9rem;
   --text-lead: 1.1rem;
   --text-stat: 1.5rem;
+  /* Shrinks with its size container so an 11-12 character figure never clips in a narrow tile. */
+  --text-tile: min(var(--text-stat), 13cqi);
   --text-title: 1.75rem;
   --text-hero: clamp(2.5rem, 6vw, 4rem);
 
