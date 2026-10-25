@@ -17,7 +17,7 @@ export default function JobDetail({ detail, warnings }: { detail: Detail; warnin
   const label = run.provenance.synthetic ? "Synthetic correctness" : run.provenance.retrospective ? "Retrospective market data" : "Historical simulation";
   return <main>
     <PageHeader back={{ href: "/runs", label: "Run history" }} eyebrow={label} title="Historical run" aside={<span className="micro">{labelFromKey(status.state)}</span>} />
-    <ScopeNote>This local replay is paper-only. Its outcome cannot activate collection, place an order, or promote a strategy.</ScopeNote>
+    <ScopeNote>Paper-only replay. Its result can’t start data collection, place an order, or promote a strategy.</ScopeNote>
     {warnings.map((warning) => <p className="research-warning" key={warning}>{warning}</p>)}
     <Card title="Progress"><dl className="config-grid">
       <div><dt>State</dt><dd>{labelFromKey(status.state)}</dd></div>

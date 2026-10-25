@@ -12,7 +12,7 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
   const { data, warnings } = await getJobs(cursor);
   return <main>
     <PageHeader eyebrow="Local demo jobs" title="Run history" aside={<Link href="/run" className="button">New run</Link>} />
-    <ScopeNote>These are local historical replay jobs. A completed job records a simulated result; it does not authorize trading or strategy promotion.</ScopeNote>
+    <ScopeNote>Replays queued on this machine. A finished run is a simulation. It can’t place trades or promote a strategy.</ScopeNote>
     {warnings.map((warning) => <p className="research-warning" key={warning}>{warning}</p>)}
     <div className="research-list">
       {data.runs.map((status) => <article className="card research-result" key={status.run_id}>
@@ -20,7 +20,7 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
         <p className="card-note">Created {status.created_at.availability === "available" ? formatTimestamp(status.created_at.value) : "at an unavailable time"}</p>
         <Link className="button research-link" href={`/runs/${status.run_id}`}>View run</Link>
       </article>)}
-      {data.runs.length === 0 && <ScopeNote>No local historical jobs have been submitted.</ScopeNote>}
+      {data.runs.length === 0 && <ScopeNote>No runs queued yet.</ScopeNote>}
     </div>
     {data.next_cursor && isOpaqueDemoId(data.next_cursor) && <nav className="research-pagination" aria-label="Run history pages"><Link className="button" href={`/runs?cursor=${encodeURIComponent(data.next_cursor)}`}>Older runs</Link></nav>}
   </main>;

@@ -8,7 +8,7 @@ export default async function RunPage() {
   const { data: catalog } = await getReplayCatalog();
   return <main>
     <PageHeader eyebrow="Local historical replay" title="New run" aside={<Link href="/runs" className="button">Run history</Link>} />
-    <ScopeNote>Paper-only historical simulation. Market windows are retrospective; the synthetic fixture checks correctness only. Submitting a run does not activate collection or trading.</ScopeNote>
+    <ScopeNote>Replays a past market window on paper. The synthetic fixture only checks correctness. Queuing a run never starts data collection or trading.</ScopeNote>
     <RunForm catalog={catalog} />
   </main>;
 }

@@ -26,8 +26,8 @@ export default async function PositionsPage({
       <PageHeader title="Positions" aside={<span className="micro">{positions.length} open</span>} />
       <ScopeNote>
         {scope === "live"
-          ? "Showing live and unknown historical open positions, with live closed trades. Unknown exposure may block trading and requires reconciliation. Backtest replay rows are excluded."
-          : `Showing all sources, including replay and unknown historical positions. ${closedTrades.length} recent closed trades.`}
+          ? "Live open positions and closed trades, plus older positions with an unknown source. Unknown positions can block trading until they’re reconciled. Backtest replay rows are hidden."
+          : `All sources, including replay and older positions with an unknown source. ${closedTrades.length} recent closed trades.`}
       </ScopeNote>
       <OpenPositions positions={positions} now={now} />
       <FillsTable trades={closedTrades} />

@@ -17,10 +17,10 @@ export default async function ResearchPage({ searchParams }: { searchParams: Pro
   return (
     <main>
       <PageHeader eyebrow="Saved-source catalog" title="Research" aside={<span className="micro">{data.results.length} results on this page</span>} />
-      <ScopeNote>These are read-only saved research descriptions. They do not authorize replay, execution, activation, or a profitability claim.</ScopeNote>
+      <ScopeNote>Saved research results, read-only. Nothing here runs a replay or a trade, and none of it shows a strategy is profitable.</ScopeNote>
       {warningsBeyondScopeNote(warnings).map((warning) => <p className="research-warning" key={warning}>{warning}</p>)}
       {data.results.length > 0 && <ResearchComparisonTable table={table} />}
-      {data.results.length === 0 && <ScopeNote>No saved results are indexed for this local operator.</ScopeNote>}
+      {data.results.length === 0 && <ScopeNote>No saved results yet.</ScopeNote>}
       {nextCursor && <nav className="research-pagination" aria-label="Research catalog pages">
         <p className="note">This table compares the results on this page only. More saved results are on the next page.</p>
         <Link className="button" href={`/research?cursor=${encodeURIComponent(nextCursor)}`}>Next saved results</Link>

@@ -24,7 +24,7 @@ function sampleTable(rows: typeof TABLE_ROWS, compact = false) {
 export default function SystemPage() {
   return <main className="system">
     <PageHeader eyebrow="Reference" title="Design system" />
-    <ScopeNote>Every shared primitive in its states, rendered from fixtures next to this page. Nothing here calls the API.</ScopeNote>
+    <ScopeNote>Every shared component in each of its states, built from fixtures. Nothing here calls the API.</ScopeNote>
 
     <Card title="Color tokens">
       <div className="system-swatches">{COLOR_TOKENS.map((token) => <figure className="system-swatch" key={token}>
