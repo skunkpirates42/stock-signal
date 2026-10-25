@@ -10,7 +10,8 @@ export default function ConfidenceMeter({ confidence }: ConfidenceMeterProps) {
 
   return (
     <span className="meter" title={`Threshold ${formatPercent(CONFIDENCE_THRESHOLD)}`}>
-      <span className="meter-track">
+      <span className="sr-only">Confidence</span>
+      <span className="meter-track" aria-hidden="true">
         <span
           className={`meter-fill${cleared ? " meter-fill-cleared" : ""}`}
           style={{ width: `${Math.min(100, Math.max(0, confidence * 100))}%` }}
@@ -18,6 +19,7 @@ export default function ConfidenceMeter({ confidence }: ConfidenceMeterProps) {
         <span className="meter-threshold" style={{ left: `${CONFIDENCE_THRESHOLD * 100}%` }} />
       </span>
       <span className="meter-value num">{formatPercent(confidence)}</span>
+      <span className="sr-only">, threshold {formatPercent(CONFIDENCE_THRESHOLD)}</span>
     </span>
   );
 }
