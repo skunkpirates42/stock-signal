@@ -34,7 +34,7 @@ import { getResearchResults, isOpaqueDemoId } from "@/lib/demo";
 
 function rendered(node: unknown): unknown {
   if (!isValidElement<{ children?: unknown }>(node)) return node;
-  if (typeof node.type === "function" && node.type.name === "ResearchComparisonTable") {
+  if (typeof node.type === "function" && ["ResearchComparisonTable", "PageHeader"].includes(node.type.name)) {
     return rendered((node.type as (props: unknown) => unknown)(node.props));
   }
   return node;

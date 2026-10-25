@@ -6,6 +6,8 @@ import StatTile from "@/components/StatTile";
 import { formatCurrency, toneForSign } from "@/lib/format";
 import { describeObservation } from "@/lib/observation";
 import { COLOR_TOKENS, OBSERVATIONS, STAT_TILES, TABLE_ROWS, TYPE_SCALE } from "./fixtures";
+import PageHeader from "@/components/PageHeader";
+import ScopeNote from "@/components/ScopeNote";
 
 function sampleTable(rows: typeof TABLE_ROWS, compact = false) {
   return <DataTable compact={compact}>
@@ -21,8 +23,8 @@ function sampleTable(rows: typeof TABLE_ROWS, compact = false) {
 
 export default function SystemPage() {
   return <main className="system">
-    <div className="page-head"><div><p className="micro">Reference</p><h1>Design system</h1></div></div>
-    <p className="scope-note">Every shared primitive in its states, rendered from fixtures next to this page. Nothing here calls the API.</p>
+    <PageHeader eyebrow="Reference" title="Design system" />
+    <ScopeNote>Every shared primitive in its states, rendered from fixtures next to this page. Nothing here calls the API.</ScopeNote>
 
     <Card title="Color tokens">
       <div className="system-swatches">{COLOR_TOKENS.map((token) => <figure className="system-swatch" key={token}>

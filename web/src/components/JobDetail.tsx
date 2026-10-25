@@ -1,4 +1,3 @@
-import Link from "next/link";
 import AvailableValue from "@/components/AvailableValue";
 import Card from "@/components/Card";
 import JobActions from "@/components/JobActions";
@@ -6,6 +5,8 @@ import { availabilityText, type Availability } from "@/lib/demo";
 import { phaseLabel, type JobDetail as Detail } from "@/lib/jobs";
 import { formatTimestamp, labelFromKey } from "@/lib/format";
 import { describeObservation } from "@/lib/observation";
+import PageHeader from "@/components/PageHeader";
+import ScopeNote from "@/components/ScopeNote";
 
 function recorded<T>(value: Availability<T>, format: (item: T) => string): string {
   return value.availability === "available" ? format(value.value) : `Unavailable: ${value.detail}`;
@@ -15,9 +16,8 @@ export default function JobDetail({ detail, warnings }: { detail: Detail; warnin
   const { run, status, result, artifacts } = detail;
   const label = run.provenance.synthetic ? "Synthetic correctness" : run.provenance.retrospective ? "Retrospective market data" : "Historical simulation";
   return <main>
-    <Link className="micro" href="/runs">← Run history</Link>
-    <div className="page-head run-head"><div><p className="micro">{label}</p><h1>Historical run</h1></div><span className="micro">{labelFromKey(status.state)}</span></div>
-    <p className="scope-note">This local replay is paper-only. Its outcome cannot activate collection, place an order, or promote a strategy.</p>
+    <PageHeader back={{ href: "/runs", label: "Run history" }} eyebrow={label} title="Historical run" aside={<span className="micro">{labelFromKey(status.state)}</span>} />
+    <ScopeNote>This local replay is paper-only. Its outcome cannot activate collection, place an order, or promote a strategy.</ScopeNote>
     {warnings.map((warning) => <p className="research-warning" key={warning}>{warning}</p>)}
     <Card title="Progress"><dl className="config-grid">
       <div><dt>State</dt><dd>{labelFromKey(status.state)}</dd></div>

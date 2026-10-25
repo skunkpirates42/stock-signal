@@ -1,4 +1,3 @@
-import Link from "next/link";
 import AvailableValue from "@/components/AvailableValue";
 import Card from "@/components/Card";
 import Disclosure from "@/components/Disclosure";
@@ -7,6 +6,8 @@ import { artifactHref, availabilityText, getSavedDiagnostics, getSavedResult, ty
 import { formatTimestamp, labelFromKey } from "@/lib/format";
 import { groupArtifactsByKind, headlineFigures, savedMetricGroups, untrackedCostComponents } from "@/lib/savedResult";
 import { notFound } from "next/navigation";
+import PageHeader from "@/components/PageHeader";
+import ScopeNote from "@/components/ScopeNote";
 
 function field(label: string, value: Availability<string>) {
   return <div><dt>{label}</dt><dd className="config-value">{availabilityText(value)}</dd></div>;
@@ -42,12 +43,13 @@ export default async function SavedResultPage({ params }: { params: Promise<{ re
   const untrackedCosts = untrackedCostComponents(result.metrics);
 
   return <main>
-    <Link className="micro" href="/research">← Saved research</Link>
-    <div className="page-head run-head">
-      <div><p className="micro">{result.provenance.synthetic ? "Synthetic correctness" : result.provenance.retrospective ? "Retrospective" : "Saved-source result"}</p><h1>{result.window.name} / {result.variant}</h1></div>
-      <span className="micro">Saved result</span>
-    </div>
-    <p className="scope-note">{result.window.role} window, {formatTimestamp(result.window.start)} inclusive to {formatTimestamp(result.window.end_exclusive)} exclusive. {result.provenance.evaluation} evaluation; accounting coverage {result.accounting.coverage}.</p>
+    <PageHeader
+      back={{ href: "/research", label: "Saved research" }}
+      eyebrow={result.provenance.synthetic ? "Synthetic correctness" : result.provenance.retrospective ? "Retrospective" : "Saved-source result"}
+      title={`${result.window.name} / ${result.variant}`}
+      aside={<span className="micro">Saved result</span>}
+    />
+    <ScopeNote>{result.window.role} window, {formatTimestamp(result.window.start)} inclusive to {formatTimestamp(result.window.end_exclusive)} exclusive. {result.provenance.evaluation} evaluation; accounting coverage {result.accounting.coverage}.</ScopeNote>
     {warnings.map((warning) => <p className="research-warning" key={warning}>{warning}</p>)}
 
     <div className="stat-grid">{headlineFigures(result.metrics).map((figure) => <StatTile key={figure.label} {...figure} />)}</div>

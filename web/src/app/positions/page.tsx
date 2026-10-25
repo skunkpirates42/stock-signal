@@ -2,6 +2,7 @@ import { getOpenPositions, getTrades } from "@/lib/api";
 import OpenPositions from "@/components/OpenPositions";
 import FillsTable from "@/components/FillsTable";
 import ScopeNote from "@/components/ScopeNote";
+import PageHeader from "@/components/PageHeader";
 
 export default async function PositionsPage({
   searchParams,
@@ -22,10 +23,7 @@ export default async function PositionsPage({
 
   return (
     <main>
-      <div className="page-head">
-        <h1>Positions</h1>
-        <span className="micro">{positions.length} open</span>
-      </div>
+      <PageHeader title="Positions" aside={<span className="micro">{positions.length} open</span>} />
       <ScopeNote>
         {scope === "live"
           ? "Showing live and unknown historical open positions, with live closed trades. Unknown exposure may block trading and requires reconciliation. Backtest replay rows are excluded."
