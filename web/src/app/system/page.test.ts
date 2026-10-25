@@ -19,8 +19,8 @@ describe("system page", () => {
 
   it("shows unavailable and missing values as Unavailable with their reasons", () => {
     const html = renderPage();
-    expect(html).toContain('title="Fees were not saved."');
-    expect(html).toContain('title="No saved metric."');
+    expect(html).toContain('<span class="value-reason">Fees were not saved.</span>');
+    expect(html).toContain('<span class="value-reason">No saved metric.</span>');
     expect(html).not.toMatch(/Unavailable[^<]*\$0\.00/);
   });
 

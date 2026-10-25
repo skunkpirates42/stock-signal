@@ -39,13 +39,11 @@ export default function SystemPage() {
       </div>)}
     </Card>
 
-    <Card title="AvailableValue" note="Hover an unavailable value for its reason. Unavailable never renders as zero.">
+    <Card title="AvailableValue" note="An unavailable value shows its reason beneath it. Unavailable never renders as zero.">
       <DataTable>
-        <thead><tr><th>State</th><th className="num">Rendered</th><th>Reason</th></tr></thead>
-        <tbody>{OBSERVATIONS.map(({ state, name, metric }) => {
-          const observed = describeObservation(name, metric);
-          return <tr key={state}><td>{state}</td><td className="num"><AvailableValue {...observed} /></td><td>{observed.reason ?? "None"}</td></tr>;
-        })}</tbody>
+        <thead><tr><th>State</th><th className="num">Rendered</th></tr></thead>
+        <tbody>{OBSERVATIONS.map(({ state, name, metric }) =>
+          <tr key={state}><td>{state}</td><td className="num"><AvailableValue {...describeObservation(name, metric)} /></td></tr>)}</tbody>
       </DataTable>
     </Card>
 

@@ -29,6 +29,12 @@ describe("primitives with nothing to show", () => {
     for (const row of rows) expect(visibleText(createElement(AvailableValue, row.value))).not.toMatch(/\d/);
   });
 
+  it("AvailableValue shows the reason as visible text, not a hover-only title", () => {
+    const element = createElement(AvailableValue, describeObservation("fees", unavailable));
+    expect(renderToStaticMarkup(element)).not.toContain("title=");
+    expect(visibleText(element)).toContain("Fees were not saved.");
+  });
+
   it("StatTile renders every headline of an empty result without a number", () => {
     for (const figure of headlineFigures({})) expect(visibleText(createElement(StatTile, figure))).not.toMatch(/\d/);
   });

@@ -104,6 +104,25 @@ a:hover {
   border: 0;
 }
 
+.skip-link {
+  position: absolute;
+  left: calc(var(--space) * 2);
+  top: calc(var(--space) * -8);
+  z-index: 10;
+  padding: var(--space) calc(var(--space) * 2);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--ground);
+}
+
+.skip-link:focus {
+  top: calc(var(--space) * 2);
+}
+
+.canvas:focus {
+  outline: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
