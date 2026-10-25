@@ -103,7 +103,7 @@
 
 .ratio-track {
   height: 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: var(--loss);
   overflow: hidden;
   margin: var(--space) 0;
@@ -197,7 +197,6 @@
 .comparison-summary { margin-top: calc(var(--space) * 1.5); }
 .config-grid { margin-top: calc(var(--space) * 1.5); }
 .config-value { font-family: var(--font-mono); font-size: var(--text-small); }
-.run-head { margin-top: calc(var(--space) * 2); }
 .research-warning { margin: 0 0 var(--space); color: var(--caution); font-size: var(--text-body); }
 .research-listing, .artifact-list { margin: calc(var(--space) * 1.5) 0 0 calc(var(--space) * 1.5); color: var(--muted); line-height: 1.6; }
 .artifact-list span { display: block; overflow-wrap: anywhere; }

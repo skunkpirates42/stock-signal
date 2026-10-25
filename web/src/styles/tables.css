@@ -74,7 +74,7 @@
   position: absolute;
   inset: 2px auto 2px 0;
   z-index: -1;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: currentColor;
   opacity: 0.14;
 }
@@ -86,11 +86,11 @@
 /* FillsTable */
 
 .fills-table {
-  margin: 1.5rem 0;
+  margin: calc(var(--space) * 3) 0;
 }
 
 .fills-table h2 {
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--space);
   font-size: var(--text-lead);
 }
 
@@ -101,15 +101,15 @@
 }
 
 .positions-stale-badge {
-  margin-left: 0.5rem;
+  margin-left: var(--space);
   color: var(--caution);
   font-size: var(--text-label);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   border: 1px solid var(--caution);
-  border-radius: 4px;
-  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-xs);
+  padding: calc(var(--space) / 4) calc(var(--space) * 0.75);
 }
 
 .positions-empty {

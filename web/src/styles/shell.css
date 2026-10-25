@@ -67,8 +67,8 @@
 
 .segmented {
   display: inline-flex;
-  gap: 2px;
-  padding: 2px;
+  gap: calc(var(--space) / 4);
+  padding: calc(var(--space) / 4);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--ground);
@@ -78,7 +78,7 @@
   flex: 1;
   padding: calc(var(--space) / 2) var(--space);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: none;
   color: var(--muted);
   font: inherit;
@@ -149,6 +149,10 @@
   justify-content: space-between;
   gap: calc(var(--space) * 2);
   margin-bottom: calc(var(--space) * 3);
+}
+
+.page-back + .page-head {
+  margin-top: calc(var(--space) * 2);
 }
 
 @media (max-width: 900px) {

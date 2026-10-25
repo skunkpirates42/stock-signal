@@ -34,7 +34,7 @@ import { getResearchResults, isOpaqueDemoId } from "@/lib/demo";
 
 function rendered(node: unknown): unknown {
   if (!isValidElement<{ children?: unknown }>(node)) return node;
-  if (typeof node.type === "function" && node.type.name === "ResearchComparisonTable") {
+  if (typeof node.type === "function" && ["ResearchComparisonTable", "PageHeader"].includes(node.type.name)) {
     return rendered((node.type as (props: unknown) => unknown)(node.props));
   }
   return node;
@@ -78,7 +78,7 @@ describe("research page", () => {
     const text = normalizedText(await Page({ searchParams: Promise.resolve({}) }));
     expect(text).toContain("Catalog only.");
     expect(text).not.toContain("Saved-source research catalog only");
-    expect(text).toContain("do not authorize replay");
+    expect(text).toContain("Nothing here runs a replay or a trade");
     expect(text).toContain("3 results on this page");
   });
 
@@ -92,7 +92,7 @@ describe("research page", () => {
     vi.mocked(getResearchResults).mockResolvedValueOnce({ schema_version: 1, data: { results: [], next_cursor: null }, warnings: [] });
     const text = normalizedText(await Page({ searchParams: Promise.resolve({}) }));
     expect(text).not.toContain("this page only");
-    expect(text).toContain("No saved results are indexed");
+    expect(text).toContain("No saved results yet.");
   });
 
   it("treats an empty cursor as an unknown research page", async () => {

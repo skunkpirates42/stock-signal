@@ -3,24 +3,24 @@
 .filter-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.25rem;
+  gap: calc(var(--space) * 2);
   border: 1px solid var(--line);
   background: var(--surface);
-  border-radius: 8px;
-  padding: 1rem;
-  margin-bottom: 1rem;
+  border-radius: var(--radius);
+  padding: calc(var(--space) * 2);
+  margin-bottom: calc(var(--space) * 2);
 }
 
 .filter-field {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: calc(var(--space) * 0.75);
 }
 
 .filter-field select,
 .filter-field input:not([type="checkbox"]) {
   font-size: var(--text-body);
-  padding: 0.35rem 0.5rem;
+  padding: calc(var(--space) * 0.75) var(--space);
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: var(--ground);
@@ -30,9 +30,9 @@
 .filter-toggle {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: calc(var(--space) * 0.75);
   font-size: var(--text-body);
-  padding: 0.35rem 0;
+  padding: calc(var(--space) * 0.75) 0;
   color: var(--ink);
 }
 
@@ -45,19 +45,19 @@
 .signal-list-count {
   color: var(--muted);
   font-size: var(--text-body);
-  margin-bottom: 0.75rem;
+  margin-bottom: calc(var(--space) * 1.5);
 }
 
 .signal-rows {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space);
 }
 
 .signal-list-empty {
   color: var(--muted);
   text-align: center;
-  padding: 2rem 0;
+  padding: calc(var(--space) * 4) 0;
 }
 
 /* SignalRow */
@@ -65,7 +65,7 @@
 .signal-row {
   border: 1px solid var(--line);
   background: var(--surface);
-  border-radius: 8px;
+  border-radius: var(--radius);
   overflow: hidden;
 }
 
@@ -135,7 +135,7 @@
 
 .signal-row-detail {
   border-top: 1px solid var(--line);
-  padding: 1rem;
+  padding: calc(var(--space) * 2);
 }
 
 /* RationalePanel */
@@ -143,11 +143,11 @@
 .rationale-panel {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: calc(var(--space) * 2);
 }
 
 .rationale-reasoning p {
-  margin-bottom: 0.35rem;
+  margin-bottom: calc(var(--space) * 0.75);
 }
 
 .rationale-provenance {
@@ -157,7 +157,7 @@
 
 .rationale-votes h3 {
   font-size: var(--text-body);
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--space);
   color: var(--muted);
   font-weight: 600;
 }
@@ -169,7 +169,7 @@
 .rationale-level-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-  gap: 1rem;
+  gap: calc(var(--space) * 2);
 }
 
 .rationale-level-grid dt {
@@ -177,7 +177,7 @@
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  margin-bottom: 0.2rem;
+  margin-bottom: calc(var(--space) / 3);
 }
 
 .rationale-level-grid dd {
@@ -186,14 +186,14 @@
 }
 
 .rationale-atr-note {
-  margin-top: 0.75rem;
+  margin-top: calc(var(--space) * 1.5);
   color: var(--muted);
   font-size: var(--text-small);
   line-height: 1.5;
 }
 
 .rationale-volume-note {
-  margin-top: 0.5rem;
+  margin-top: var(--space);
   color: var(--muted);
   font-size: var(--text-small);
 }
@@ -222,7 +222,7 @@
   position: relative;
   flex: 1;
   height: 5px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: var(--surface-2);
   overflow: hidden;
 }
@@ -259,7 +259,7 @@
 .level-scale-track {
   position: relative;
   height: 5px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: var(--win);
   margin-bottom: var(--space);
 }
@@ -267,7 +267,7 @@
 .level-scale-risk {
   position: absolute;
   inset: 0 auto 0 0;
-  border-radius: 3px 0 0 3px;
+  border-radius: var(--radius-xs) 0 0 var(--radius-xs);
   background: var(--loss);
 }
 
@@ -325,8 +325,8 @@
 }
 
 .button-inline {
-  margin-top: 0.5rem;
-  padding: 0.3rem 0.75rem;
+  margin-top: var(--space);
+  padding: calc(var(--space) / 2) calc(var(--space) * 1.5);
   font-size: var(--text-small);
 }
 
@@ -336,7 +336,7 @@
 }
 
 .rationale-explain-error {
-  margin-top: 0.4rem;
+  margin-top: calc(var(--space) * 0.75);
   color: var(--loss);
   font-size: var(--text-small);
 }
