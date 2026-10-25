@@ -137,7 +137,8 @@ def equity_curve(trades, starting_capital: float = None):
     return points
 
 
-def load_closed_trades(db_path: str = None, source: str = None, backend=None, account=None):
+def load_closed_trades(db_path: str = None, source: str = None, backend=None, account=None,
+                       closed_from: str = None, closed_to: str = None):
     """Load all trades from SQLite as dicts, ordered by close time (then id).
 
     `source` optionally restricts to "live" or "backtest" rows; omitted, all rows load
@@ -154,6 +155,14 @@ def load_closed_trades(db_path: str = None, source: str = None, backend=None, ac
     params = []
     from db.logger import scope_sql, init_db
     clauses, params = scope_sql(source, backend, account, "t.")
+    close_day = "substr(COALESCE(t.exit_at,t.closed_at),1,10)"
+    # Open trades have no close date and stay in every window as current state.
+    if closed_from:
+        clauses.append(f"(COALESCE(t.exit_at,t.closed_at) IS NULL OR {close_day} >= ?)")
+        params.append(closed_from)
+    if closed_to:
+        clauses.append(f"(COALESCE(t.exit_at,t.closed_at) IS NULL OR {close_day} <= ?)")
+        params.append(closed_to)
     if clauses:
         sql += " WHERE " + " AND ".join(clauses)
     sql += " ORDER BY COALESCE(t.exit_at,t.closed_at) IS NULL, COALESCE(t.exit_at,t.closed_at), t.id"

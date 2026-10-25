@@ -27,6 +27,16 @@
   color: var(--ink);
 }
 
+.date-range-filter {
+  align-items: flex-end;
+}
+
+.date-range-actions {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space) * 2);
+}
+
 .filter-toggle {
   display: flex;
   align-items: center;

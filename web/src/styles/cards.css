@@ -237,10 +237,14 @@
   margin-bottom: calc(var(--space) / 2);
 }
 
+.stat-tile {
+  container-type: inline-size;
+}
+
 .stat-tile-value {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: var(--text-stat);
+  font-size: var(--text-tile);
   font-weight: 600;
 }
 

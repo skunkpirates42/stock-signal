@@ -10,6 +10,7 @@ Run:  python3 run_dashboard.py   (then open http://127.0.0.1:8000)
 
 import os
 import sqlite3
+from datetime import date
 from pathlib import Path
 
 from flask import Flask, Response, abort, jsonify, render_template, request
@@ -81,10 +82,22 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
     def index():
         return render_template("index.html", port=config.DASHBOARD_PORT)
 
+    def _date_param(name: str):
+        raw = request.args.get(name)
+        if not raw:
+            return None
+        try:
+            if len(raw) != 10:
+                raise ValueError
+            return date.fromisoformat(raw).isoformat()
+        except ValueError:
+            abort(400, "%s must be a YYYY-MM-DD date" % name)
+
     @app.route("/api/metrics")
     def api_metrics():
         trades = load_closed_trades(_db(), source=request.args.get("source"),
-            backend=request.args.get("backend"), account=request.args.get("account"))
+            backend=request.args.get("backend"), account=request.args.get("account"),
+            closed_from=_date_param("from"), closed_to=_date_param("to"))
         m = compute_metrics(trades)
         m["equity"] = equity_curve(trades)
         return jsonify(m)

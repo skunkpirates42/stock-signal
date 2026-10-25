@@ -54,6 +54,12 @@ export function formatR(value: number | null | undefined): string {
   return `${value >= 0 ? "+" : "-"}${Math.abs(value).toFixed(2)}R`;
 }
 
+export function formatDate(raw: string | null | undefined): string {
+  if (!raw) return DASH;
+  if (raw === "start") return raw;
+  return raw.slice(0, 10);
+}
+
 export function formatTimestamp(raw: string | null | undefined): string {
   if (!raw) return DASH;
   if (raw === "start") return raw;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatCurrency,
+  formatDate,
   formatMultiplier,
   formatPercent,
   formatPrice,
@@ -64,6 +65,17 @@ describe("formatR", () => {
   it("signs and suffixes", () => expect(formatR(-0.4)).toBe("-0.40R"));
   it("signs positives", () => expect(formatR(2)).toBe("+2.00R"));
   it("renders null as a dash", () => expect(formatR(null)).toBe("—"));
+});
+
+describe("formatDate", () => {
+  it("keeps only the date of a bar_timestamp", () => {
+    expect(formatDate("2026-02-02 14:45:00+00:00")).toBe("2026-02-02");
+  });
+  it("keeps only the date of an ISO created_at", () => {
+    expect(formatDate("2026-07-15T20:54:00.144301+00:00")).toBe("2026-07-15");
+  });
+  it("passes through the literal start label", () => expect(formatDate("start")).toBe("start"));
+  it("renders null as a dash", () => expect(formatDate(null)).toBe("—"));
 });
 
 describe("formatTimestamp", () => {

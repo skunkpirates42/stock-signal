@@ -1,4 +1,5 @@
 import type { Metrics, Signal, Trade } from "@/lib/types";
+import { dateRangeQuery, type DateRange } from "@/lib/dateRange";
 
 export const API_BASE = process.env.FLASK_API_URL ?? "http://127.0.0.1:8000";
 
@@ -10,8 +11,10 @@ async function get<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function getMetrics(source?: string) {
-  const query = source ? `?source=${source}` : "";
+export function getMetrics(source?: string, range: DateRange = {}) {
+  const params = dateRangeQuery(range);
+  if (source) params.set("source", source);
+  const query = params.size ? `?${params}` : "";
   return get<Metrics>(`/api/metrics${query}`);
 }
 
