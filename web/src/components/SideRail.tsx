@@ -11,6 +11,7 @@ const LINKS = [
   { href: "/research", label: "Research" },
   { href: "/run", label: "New run" },
   { href: "/runs", label: "Run history" },
+  { href: "/system", label: "Design system" },
 ];
 
 export default function SideRail() {

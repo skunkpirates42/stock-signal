@@ -34,7 +34,7 @@ trading costs? So far, not convincingly. The results below say so plainly.
 | `/positions` | Open positions and fills |
 | `/research` | Saved research results, read-only, with their audit artifacts |
 | `/run`, `/runs` | Queue a local historical replay on paper, then follow its phases, cancel it or open its results |
-| `/system` | The design system: every shared component in each of its states, built from fixtures. Not in the side rail, open it by URL. |
+| `/system` | The design system: every shared component in each of its states, built from fixtures |
 
 A status line in every page separates "API reachable" from "worker alive and data fresh",
 so a stale feed never passes for a healthy one.
