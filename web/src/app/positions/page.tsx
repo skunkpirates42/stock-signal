@@ -3,6 +3,7 @@ import OpenPositions from "@/components/OpenPositions";
 import FillsTable from "@/components/FillsTable";
 import ScopeNote from "@/components/ScopeNote";
 import PageHeader from "@/components/PageHeader";
+import Page from "@/components/Page";
 
 export default async function PositionsPage({
   searchParams,
@@ -22,7 +23,7 @@ export default async function PositionsPage({
   const now = new Date();
 
   return (
-    <main>
+    <Page>
       <PageHeader title="Positions" aside={<span className="micro">{positions.length} open</span>} />
       <ScopeNote>
         {scope === "live"
@@ -31,6 +32,6 @@ export default async function PositionsPage({
       </ScopeNote>
       <OpenPositions positions={positions} now={now} />
       <FillsTable trades={closedTrades} />
-    </main>
+    </Page>
   );
 }

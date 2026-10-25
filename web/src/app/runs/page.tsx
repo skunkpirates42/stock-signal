@@ -5,12 +5,13 @@ import { getJobs } from "@/lib/jobs";
 import { isOpaqueDemoId } from "@/lib/demo";
 import PageHeader from "@/components/PageHeader";
 import ScopeNote from "@/components/ScopeNote";
+import Page from "@/components/Page";
 
 export default async function RunsPage({ searchParams }: { searchParams: Promise<{ cursor?: string }> }) {
   const { cursor } = await searchParams;
   if (cursor !== undefined && !isOpaqueDemoId(cursor)) notFound();
   const { data, warnings } = await getJobs(cursor);
-  return <main>
+  return <Page>
     <PageHeader eyebrow="Local demo jobs" title="Run history" aside={<Link href="/run" className="button">New run</Link>} />
     <ScopeNote>Replays queued on this machine. A finished run is a simulation. It can’t place trades or promote a strategy.</ScopeNote>
     {warnings.map((warning) => <p className="research-warning" key={warning}>{warning}</p>)}
@@ -23,5 +24,5 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
       {data.runs.length === 0 && <ScopeNote>No runs queued yet.</ScopeNote>}
     </div>
     {data.next_cursor && isOpaqueDemoId(data.next_cursor) && <nav className="research-pagination" aria-label="Run history pages"><Link className="button" href={`/runs?cursor=${encodeURIComponent(data.next_cursor)}`}>Older runs</Link></nav>}
-  </main>;
+  </Page>;
 }

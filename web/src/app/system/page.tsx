@@ -8,6 +8,7 @@ import { describeObservation } from "@/lib/observation";
 import { COLOR_TOKENS, OBSERVATIONS, STAT_TILES, TABLE_ROWS, TYPE_SCALE } from "./fixtures";
 import PageHeader from "@/components/PageHeader";
 import ScopeNote from "@/components/ScopeNote";
+import Page from "@/components/Page";
 
 function sampleTable(rows: typeof TABLE_ROWS, compact = false) {
   return <DataTable compact={compact}>
@@ -22,7 +23,7 @@ function sampleTable(rows: typeof TABLE_ROWS, compact = false) {
 }
 
 export default function SystemPage() {
-  return <main className="system">
+  return <Page className="system">
     <PageHeader eyebrow="Reference" title="Design system" />
     <ScopeNote>Every shared component in each of its states, built from fixtures. Nothing here calls the API.</ScopeNote>
 
@@ -64,5 +65,5 @@ export default function SystemPage() {
     <Card title="DataTable">{sampleTable(TABLE_ROWS)}</Card>
     <Card title="DataTable, compact">{sampleTable(TABLE_ROWS, true)}</Card>
     <Card title="DataTable, empty">{sampleTable([])}</Card>
-  </main>;
+  </Page>;
 }

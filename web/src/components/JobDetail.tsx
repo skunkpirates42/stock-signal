@@ -7,6 +7,7 @@ import { formatTimestamp, labelFromKey } from "@/lib/format";
 import { describeObservation } from "@/lib/observation";
 import PageHeader from "@/components/PageHeader";
 import ScopeNote from "@/components/ScopeNote";
+import Page from "@/components/Page";
 
 function recorded<T>(value: Availability<T>, format: (item: T) => string): string {
   return value.availability === "available" ? format(value.value) : `Unavailable: ${value.detail}`;
@@ -15,7 +16,7 @@ function recorded<T>(value: Availability<T>, format: (item: T) => string): strin
 export default function JobDetail({ detail, warnings }: { detail: Detail; warnings: string[] }) {
   const { run, status, result, artifacts } = detail;
   const label = run.provenance.synthetic ? "Synthetic correctness" : run.provenance.retrospective ? "Retrospective market data" : "Historical simulation";
-  return <main>
+  return <Page>
     <PageHeader back={{ href: "/runs", label: "Run history" }} eyebrow={label} title="Historical run" aside={<span className="micro">{labelFromKey(status.state)}</span>} />
     <ScopeNote>Paper-only replay. Its result can’t start data collection, place an order, or promote a strategy.</ScopeNote>
     {warnings.map((warning) => <p className="research-warning" key={warning}>{warning}</p>)}
@@ -67,5 +68,5 @@ export default function JobDetail({ detail, warnings }: { detail: Detail; warnin
         </li>)}</ul>
       </> : <p className="unavailable-note">{status.state === "completed" ? "Unavailable: this completed legacy job has no published result record." : "No result is published for this job."}</p>}
     </Card>
-  </main>;
+  </Page>;
 }

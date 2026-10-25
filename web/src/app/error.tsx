@@ -1,5 +1,7 @@
 "use client";
 
+import Page from "@/components/Page";
+
 export default function Error({
   error,
   retry,
@@ -8,7 +10,7 @@ export default function Error({
   retry: () => void;
 }) {
   return (
-    <main>
+    <Page>
       <h1>Something went wrong</h1>
       <p className="error-message">
         This dashboard could not reach its data API. The most likely cause is that the Flask
@@ -20,6 +22,6 @@ export default function Error({
           Try again
         </button>
       </p>
-    </main>
+    </Page>
   );
 }

@@ -35,7 +35,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Suspense fallback={<aside className="rail" />}>
           <SideRail />
         </Suspense>
-        <div className="canvas" id="content" tabIndex={-1}><Suspense fallback={null}><LiveStatus /></Suspense>{children}</div>
+        <div className="canvas"><Suspense fallback={null}><LiveStatus /></Suspense>{children}</div>
       </body>
     </html>
   );

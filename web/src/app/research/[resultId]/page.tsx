@@ -8,6 +8,7 @@ import { groupArtifactsByKind, headlineFigures, savedMetricGroups, untrackedCost
 import { notFound } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 import ScopeNote from "@/components/ScopeNote";
+import Page from "@/components/Page";
 
 function field(label: string, value: Availability<string>) {
   return <div><dt>{label}</dt><dd className="config-value">{availabilityText(value)}</dd></div>;
@@ -42,7 +43,7 @@ export default async function SavedResultPage({ params }: { params: Promise<{ re
   const artifactsByKind = groupArtifactsByKind(artifacts);
   const untrackedCosts = untrackedCostComponents(result.metrics);
 
-  return <main>
+  return <Page>
     <PageHeader
       back={{ href: "/research", label: "Saved research" }}
       eyebrow={result.provenance.synthetic ? "Synthetic correctness" : result.provenance.retrospective ? "Retrospective" : "Saved-source result"}
@@ -106,5 +107,5 @@ export default async function SavedResultPage({ params }: { params: Promise<{ re
         <div><h4>Reproducibility and results</h4>{artifactList(result.id, artifactsByKind.reproducibility)}</div>
       </div>{artifacts.length === 0 && <p className="unavailable-note">No safe, indexed artifacts are available for this saved result.</p>}
     </Disclosure>
-  </main>;
+  </Page>;
 }

@@ -22,4 +22,11 @@ describe("page conventions", () => {
       .map(({ path }) => path);
     expect(handRolled).toEqual([]);
   });
+
+  it("renders the <main> landmark only through Page", () => {
+    const handRolled = markupFiles()
+      .filter(({ path, source }) => path !== "components/Page.tsx" && /<main[\s>]/.test(source))
+      .map(({ path }) => path);
+    expect(handRolled).toEqual([]);
+  });
 });
