@@ -35,4 +35,10 @@ describe("system page", () => {
   it("shows a table's empty state", () => {
     expect(renderPage()).toContain('class="data-table-empty">No rows.</td>');
   });
+
+  it("shows a defined term in a stat tile and in a card title", () => {
+    const html = renderPage();
+    expect(html).toMatch(/<div class="stat-tile-label"><span class="metric-term">/);
+    expect(html).toMatch(/<h2 class="micro"><span class="metric-term">/);
+  });
 });
