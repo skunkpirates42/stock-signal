@@ -29,7 +29,8 @@ describe("formatPrice", () => {
 });
 
 describe("formatWholeDollars", () => {
-  it("rounds to whole dollars with grouping", () => expect(formatWholeDollars(100350.4)).toBe("$100,350"));
+  it("rounds to whole dollars with grouping", () =>
+    expect(formatWholeDollars(100350.4)).toBe("$100,350"));
   it("keeps the dollar sign below 100k", () => expect(formatWholeDollars(99900)).toBe("$99,900"));
   it("renders zero unsigned", () => expect(formatWholeDollars(0)).toBe("$0"));
   it("renders a negative input unsigned", () => expect(formatWholeDollars(-31.6)).toBe("$32"));

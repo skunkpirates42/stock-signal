@@ -4,7 +4,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import RatioBar from "./RatioBar";
 
 const render = (left: number, right: number) =>
-  renderToStaticMarkup(createElement(RatioBar, { left, right, leftLabel: "wins", rightLabel: "losses" }));
+  renderToStaticMarkup(
+    createElement(RatioBar, { left, right, leftLabel: "wins", rightLabel: "losses" }),
+  );
 
 describe("RatioBar", () => {
   it("draws an empty track, not a full loss bar, when both sides are zero", () => {

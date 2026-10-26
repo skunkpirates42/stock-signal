@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 
 const STYLES_DIR = fileURLToPath(new URL(".", import.meta.url));
 const COLOR_LITERAL = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(/;
-const NAMED_COLOR = /\b(?:white|black|red|green|blue|yellow|orange|purple|pink|gray|grey|silver|navy|teal|aqua|cyan|magenta|lime|maroon|olive)\b/i;
+const NAMED_COLOR =
+  /\b(?:white|black|red|green|blue|yellow|orange|purple|pink|gray|grey|silver|navy|teal|aqua|cyan|magenta|lime|maroon|olive)\b/i;
 const SCALE_TOKEN = /^var\(--text-[a-z]+\)$/;
 const SPACING_PROPERTY = /^(?:padding|margin|gap|row-gap|column-gap)(?:-[a-z-]+)?$/;
 const SPACE_TERM = /calc\([^()]*var\(--space\)[^()]*\)|var\(--space\)/g;
@@ -15,28 +16,35 @@ const SR_ONLY_MARGIN = "-1px";
 function declarations() {
   return readdirSync(STYLES_DIR)
     .filter((name) => name.endsWith(".css") && name !== "tokens.css")
-    .flatMap((name) => readFileSync(`${STYLES_DIR}/${name}`, "utf8")
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .split(/[;{}]/)
-      .map((text) => text.trim())
-      .filter((text) => text.includes(":"))
-      .map((text) => {
-        const [property, ...rest] = text.split(":");
-        return { file: name, property: property.trim(), value: rest.join(":").trim() };
-      }));
+    .flatMap((name) =>
+      readFileSync(`${STYLES_DIR}/${name}`, "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .split(/[;{}]/)
+        .map((text) => text.trim())
+        .filter((text) => text.includes(":"))
+        .map((text) => {
+          const [property, ...rest] = text.split(":");
+          return { file: name, property: property.trim(), value: rest.join(":").trim() };
+        }),
+    );
 }
 
 describe("stylesheets", () => {
   it("finds declarations to check", () => expect(declarations().length).toBeGreaterThan(100));
 
   it("take every color from tokens.css", () => {
-    const literals = declarations().filter(({ value }) => COLOR_LITERAL.test(value) || NAMED_COLOR.test(value));
+    const literals = declarations().filter(
+      ({ value }) => COLOR_LITERAL.test(value) || NAMED_COLOR.test(value),
+    );
     expect(literals).toEqual([]);
   });
 
   it("size text only with the type scale", () => {
-    const offScale = declarations().filter(({ property, value }) =>
-      (property === "font-size" && !SCALE_TOKEN.test(value)) || (property === "font" && value !== "inherit"));
+    const offScale = declarations().filter(
+      ({ property, value }) =>
+        (property === "font-size" && !SCALE_TOKEN.test(value)) ||
+        (property === "font" && value !== "inherit"),
+    );
     expect(offScale).toEqual([]);
   });
 
@@ -50,8 +58,11 @@ describe("stylesheets", () => {
   });
 
   it("round corners only with radius tokens", () => {
-    const offScale = declarations().filter(({ property, value }) =>
-      property === "border-radius" && !value.split(/\s+/).every((part) => part === "0" || RADIUS_TOKEN.test(part)));
+    const offScale = declarations().filter(
+      ({ property, value }) =>
+        property === "border-radius" &&
+        !value.split(/\s+/).every((part) => part === "0" || RADIUS_TOKEN.test(part)),
+    );
     expect(offScale).toEqual([]);
   });
 });
@@ -75,16 +86,19 @@ function relativeLuminance(hex: string) {
 }
 
 function contrastRatio(foreground: string, background: string) {
-  const [lighter, darker] = [relativeLuminance(foreground), relativeLuminance(background)].sort((a, b) => b - a);
+  const [lighter, darker] = [relativeLuminance(foreground), relativeLuminance(background)].sort(
+    (a, b) => b - a,
+  );
   return (lighter + 0.05) / (darker + 0.05);
 }
 
 describe("color tokens", () => {
   it("meet WCAG AA contrast for body text against the page ground", () => {
     const ground = tokenColor("--ground");
-    const failing = TEXT_TOKENS
-      .map((token) => ({ token, ratio: Number(contrastRatio(tokenColor(token), ground).toFixed(2)) }))
-      .filter(({ ratio }) => ratio < WCAG_AA_BODY_TEXT);
+    const failing = TEXT_TOKENS.map((token) => ({
+      token,
+      ratio: Number(contrastRatio(tokenColor(token), ground).toFixed(2)),
+    })).filter(({ ratio }) => ratio < WCAG_AA_BODY_TEXT);
     expect(failing).toEqual([]);
   });
 });

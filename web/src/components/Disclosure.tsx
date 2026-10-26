@@ -8,8 +8,10 @@ export interface DisclosureProps {
 }
 
 export default function Disclosure({ summary, open, className, children }: DisclosureProps) {
-  return <details open={open} className={className ? `disclosure ${className}` : "disclosure"}>
-    <summary>{summary}</summary>
-    {children}
-  </details>;
+  return (
+    <details open={open} className={className ? `disclosure ${className}` : "disclosure"}>
+      <summary>{summary}</summary>
+      {children}
+    </details>
+  );
 }

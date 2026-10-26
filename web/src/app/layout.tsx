@@ -31,11 +31,18 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
       <body>
-        <a className="skip-link" href="#content">Skip to content</a>
+        <a className="skip-link" href="#content">
+          Skip to content
+        </a>
         <Suspense fallback={<aside className="rail" />}>
           <SideRail />
         </Suspense>
-        <div className="canvas"><Suspense fallback={null}><LiveStatus /></Suspense>{children}</div>
+        <div className="canvas">
+          <Suspense fallback={null}>
+            <LiveStatus />
+          </Suspense>
+          {children}
+        </div>
       </body>
     </html>
   );

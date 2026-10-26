@@ -142,14 +142,18 @@ export function isOpaqueDemoId(value: string): boolean {
 }
 
 export async function demoGet<T>(path: string): Promise<Envelope<T>> {
-  const response = await fetch(`${API_BASE}/api/demo/v1${path}`, { cache: "no-store", redirect: "manual" });
+  const response = await fetch(`${API_BASE}/api/demo/v1${path}`, {
+    cache: "no-store",
+    redirect: "manual",
+  });
   if (response.status === 404) throw new DemoNotFound("Demo record was not found");
   if (!response.ok) throw new Error(`${path} responded ${response.status}`);
   return response.json() as Promise<Envelope<T>>;
 }
 
 export async function getResearchResults(cursor?: string) {
-  if (cursor !== undefined && !isOpaqueDemoId(cursor)) throw new DemoNotFound("Saved demo cursor was not found");
+  if (cursor !== undefined && !isOpaqueDemoId(cursor))
+    throw new DemoNotFound("Saved demo cursor was not found");
   const params = new URLSearchParams({ limit: "50" });
   if (cursor) params.set("cursor", cursor);
   return demoGet<{ results: Result[]; next_cursor: string | null }>(`/research?${params}`);
@@ -179,12 +183,20 @@ const MAX_ARTIFACT_BYTES = 1024 * 1024;
 function countMap(value: unknown): Record<string, number> | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const entries = Object.entries(value);
-  if (!entries.every(([key, count]) => key.length > 0 && typeof count === "number"
-    && Number.isSafeInteger(count) && count >= 0)) return null;
+  if (
+    !entries.every(
+      ([key, count]) =>
+        key.length > 0 && typeof count === "number" && Number.isSafeInteger(count) && count >= 0,
+    )
+  )
+    return null;
   return Object.fromEntries(entries);
 }
 
-async function readBoundedBody(response: Response, expectedBytes: number): Promise<Uint8Array | null> {
+async function readBoundedBody(
+  response: Response,
+  expectedBytes: number,
+): Promise<Uint8Array | null> {
   if (!response.body) return null;
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -220,10 +232,24 @@ export async function getSavedDiagnostics(
 ): Promise<Availability<SavedDiagnostics>> {
   const artifact = artifacts.find((item) => item.kind === "diagnostics");
   if (!artifact) {
-    return { availability: "unavailable", value: null, reason: "missing_artifact", detail: "No indexed diagnostics artifact is available for this result." };
+    return {
+      availability: "unavailable",
+      value: null,
+      reason: "missing_artifact",
+      detail: "No indexed diagnostics artifact is available for this result.",
+    };
   }
-  if (!isOpaqueDemoId(resultId) || !isOpaqueDemoId(artifact.id) || artifact.result_id !== resultId) {
-    return { availability: "unavailable", value: null, reason: "unverified", detail: "The indexed diagnostics reference is not valid for this result." };
+  if (
+    !isOpaqueDemoId(resultId) ||
+    !isOpaqueDemoId(artifact.id) ||
+    artifact.result_id !== resultId
+  ) {
+    return {
+      availability: "unavailable",
+      value: null,
+      reason: "unverified",
+      detail: "The indexed diagnostics reference is not valid for this result.",
+    };
   }
 
   try {
@@ -234,14 +260,25 @@ export async function getSavedDiagnostics(
     const contentType = response.headers.get("content-type")?.split(";", 1)[0].trim();
     const contentLength = response.headers.get("content-length");
     const declaredLength = contentLength === null ? Number.NaN : Number(contentLength);
-    if (!response.ok || contentType !== "application/json" || !Number.isSafeInteger(declaredLength)
-      || declaredLength < 0 || declaredLength > MAX_ARTIFACT_BYTES) {
-      return { availability: "unavailable", value: null, reason: "unverified", detail: "The saved diagnostics could not be verified as bounded JSON." };
+    if (
+      !response.ok ||
+      contentType !== "application/json" ||
+      !Number.isSafeInteger(declaredLength) ||
+      declaredLength < 0 ||
+      declaredLength > MAX_ARTIFACT_BYTES
+    ) {
+      return {
+        availability: "unavailable",
+        value: null,
+        reason: "unverified",
+        detail: "The saved diagnostics could not be verified as bounded JSON.",
+      };
     }
     const body = await readBoundedBody(response, declaredLength);
     if (!body) throw new Error("Diagnostics length mismatch");
     const raw: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(body));
-    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new Error("Invalid diagnostics object");
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+      throw new Error("Invalid diagnostics object");
     const record = raw as Record<string, unknown>;
     const signalReasons = countMap(record.signal_execution_reasons);
     const gateChecks = countMap(record.candidate_gate_checks);
@@ -253,7 +290,13 @@ export async function getSavedDiagnostics(
       detail: "Saved aggregate counts from the indexed diagnostics artifact.",
     };
   } catch {
-    return { availability: "unavailable", value: null, reason: "unverified", detail: "The indexed diagnostics artifact does not contain the supported saved aggregate counts." };
+    return {
+      availability: "unavailable",
+      value: null,
+      reason: "unverified",
+      detail:
+        "The indexed diagnostics artifact does not contain the supported saved aggregate counts.",
+    };
   }
 }
 

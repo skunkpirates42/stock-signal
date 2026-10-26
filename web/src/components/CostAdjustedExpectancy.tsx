@@ -8,7 +8,9 @@ export interface CostAdjustedExpectancyProps {
   recordedExpectancy: number | null;
 }
 
-export default function CostAdjustedExpectancy({ recordedExpectancy }: CostAdjustedExpectancyProps) {
+export default function CostAdjustedExpectancy({
+  recordedExpectancy,
+}: CostAdjustedExpectancyProps) {
   const [costPerTrade, setCostPerTrade] = useState(DEFAULT_COST_PER_TRADE);
   const net = netExpectancy(recordedExpectancy, costPerTrade);
   const breakEven = breakEvenCost(recordedExpectancy);
@@ -25,9 +27,7 @@ export default function CostAdjustedExpectancy({ recordedExpectancy }: CostAdjus
         </div>
         <div className="cost-adjusted-stat">
           <div className="stat-tile-label">After extra cost</div>
-          <div className={`stat-tile-value tone-${toneForSign(net)}`}>
-            {formatCurrency(net)}
-          </div>
+          <div className={`stat-tile-value tone-${toneForSign(net)}`}>{formatCurrency(net)}</div>
         </div>
         <div className="cost-adjusted-stat">
           <div className="micro">Breaks even at</div>
@@ -50,12 +50,12 @@ export default function CostAdjustedExpectancy({ recordedExpectancy }: CostAdjus
         {recordedExpectancy === null
           ? "No closed trades yet, so there is no expectancy to adjust."
           : breakEven > 0
-          ? `Net expectancy reaches zero at ${formatPrice(breakEven)} of cost per trade. Above that, the edge is gone.`
-          : "Recorded expectancy is already at or below zero, so no cost level makes this profitable."}
+            ? `Net expectancy reaches zero at ${formatPrice(breakEven)} of cost per trade. Above that, the edge is gone.`
+            : "Recorded expectancy is already at or below zero, so no cost level makes this profitable."}
       </p>
       <p className="cost-adjusted-note">
-        This is an additional hypothetical cost beyond costs already recorded. Legacy
-        trades may have no modeled costs; broker fills already include execution spread.
+        This is an additional hypothetical cost beyond costs already recorded. Legacy trades may
+        have no modeled costs; broker fills already include execution spread.
       </p>
     </div>
   );

@@ -42,9 +42,7 @@ export default function SignalList({ signals, outcomeBySignalId }: SignalListPro
             signal={signal}
             outcome={outcomeBySignalId[signal.id] ?? null}
             expanded={expandedId === signal.id}
-            onToggle={() =>
-              setExpandedId((current) => (current === signal.id ? null : signal.id))
-            }
+            onToggle={() => setExpandedId((current) => (current === signal.id ? null : signal.id))}
           />
         ))}
         {filtered.length === 0 && (

@@ -14,7 +14,9 @@ function outcomeClass(outcome: Trade["outcome"]): string {
 }
 
 export default function FillsTable({ trades }: FillsTableProps) {
-  const sorted = [...trades].sort((a, b) => (b.exit_at ?? b.closed_at ?? "").localeCompare(a.exit_at ?? a.closed_at ?? ""));
+  const sorted = [...trades].sort((a, b) =>
+    (b.exit_at ?? b.closed_at ?? "").localeCompare(a.exit_at ?? a.closed_at ?? ""),
+  );
   const shares = shareOfMax(sorted.map((trade) => trade.pnl ?? 0));
 
   return (
@@ -36,13 +38,24 @@ export default function FillsTable({ trades }: FillsTableProps) {
         <tbody>
           {sorted.map((trade, index) => (
             <tr key={trade.id}>
-              <td>{trade.ticker} <small>{trade.source ?? "unknown"} · {trade.backend ?? "unknown backend"}</small></td>
+              <td>
+                {trade.ticker}{" "}
+                <small>
+                  {trade.source ?? "unknown"} · {trade.backend ?? "unknown backend"}
+                </small>
+              </td>
               <td>{trade.direction}</td>
               <td className="num">{formatPrice(trade.entry)}</td>
               <td className="num">{formatPrice(trade.exit_price)}</td>
               <td className={outcomeClass(trade.outcome)}>{trade.outcome}</td>
-              <td className={`pnl-cell num ${trade.pnl !== null && trade.pnl >= 0 ? "tone-positive" : "tone-negative"}`}>
-                <span className="cell-bar" style={{ width: `${shares[index] * 100}%` }} aria-hidden="true" />
+              <td
+                className={`pnl-cell num ${trade.pnl !== null && trade.pnl >= 0 ? "tone-positive" : "tone-negative"}`}
+              >
+                <span
+                  className="cell-bar"
+                  style={{ width: `${shares[index] * 100}%` }}
+                  aria-hidden="true"
+                />
                 <span className="cell-value">{formatCurrency(trade.pnl)}</span>
               </td>
               <td className="num">{trade.bars_held ?? "—"}</td>

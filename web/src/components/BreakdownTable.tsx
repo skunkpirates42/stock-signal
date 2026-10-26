@@ -30,7 +30,11 @@ export default function BreakdownTable({ title, rows }: BreakdownTableProps) {
               <td className="num">{row.n}</td>
               <td className="num">{formatPercent(row.win_rate)}</td>
               <td className={`num ${row.pnl >= 0 ? "tone-positive" : "tone-negative"}`}>
-                <span className="cell-bar" style={{ width: `${row.share * 100}%` }} aria-hidden="true" />
+                <span
+                  className="cell-bar"
+                  style={{ width: `${row.share * 100}%` }}
+                  aria-hidden="true"
+                />
                 <span className="cell-value">{formatCurrency(row.pnl)}</span>
               </td>
             </tr>

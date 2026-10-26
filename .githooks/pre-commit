@@ -1,0 +1,9 @@
+#!/bin/sh
+staged=$(git diff --cached --name-only --diff-filter=ACMR --relative=web)
+[ -z "$staged" ] && exit 0
+
+cd web || exit 1
+echo "$staged" | xargs pnpm exec prettier --check --ignore-unknown || {
+  echo "Prettier: run 'pnpm format' in web/, re-stage, and commit again."
+  exit 1
+}

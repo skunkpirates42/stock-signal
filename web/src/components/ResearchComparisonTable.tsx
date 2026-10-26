@@ -28,17 +28,30 @@ export default function ResearchComparisonTable({ table }: ResearchComparisonTab
               <th scope="row">{row.variant}</th>
               {row.cells.map((entries, index) => (
                 <td key={table.columns[index].key}>
-                  {entries.length === 0 && <span className="research-cell-empty">No saved result</span>}
+                  {entries.length === 0 && (
+                    <span className="research-cell-empty">No saved result</span>
+                  )}
                   {entries.map((entry) => (
                     <div className="research-cell" key={entry.id}>
                       <Link className={`num tone-${entry.tone}`} href={`/research/${entry.id}`}>
                         {entry.pnlLabel}
-                        <span className="sr-only"> for {table.columns[index].name} / {row.variant}</span>
+                        <span className="sr-only">
+                          {" "}
+                          for {table.columns[index].name} / {row.variant}
+                        </span>
                       </Link>
-                      {entry.synthetic && <span className="research-cell-flag">Synthetic correctness</span>}
-                      {entry.retrospective === true && <span className="research-cell-note">Retrospective</span>}
-                      {entry.retrospective === false && <span className="research-cell-note">Not retrospective</span>}
-                      {entry.coverage !== null && <span className="research-cell-note">Accounting {entry.coverage}</span>}
+                      {entry.synthetic && (
+                        <span className="research-cell-flag">Synthetic correctness</span>
+                      )}
+                      {entry.retrospective === true && (
+                        <span className="research-cell-note">Retrospective</span>
+                      )}
+                      {entry.retrospective === false && (
+                        <span className="research-cell-note">Not retrospective</span>
+                      )}
+                      {entry.coverage !== null && (
+                        <span className="research-cell-note">Accounting {entry.coverage}</span>
+                      )}
                     </div>
                   ))}
                 </td>
@@ -50,10 +63,16 @@ export default function ResearchComparisonTable({ table }: ResearchComparisonTab
       <ul className="research-footnotes">
         <li>Cells show realized net P&amp;L. Open a cell for the saved result.</li>
         {table.columns.map((column) => (
-          <li key={column.key}>{column.name}: {column.exactRange}.</li>
+          <li key={column.key}>
+            {column.name}: {column.exactRange}.
+          </li>
         ))}
-        {table.sharedRetrospective === true && <li>Every result here is retrospective research.</li>}
-        {table.sharedCoverage !== null && <li>Accounting coverage is {table.sharedCoverage} for every result here.</li>}
+        {table.sharedRetrospective === true && (
+          <li>Every result here is retrospective research.</li>
+        )}
+        {table.sharedCoverage !== null && (
+          <li>Accounting coverage is {table.sharedCoverage} for every result here.</li>
+        )}
       </ul>
     </section>
   );

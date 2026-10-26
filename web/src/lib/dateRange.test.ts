@@ -3,7 +3,10 @@ import { closedDateRange, dateRangeQuery } from "@/lib/dateRange";
 
 describe("closedDateRange", () => {
   it("keeps valid YYYY-MM-DD bounds", () => {
-    expect(closedDateRange({ from: "2026-03-01", to: "2026-03-31" })).toEqual({ from: "2026-03-01", to: "2026-03-31" });
+    expect(closedDateRange({ from: "2026-03-01", to: "2026-03-31" })).toEqual({
+      from: "2026-03-01",
+      to: "2026-03-31",
+    });
   });
 
   it("drops malformed or impossible dates instead of failing the page", () => {

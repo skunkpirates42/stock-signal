@@ -22,9 +22,19 @@ describe("saved diagnostics adapter", () => {
       candidate_gate_checks: { accepted: 4, rejected: 1 },
       unrelated: { pnl: 999 },
     });
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status: 200, headers: {
-      "content-type": "application/json", "content-length": String(new TextEncoder().encode(body).byteLength),
-    } })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(body, {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+              "content-length": String(new TextEncoder().encode(body).byteLength),
+            },
+          }),
+      ),
+    );
 
     const result = await getSavedDiagnostics(RESULT_ID, [artifact]);
 
@@ -44,28 +54,72 @@ describe("saved diagnostics adapter", () => {
   });
 
   it("keeps missing, unbounded, or malformed diagnostics unavailable", async () => {
-    await expect(getSavedDiagnostics(RESULT_ID, [])).resolves.toMatchObject({ availability: "unavailable", reason: "missing_artifact" });
+    await expect(getSavedDiagnostics(RESULT_ID, [])).resolves.toMatchObject({
+      availability: "unavailable",
+      reason: "missing_artifact",
+    });
 
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 200, headers: { "content-type": "application/json" } })));
-    await expect(getSavedDiagnostics(RESULT_ID, [artifact])).resolves.toMatchObject({ availability: "unavailable", reason: "unverified" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("{}", { status: 200, headers: { "content-type": "application/json" } }),
+      ),
+    );
+    await expect(getSavedDiagnostics(RESULT_ID, [artifact])).resolves.toMatchObject({
+      availability: "unavailable",
+      reason: "unverified",
+    });
 
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("body larger than declared", { status: 200, headers: {
-      "content-type": "application/json", "content-length": "2",
-    } })));
-    await expect(getSavedDiagnostics(RESULT_ID, [artifact])).resolves.toMatchObject({ availability: "unavailable", reason: "unverified" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("body larger than declared", {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+              "content-length": "2",
+            },
+          }),
+      ),
+    );
+    await expect(getSavedDiagnostics(RESULT_ID, [artifact])).resolves.toMatchObject({
+      availability: "unavailable",
+      reason: "unverified",
+    });
 
-    const invalid = JSON.stringify({ signal_execution_reasons: { wait: -1 }, candidate_gate_checks: { accepted: 1 } });
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(invalid, { status: 200, headers: {
-      "content-type": "application/json", "content-length": String(invalid.length),
-    } })));
-    await expect(getSavedDiagnostics(RESULT_ID, [artifact])).resolves.toMatchObject({ availability: "unavailable", reason: "unverified" });
+    const invalid = JSON.stringify({
+      signal_execution_reasons: { wait: -1 },
+      candidate_gate_checks: { accepted: 1 },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(invalid, {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+              "content-length": String(invalid.length),
+            },
+          }),
+      ),
+    );
+    await expect(getSavedDiagnostics(RESULT_ID, [artifact])).resolves.toMatchObject({
+      availability: "unavailable",
+      reason: "unverified",
+    });
   });
 
   it("rejects a diagnostics reference owned by another result before fetching", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    await expect(getSavedDiagnostics(RESULT_ID, [{ ...artifact, result_id: "123e4567-e89b-12d3-a456-426614174099" }]))
-      .resolves.toMatchObject({ availability: "unavailable", reason: "unverified" });
+    await expect(
+      getSavedDiagnostics(RESULT_ID, [
+        { ...artifact, result_id: "123e4567-e89b-12d3-a456-426614174099" },
+      ]),
+    ).resolves.toMatchObject({ availability: "unavailable", reason: "unverified" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
@@ -74,12 +128,21 @@ describe("savedResultExists", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("is true when the result endpoint answers", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 200, headers: { "content-type": "application/json" } })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("{}", { status: 200, headers: { "content-type": "application/json" } }),
+      ),
+    );
     await expect(savedResultExists(RESULT_ID)).resolves.toBe(true);
   });
 
   it("is false for a 404", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 404 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("", { status: 404 })),
+    );
     await expect(savedResultExists(RESULT_ID)).resolves.toBe(false);
   });
 
@@ -91,7 +154,10 @@ describe("savedResultExists", () => {
   });
 
   it("surfaces an upstream failure instead of reporting a missing result", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 500 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("", { status: 500 })),
+    );
     await expect(savedResultExists(RESULT_ID)).rejects.toThrow("responded 500");
   });
 });

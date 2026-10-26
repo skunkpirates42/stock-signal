@@ -16,14 +16,21 @@ export default function PositionCard({ position, stale }: PositionCardProps) {
     <article className="card position-card">
       <header className="position-card-head">
         <span className="position-card-ticker num">{position.ticker}</span>
-        <span className={`signal-badge tone-${position.direction === "SHORT" ? "negative" : "positive"}`}>
+        <span
+          className={`signal-badge tone-${position.direction === "SHORT" ? "negative" : "positive"}`}
+        >
           {position.direction}
         </span>
         {stale && <span className="positions-stale-badge">STALE</span>}
-        <span className="micro position-card-age">{formatTimestamp(position.entry_at ?? position.created_at)}</span>
+        <span className="micro position-card-age">
+          {formatTimestamp(position.entry_at ?? position.created_at)}
+        </span>
       </header>
 
-      <p className="micro">{position.source ?? "unknown source"} · {position.backend ?? "unknown backend"} · {position.account ?? "unknown account"}</p>
+      <p className="micro">
+        {position.source ?? "unknown source"} · {position.backend ?? "unknown backend"} ·{" "}
+        {position.account ?? "unknown account"}
+      </p>
       <LevelScale
         stop={position.stop}
         entry={position.entry}

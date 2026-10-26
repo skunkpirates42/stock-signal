@@ -1,6 +1,14 @@
 "use client";
 
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import Card from "@/components/Card";
 import type { EquityPoint } from "@/lib/types";
 import { formatDate, formatPrice, formatWholeDollars } from "@/lib/format";
@@ -32,7 +40,13 @@ export default function EquityCurve({ points }: EquityCurveProps) {
           </defs>
           <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" />
           <XAxis dataKey="label" tickFormatter={formatDate} stroke="var(--faint)" fontSize={11} />
-          <YAxis domain={["auto", "auto"]} tickFormatter={formatWholeDollars} width="auto" stroke="var(--faint)" fontSize={11} />
+          <YAxis
+            domain={["auto", "auto"]}
+            tickFormatter={formatWholeDollars}
+            width="auto"
+            stroke="var(--faint)"
+            fontSize={11}
+          />
           <Tooltip
             labelFormatter={(label) => formatDate(String(label))}
             formatter={(value) => formatPrice(typeof value === "number" ? value : undefined)}
@@ -44,7 +58,13 @@ export default function EquityCurve({ points }: EquityCurveProps) {
             labelStyle={{ color: "var(--muted)" }}
             itemStyle={{ color: "var(--ink)" }}
           />
-          <Area type="monotone" dataKey="equity" stroke="var(--accent)" strokeWidth={2} fill="url(#equity-fill)" />
+          <Area
+            type="monotone"
+            dataKey="equity"
+            stroke="var(--accent)"
+            strokeWidth={2}
+            fill="url(#equity-fill)"
+          />
         </AreaChart>
       </ResponsiveContainer>
     </Card>

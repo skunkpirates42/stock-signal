@@ -16,7 +16,10 @@ const params = (runId: string) => ({ params: Promise.resolve({ runId }) });
 
 describe("run page", () => {
   it("renders a job without checking saved results", async () => {
-    vi.mocked(getJob).mockResolvedValueOnce({ data: { run: {}, status: {} }, warnings: [] } as never);
+    vi.mocked(getJob).mockResolvedValueOnce({
+      data: { run: {}, status: {} },
+      warnings: [],
+    } as never);
     const page = await Page(params("job-uuid"));
     expect(page).toBeTruthy();
     expect(savedResultExists).not.toHaveBeenCalled();
@@ -33,7 +36,9 @@ describe("run page", () => {
   it("is not found when the ID is neither a job nor a saved result", async () => {
     vi.mocked(getJob).mockRejectedValueOnce(notFoundError());
     vi.mocked(savedResultExists).mockResolvedValueOnce(false);
-    await expect(Page(params("missing-uuid"))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
+    await expect(Page(params("missing-uuid"))).rejects.toMatchObject({
+      digest: "NEXT_HTTP_ERROR_FALLBACK;404",
+    });
   });
 
   it("surfaces a job store failure instead of guessing", async () => {

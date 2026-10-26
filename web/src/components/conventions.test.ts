@@ -18,7 +18,10 @@ describe("page conventions", () => {
     ["scope-note", "components/ScopeNote.tsx"],
   ])("builds %s markup only through its component", (className, owner) => {
     const handRolled = markupFiles()
-      .filter(({ path, source }) => path !== owner && new RegExp(`className="[^"]*\\b${className}\\b`).test(source))
+      .filter(
+        ({ path, source }) =>
+          path !== owner && new RegExp(`className="[^"]*\\b${className}\\b`).test(source),
+      )
       .map(({ path }) => path);
     expect(handRolled).toEqual([]);
   });

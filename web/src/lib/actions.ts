@@ -16,7 +16,10 @@ export async function explainSignal(signalId: number): Promise<ExplainResult> {
 }
 
 export async function getOperationalStatus() {
-  const response = await fetch(`${API_BASE}/api/status`, { cache: "no-store", signal: AbortSignal.timeout(10000) });
+  const response = await fetch(`${API_BASE}/api/status`, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(10000),
+  });
   if (!response.ok) throw new Error(`Status responded ${response.status}`);
   return response.json() as Promise<OperationalStatus>;
 }

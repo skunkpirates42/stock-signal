@@ -6,7 +6,9 @@ export interface DataTableProps {
 }
 
 export default function DataTable({ compact = false, children }: DataTableProps) {
-  return <div className="table-scroll">
-    <table className={compact ? "data-table data-table-compact" : "data-table"}>{children}</table>
-  </div>;
+  return (
+    <div className="table-scroll">
+      <table className={compact ? "data-table data-table-compact" : "data-table"}>{children}</table>
+    </div>
+  );
 }

@@ -17,8 +17,8 @@ const LINKS = [
 export default function SideRail() {
   const pathname = usePathname();
   const scope = useSearchParams().get("source") === "all" ? "all" : "live";
-  const keepScope = (href: string) => (scope === "all" && ["/", "/signals", "/positions"].includes(href)
-    ? `${href}?source=all` : href);
+  const keepScope = (href: string) =>
+    scope === "all" && ["/", "/signals", "/positions"].includes(href) ? `${href}?source=all` : href;
 
   return (
     <aside className="rail">

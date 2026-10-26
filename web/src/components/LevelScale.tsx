@@ -36,9 +36,7 @@ export default function LevelScale({ stop, entry, target, direction }: LevelScal
           {formatPrice(entry)}
         </span>
       </div>
-      <p className="micro level-scale-legend">
-        Stop · Entry · Target ({direction})
-      </p>
+      <p className="micro level-scale-legend">Stop · Entry · Target ({direction})</p>
       {malformed && (
         <p className="level-scale-warning">
           Entry sits outside its own stop and target. This level set is malformed.

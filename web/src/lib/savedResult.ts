@@ -27,8 +27,20 @@ export interface UntrackedComponent {
   reason: string;
 }
 
-const REALIZED_METRICS = ["realized_net_pnl", "gross_pnl", "recorded_costs", "realized_max_drawdown", "closed_trades", "censored_positions"];
-const MARKED_METRICS = ["marked_net_pnl", "marked_max_drawdown", "marked_net_per_session", "max_gross_exposure"];
+const REALIZED_METRICS = [
+  "realized_net_pnl",
+  "gross_pnl",
+  "recorded_costs",
+  "realized_max_drawdown",
+  "closed_trades",
+  "censored_positions",
+];
+const MARKED_METRICS = [
+  "marked_net_pnl",
+  "marked_max_drawdown",
+  "marked_net_per_session",
+  "max_gross_exposure",
+];
 const COST_COMPONENTS: Record<string, string> = {
   spread_cost: "spread",
   slippage_cost: "slippage",
@@ -43,7 +55,12 @@ const ARTIFACT_KINDS = {
   data: ["data_health", "dataset_metadata"],
 };
 
-function headlineFigure(label: string, name: string, metrics: Record<string, Metric>, note?: string): HeadlineFigure {
+function headlineFigure(
+  label: string,
+  name: string,
+  metrics: Record<string, Metric>,
+  note?: string,
+): HeadlineFigure {
   const { text, tone } = describeObservation(name, metrics[name]);
   return note ? { label, value: text, tone, note } : { label, value: text, tone };
 }
@@ -78,15 +95,27 @@ function metricGroup(title: string, metrics: Record<string, Metric>, names: stri
     basis,
     rows: names.map((name) => {
       const ownBasis = metrics[name]?.basis ?? null;
-      return { name, label: labelFromKey(name), value: describeObservation(name, metrics[name]), ownBasis: ownBasis === basis ? null : ownBasis };
+      return {
+        name,
+        label: labelFromKey(name),
+        value: describeObservation(name, metrics[name]),
+        ownBasis: ownBasis === basis ? null : ownBasis,
+      };
     }),
   };
 }
 
 export function savedMetricGroups(metrics: Record<string, Metric>): MetricGroup[] {
-  const trackedCosts = Object.keys(COST_COMPONENTS).filter((name) => metrics[name]?.observation.availability === "available");
-  const groups = [metricGroup("Realized", metrics, REALIZED_METRICS), metricGroup("Marked", metrics, MARKED_METRICS)];
-  return trackedCosts.length ? [...groups, metricGroup("Cost components", metrics, trackedCosts)] : groups;
+  const trackedCosts = Object.keys(COST_COMPONENTS).filter(
+    (name) => metrics[name]?.observation.availability === "available",
+  );
+  const groups = [
+    metricGroup("Realized", metrics, REALIZED_METRICS),
+    metricGroup("Marked", metrics, MARKED_METRICS),
+  ];
+  return trackedCosts.length
+    ? [...groups, metricGroup("Cost components", metrics, trackedCosts)]
+    : groups;
 }
 
 export function untrackedCostComponents(metrics: Record<string, Metric>): UntrackedComponent[] {

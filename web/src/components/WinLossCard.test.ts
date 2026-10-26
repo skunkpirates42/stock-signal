@@ -3,7 +3,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import WinLossCard from "./WinLossCard";
 
-const render = (props: Parameters<typeof WinLossCard>[0]) => renderToStaticMarkup(createElement(WinLossCard, props));
+const render = (props: Parameters<typeof WinLossCard>[0]) =>
+  renderToStaticMarkup(createElement(WinLossCard, props));
 
 describe("WinLossCard", () => {
   it("shows unknown figures as dashes, not zeros", () => {

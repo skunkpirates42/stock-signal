@@ -1,8 +1,6 @@
 import type { Direction, Vote, VoteRow } from "@/lib/types";
 
-const ORDER = [
-  "rsi", "price_vs_sma20", "sma20_vs_sma50", "price_vs_vwap", "macd", "bb",
-] as const;
+const ORDER = ["rsi", "price_vs_sma20", "sma20_vs_sma50", "price_vs_vwap", "macd", "bb"] as const;
 
 const LABELS: Record<string, string> = {
   rsi: "RSI (14)",
@@ -47,13 +45,20 @@ function detailFor(indicator: string, values: Record<string, unknown>): string {
     return v === null ? "—" : v.toFixed(digits);
   };
   switch (indicator) {
-    case "rsi": return `${n("rsi")}  (bull <45, bear >55)`;
-    case "price_vs_sma20": return `${n("close")} vs ${n("sma20")}`;
-    case "sma20_vs_sma50": return `${n("sma20")} vs ${n("sma50")}`;
-    case "price_vs_vwap": return `${n("close")} vs ${n("vwap")}`;
-    case "macd": return n("macd", 3);
-    case "bb": return `${n("bb_pct", 3)}  (bull <0.20, bear >0.80)`;
-    default: return "";
+    case "rsi":
+      return `${n("rsi")}  (bull <45, bear >55)`;
+    case "price_vs_sma20":
+      return `${n("close")} vs ${n("sma20")}`;
+    case "sma20_vs_sma50":
+      return `${n("sma20")} vs ${n("sma50")}`;
+    case "price_vs_vwap":
+      return `${n("close")} vs ${n("vwap")}`;
+    case "macd":
+      return n("macd", 3);
+    case "bb":
+      return `${n("bb_pct", 3)}  (bull <0.20, bear >0.80)`;
+    default:
+      return "";
   }
 }
 

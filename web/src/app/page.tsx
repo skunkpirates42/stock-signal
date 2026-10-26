@@ -73,14 +73,27 @@ export default async function OverviewPage({
         <StatTile
           label="Profit factor"
           value={metrics.profit_factor === null ? "—" : formatRatio(metrics.profit_factor)}
-          tone={metrics.profit_factor === null ? "muted" : metrics.profit_factor >= 1 ? "positive" : "negative"}
+          tone={
+            metrics.profit_factor === null
+              ? "muted"
+              : metrics.profit_factor >= 1
+                ? "positive"
+                : "negative"
+          }
         />
         <StatTile
           label="Max drawdown"
-          value={maxDrawdown === null ? "—" : `${formatPrice(maxDrawdown)} (${formatPercent(metrics.max_drawdown_pct)})`}
+          value={
+            maxDrawdown === null
+              ? "—"
+              : `${formatPrice(maxDrawdown)} (${formatPercent(metrics.max_drawdown_pct)})`
+          }
           tone={maxDrawdown === null ? "muted" : toneForSign(-maxDrawdown)}
         />
-        <StatTile label="Avg bars held" value={formatRatio(observedOrNull(metrics.n_closed, metrics.avg_bars_held))} />
+        <StatTile
+          label="Avg bars held"
+          value={formatRatio(observedOrNull(metrics.n_closed, metrics.avg_bars_held))}
+        />
       </div>
 
       <div className="grid-6-6">
