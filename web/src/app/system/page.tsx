@@ -2,8 +2,10 @@ import AvailableValue from "@/components/AvailableValue";
 import Card from "@/components/Card";
 import DataTable from "@/components/DataTable";
 import Disclosure from "@/components/Disclosure";
+import MetricTerm from "@/components/MetricTerm";
 import StatTile from "@/components/StatTile";
 import { formatCurrency, toneForSign } from "@/lib/format";
+import { METRIC_DEFINITIONS } from "@/lib/metricDefinitions";
 import { describeObservation } from "@/lib/observation";
 import { COLOR_TOKENS, OBSERVATIONS, STAT_TILES, TABLE_ROWS, TYPE_SCALE } from "./fixtures";
 import PageHeader from "@/components/PageHeader";
@@ -99,6 +101,23 @@ export default function SystemPage() {
           <StatTile key={tile.label} {...tile} />
         ))}
       </div>
+
+      <Card
+        title="MetricTerm"
+        note="A dashed underline marks a term with a definition. Hover, focus or tap it to open; Escape, a click elsewhere or scrolling closes it. A click or tap keeps it open after the pointer leaves."
+      >
+        <div className="stat-grid">
+          <StatTile
+            label="Profit factor"
+            value="1.08"
+            tone="positive"
+            definition={METRIC_DEFINITIONS.profitFactor}
+          />
+          <Card title={<MetricTerm {...METRIC_DEFINITIONS.rMultiple} />} titleVariant="label">
+            <p className="card-note">In a card title.</p>
+          </Card>
+        </div>
+      </Card>
 
       <div className="system-grid">
         <Card title="Card with a heading" note="The note prop sits under the title.">

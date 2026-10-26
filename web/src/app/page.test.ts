@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Children, isValidElement, type ReactNode } from "react";
+import type { MetricDefinition } from "@/lib/metricDefinitions";
 import type { Metrics } from "@/lib/types";
 
 const metrics: Metrics = {
@@ -41,6 +42,20 @@ function valueOf(node: unknown, label: string): unknown {
   return undefined;
 }
 
+type TileSummary = { label: string; definition?: MetricDefinition };
+
+function statTiles(node: unknown): TileSummary[] {
+  if (!isValidElement<{ label?: string; definition?: MetricDefinition; children?: unknown }>(node))
+    return [];
+  const own: TileSummary[] =
+    typeof node.props.label === "string" && "value" in node.props
+      ? [{ label: node.props.label, definition: node.props.definition }]
+      : [];
+  return own.concat(
+    Children.toArray(node.props.children as ReactNode).flatMap((child) => statTiles(child)),
+  );
+}
+
 describe("overview", () => {
   beforeEach(() => getMetrics.mockResolvedValue(metrics));
 
@@ -69,5 +84,17 @@ describe("overview", () => {
     const page = await Page({ searchParams: Promise.resolve({}) });
     expect(valueOf(page, "Closed-trade net P&L")).toBe("$0.00");
     expect(valueOf(page, "Max drawdown")).toBe("$120.50 (1.2%)");
+  });
+
+  it("defines every stat tile's metric, under the same name as its label", async () => {
+    const page = await Page({ searchParams: Promise.resolve({}) });
+    const tiles = statTiles(page).filter(({ label }) => label !== "Closed-trade net P&L");
+    expect(tiles.map(({ label }) => label)).toEqual([
+      "Expectancy",
+      "Profit factor",
+      "Max drawdown",
+      "Avg bars held",
+    ]);
+    for (const { label, definition } of tiles) expect(definition?.term).toBe(label);
   });
 });

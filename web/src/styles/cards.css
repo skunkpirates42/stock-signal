@@ -327,6 +327,65 @@
   margin-top: calc(var(--space) / 2);
 }
 
+/* MetricTerm */
+
+.metric-term-trigger {
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: help;
+  text-decoration: underline dashed var(--faint);
+  text-underline-offset: 0.3em;
+}
+
+.metric-term-trigger:hover,
+.metric-term-trigger[aria-expanded="true"] {
+  color: var(--muted);
+  text-decoration-color: var(--muted);
+}
+
+/* A popover renders above the cards' overflow clipping; JS sets top and left. Its transparent
+   padding spaces the panel off the focus ring while keeping the pointer inside on the way over. */
+.metric-term-popover {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: min(280px, calc(100vw - 32px));
+  padding: var(--space) 0;
+  border: 0;
+  background: none;
+  overflow: visible;
+}
+
+.metric-term-panel {
+  display: block;
+  padding: calc(var(--space) * 1.5);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-small);
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: left;
+}
+
+.metric-term-meaning,
+.metric-term-formula {
+  display: block;
+}
+
+.metric-term-formula {
+  margin-top: var(--space);
+  color: var(--muted);
+}
+
 /* CostAdjustedExpectancy */
 
 .cost-adjusted-row {

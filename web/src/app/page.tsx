@@ -1,5 +1,6 @@
 import { getMetrics } from "@/lib/api";
 import { formatCurrency, formatPercent, formatPrice, formatRatio, toneForSign } from "@/lib/format";
+import { METRIC_DEFINITIONS } from "@/lib/metricDefinitions";
 import { observedOrNull } from "@/lib/metrics";
 import ProvenanceBand from "@/components/ProvenanceBand";
 import HeroStat from "@/components/HeroStat";
@@ -67,11 +68,13 @@ export default async function OverviewPage({
       <div className="stat-grid">
         <StatTile
           label="Expectancy"
+          definition={METRIC_DEFINITIONS.expectancy}
           value={formatCurrency(expectancy)}
           tone={toneForSign(expectancy)}
         />
         <StatTile
           label="Profit factor"
+          definition={METRIC_DEFINITIONS.profitFactor}
           value={metrics.profit_factor === null ? "—" : formatRatio(metrics.profit_factor)}
           tone={
             metrics.profit_factor === null
@@ -83,6 +86,7 @@ export default async function OverviewPage({
         />
         <StatTile
           label="Max drawdown"
+          definition={METRIC_DEFINITIONS.maxDrawdown}
           value={
             maxDrawdown === null
               ? "—"
@@ -92,6 +96,7 @@ export default async function OverviewPage({
         />
         <StatTile
           label="Avg bars held"
+          definition={METRIC_DEFINITIONS.avgBarsHeld}
           value={formatRatio(observedOrNull(metrics.n_closed, metrics.avg_bars_held))}
         />
       </div>

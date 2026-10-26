@@ -1,5 +1,7 @@
 import Card from "@/components/Card";
+import MetricTerm from "@/components/MetricTerm";
 import { formatR, toneForSign } from "@/lib/format";
+import { METRIC_DEFINITIONS } from "@/lib/metricDefinitions";
 
 export interface RMultipleCardProps {
   avgR: number | null;
@@ -9,7 +11,7 @@ export interface RMultipleCardProps {
 
 export default function RMultipleCard({ avgR, avgWinR, avgLossR }: RMultipleCardProps) {
   return (
-    <Card title="R-multiples" titleVariant="label">
+    <Card title={<MetricTerm {...METRIC_DEFINITIONS.rMultiple} />} titleVariant="label">
       <p className={`card-figure num tone-${toneForSign(avgR)}`}>{formatR(avgR)}</p>
       <dl className="pair-grid">
         <div>
