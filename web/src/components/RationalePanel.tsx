@@ -39,8 +39,8 @@ export default function RationalePanel({ signal }: RationalePanelProps) {
           <VoteTable rows={rows} />
           {volumeRatio !== null && (
             <p className="rationale-volume-note">
-              Confidence also factors in a volume modifier (volume ratio{" "}
-              {formatRatio(volumeRatio)}×) beyond these six directional votes.
+              Confidence also factors in a volume modifier (volume ratio {formatRatio(volumeRatio)}
+              ×) beyond these six directional votes.
             </p>
           )}
         </div>
@@ -59,8 +59,8 @@ export default function RationalePanel({ signal }: RationalePanelProps) {
             )}
           {signal.direction === "WAIT" ? (
             <p className="rationale-wait-note">
-              The engine stood aside — indicator agreement fell short of the threshold, so no
-              entry, stop, or target was set.
+              The engine stood aside — indicator agreement fell short of the threshold, so no entry,
+              stop, or target was set.
             </p>
           ) : (
             <dl className="rationale-level-grid">
@@ -84,9 +84,10 @@ export default function RationalePanel({ signal }: RationalePanelProps) {
           )}
           {arithmetic && signal.entry !== null && (
             <p className="rationale-atr-note">
-              Stop = entry {arithmetic.stopOperator} (ATR × {formatMultiplier(arithmetic.stopMultiplier)})
-              {" "}= {formatPrice(signal.entry)} {arithmetic.stopOperator} (
-              {formatPrice(arithmetic.atr)} × {formatMultiplier(arithmetic.stopMultiplier)})
+              Stop = entry {arithmetic.stopOperator} (ATR ×{" "}
+              {formatMultiplier(arithmetic.stopMultiplier)}) = {formatPrice(signal.entry)}{" "}
+              {arithmetic.stopOperator} ({formatPrice(arithmetic.atr)} ×{" "}
+              {formatMultiplier(arithmetic.stopMultiplier)})
               <br />
               Target = entry {arithmetic.targetOperator} (ATR ×{" "}
               {formatMultiplier(arithmetic.targetMultiplier)}) = {formatPrice(signal.entry)}{" "}

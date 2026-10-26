@@ -7,9 +7,22 @@ import Page from "@/components/Page";
 
 export default async function RunPage() {
   const { data: catalog } = await getReplayCatalog();
-  return <Page>
-    <PageHeader eyebrow="Local historical replay" title="New run" aside={<Link href="/runs" className="button">Run history</Link>} />
-    <ScopeNote>Replays a past market window on paper. The synthetic fixture only checks correctness. Queuing a run never starts data collection or trading.</ScopeNote>
-    <RunForm catalog={catalog} />
-  </Page>;
+  return (
+    <Page>
+      <PageHeader
+        eyebrow="Local historical replay"
+        title="New run"
+        aside={
+          <Link href="/runs" className="button">
+            Run history
+          </Link>
+        }
+      />
+      <ScopeNote>
+        Replays a past market window on paper. The synthetic fixture only checks correctness.
+        Queuing a run never starts data collection or trading.
+      </ScopeNote>
+      <RunForm catalog={catalog} />
+    </Page>
+  );
 }

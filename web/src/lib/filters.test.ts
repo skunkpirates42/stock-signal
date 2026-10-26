@@ -4,13 +4,21 @@ import type { Signal } from "@/lib/types";
 
 function signal(over: Partial<Signal>): Signal {
   return {
-    id: 1, ticker: "AAPL", direction: "LONG", confidence: 0.7,
-    entry: 100, stop: 98, target: 104, rr: 2,
+    id: 1,
+    ticker: "AAPL",
+    direction: "LONG",
+    confidence: 0.7,
+    entry: 100,
+    stop: 98,
+    target: 104,
+    rr: 2,
     bar_timestamp: "2026-07-15 19:55:00+00:00",
     created_at: "2026-07-15T20:00:00+00:00",
-    regime: "BULL", source: "live",
+    regime: "BULL",
+    source: "live",
     synthesis_source: "groq:qwen/qwen3.6-27b",
-    reasoning: "x", indicators_json: "{}",
+    reasoning: "x",
+    indicators_json: "{}",
     ...over,
   };
 }
@@ -45,8 +53,7 @@ describe("filterSignals", () => {
   });
 
   it("combines criteria", () => {
-    expect(filterSignals(all, { ticker: "AAPL", direction: "LONG" }).map((s) => s.id))
-      .toEqual([1]);
+    expect(filterSignals(all, { ticker: "AAPL", direction: "LONG" }).map((s) => s.id)).toEqual([1]);
   });
 
   it("returns empty when nothing matches", () => {
@@ -80,13 +87,11 @@ describe("filterSignals", () => {
   });
 
   it("lets an explicit WAIT direction override hideWait", () => {
-    expect(filterSignals(all, { hideWait: true, direction: "WAIT" }).map((s) => s.id))
-      .toEqual([3]);
+    expect(filterSignals(all, { hideWait: true, direction: "WAIT" }).map((s) => s.id)).toEqual([3]);
   });
 
   it("combines hideWait with a LONG or SHORT direction", () => {
-    expect(filterSignals(all, { hideWait: true, direction: "LONG" }).map((s) => s.id))
-      .toEqual([1]);
+    expect(filterSignals(all, { hideWait: true, direction: "LONG" }).map((s) => s.id)).toEqual([1]);
   });
 });
 

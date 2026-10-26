@@ -11,7 +11,9 @@ function renderPage() {
 
 describe("system page", () => {
   it("renders without touching the network", () => {
-    const fetch = vi.fn(() => { throw new Error("no network on /system"); });
+    const fetch = vi.fn(() => {
+      throw new Error("no network on /system");
+    });
     vi.stubGlobal("fetch", fetch);
     renderPage();
     expect(fetch).not.toHaveBeenCalled();

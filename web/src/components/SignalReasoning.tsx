@@ -38,9 +38,7 @@ export default function SignalReasoning({
   return (
     <div className="rationale-reasoning">
       <p>{text ?? "No reasoning recorded for this signal."}</p>
-      <p className="rationale-provenance">
-        Source: {describeSynthesisSource(source)}
-      </p>
+      <p className="rationale-provenance">Source: {describeSynthesisSource(source)}</p>
       {!explained && (
         <button
           type="button"

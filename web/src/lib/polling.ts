@@ -10,8 +10,9 @@ export function startVisiblePolling(
   const poll = async () => {
     if (stopped || running || doc.visibilityState !== "visible") return;
     running = true;
-    try { await task(); }
-    finally {
+    try {
+      await task();
+    } finally {
       running = false;
       if (!stopped && doc.visibilityState === "visible") timer = setTimeout(poll, delay);
     }

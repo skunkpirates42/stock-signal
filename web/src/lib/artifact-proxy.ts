@@ -7,7 +7,10 @@ const SAFE_HEADERS = { "Cache-Control": "no-store", "X-Content-Type-Options": "n
 export async function proxyArtifact(path: string): Promise<Response> {
   let upstream: Response;
   try {
-    upstream = await fetch(`${API_BASE}/api/demo/v1${path}`, { cache: "no-store", redirect: "manual" });
+    upstream = await fetch(`${API_BASE}/api/demo/v1${path}`, {
+      cache: "no-store",
+      redirect: "manual",
+    });
   } catch {
     return new Response(null, { status: 502, headers: SAFE_HEADERS });
   }
@@ -22,7 +25,11 @@ export async function proxyArtifact(path: string): Promise<Response> {
     return new Response(null, { status: 502, headers: SAFE_HEADERS });
   }
   const expectedBytes = Number(declaredSize);
-  if (!Number.isSafeInteger(expectedBytes) || expectedBytes < 0 || expectedBytes > MAX_ARTIFACT_BYTES) {
+  if (
+    !Number.isSafeInteger(expectedBytes) ||
+    expectedBytes < 0 ||
+    expectedBytes > MAX_ARTIFACT_BYTES
+  ) {
     return new Response(null, { status: 413, headers: SAFE_HEADERS });
   }
   if (!upstream.body) return new Response(null, { status: 502, headers: SAFE_HEADERS });
@@ -54,5 +61,7 @@ export async function proxyArtifact(path: string): Promise<Response> {
     body.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return new Response(body, { headers: { ...SAFE_HEADERS, "Content-Type": mimeType, "Content-Length": String(total) } });
+  return new Response(body, {
+    headers: { ...SAFE_HEADERS, "Content-Type": mimeType, "Content-Length": String(total) },
+  });
 }

@@ -10,7 +10,12 @@ export interface SegmentedProps<T extends string> {
   label: string;
 }
 
-export default function Segmented<T extends string>({ options, value, onChange, label }: SegmentedProps<T>) {
+export default function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  label,
+}: SegmentedProps<T>) {
   return (
     <div className="segmented" role="group" aria-label={label}>
       {options.map((option) => (

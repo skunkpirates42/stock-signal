@@ -8,10 +8,25 @@ import {
 } from "@/lib/indicators";
 
 const REAL = JSON.stringify({
-  votes: { rsi: "neutral", price_vs_sma20: "bear", sma20_vs_sma50: "bear",
-           price_vs_vwap: "bull", macd: "bear", bb: "neutral" },
-  values: { close: 395.61, rsi: 49.05, sma20: 395.87, sma50: 396.13, vwap: 392.95,
-            macd: -0.205, bb_pct: 0.393, volume_ratio: 2.637, atr: 0.745 },
+  votes: {
+    rsi: "neutral",
+    price_vs_sma20: "bear",
+    sma20_vs_sma50: "bear",
+    price_vs_vwap: "bull",
+    macd: "bear",
+    bb: "neutral",
+  },
+  values: {
+    close: 395.61,
+    rsi: 49.05,
+    sma20: 395.87,
+    sma50: 396.13,
+    vwap: 392.95,
+    macd: -0.205,
+    bb_pct: 0.393,
+    volume_ratio: 2.637,
+    atr: 0.745,
+  },
   tally: { bull: 1, bear: 3, neutral: 2 },
 });
 
@@ -19,7 +34,12 @@ describe("parseIndicators", () => {
   it("returns all six indicators in display order", () => {
     const rows = parseIndicators(REAL);
     expect(rows.map((r) => r.indicator)).toEqual([
-      "rsi", "price_vs_sma20", "sma20_vs_sma50", "price_vs_vwap", "macd", "bb",
+      "rsi",
+      "price_vs_sma20",
+      "sma20_vs_sma50",
+      "price_vs_vwap",
+      "macd",
+      "bb",
     ]);
   });
 
@@ -30,8 +50,7 @@ describe("parseIndicators", () => {
   });
 
   it("gives every row a human label", () => {
-    expect(parseIndicators(REAL).find((r) => r.indicator === "bb")?.label)
-      .toBe("BB %B");
+    expect(parseIndicators(REAL).find((r) => r.indicator === "bb")?.label).toBe("BB %B");
   });
 
   it("shows the value that produced the vote", () => {

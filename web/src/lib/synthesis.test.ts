@@ -3,7 +3,8 @@ import { describeSynthesisSource, hasLlmReasoning } from "@/lib/synthesis";
 
 describe("describeSynthesisSource", () => {
   it("names the failed provider without showing its raw error", () => {
-    const stored = "template (fell back from groq: Error code: 403 - {'error': {'message': 'Access denied.'}})";
+    const stored =
+      "template (fell back from groq: Error code: 403 - {'error': {'message': 'Access denied.'}})";
     expect(describeSynthesisSource(stored)).toBe("template (groq explanation failed)");
   });
 

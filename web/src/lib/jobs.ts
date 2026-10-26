@@ -1,14 +1,32 @@
-import { demoGet, DemoNotFound, isOpaqueDemoId, type Artifact, type Availability, type NormalizedRun, type Result } from "@/lib/demo";
+import {
+  demoGet,
+  DemoNotFound,
+  isOpaqueDemoId,
+  type Artifact,
+  type Availability,
+  type NormalizedRun,
+  type Result,
+} from "@/lib/demo";
 
 export interface ReplayCatalog {
   strategy: { id: "stock-signal"; label: string; editable_fields: [] };
   datasets: {
-    id: string; label: string; content_sha256: string; feed: string; synthetic: boolean; available: boolean;
-    windows: { id: string; start: string; end_exclusive: string }[]; cost_profile_ids: string[];
+    id: string;
+    label: string;
+    content_sha256: string;
+    feed: string;
+    synthetic: boolean;
+    available: boolean;
+    windows: { id: string; start: string; end_exclusive: string }[];
+    cost_profile_ids: string[];
   }[];
   cost_profiles: {
-    id: string; label: string; spread_bps: number; slippage_bps_per_fill: number;
-    fee_per_share_per_fill: number; evidence: string;
+    id: string;
+    label: string;
+    spread_bps: number;
+    slippage_bps_per_fill: number;
+    fee_per_share_per_fill: number;
+    evidence: string;
   }[];
 }
 
@@ -48,7 +66,8 @@ export function getReplayCatalog() {
 }
 
 export function getJobs(cursor?: string) {
-  if (cursor !== undefined && !isOpaqueDemoId(cursor)) throw new DemoNotFound("Demo cursor was not found");
+  if (cursor !== undefined && !isOpaqueDemoId(cursor))
+    throw new DemoNotFound("Demo cursor was not found");
   const query = new URLSearchParams({ limit: "25" });
   if (cursor) query.set("cursor", cursor);
   return demoGet<{ runs: JobStatus[]; next_cursor: string | null }>(`/runs?${query}`);

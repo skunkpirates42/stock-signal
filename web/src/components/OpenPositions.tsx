@@ -12,9 +12,9 @@ export default function OpenPositions({ positions, now }: OpenPositionsProps) {
     <section className="open-positions">
       <h2 className="micro">Open positions</h2>
       <p className="positions-note">
-        No live price feed is wired into this dashboard. The columns below show distance to
-        stop and distance to target as of entry — not current value or unrealized P&amp;L,
-        which this app has no data to compute.
+        No live price feed is wired into this dashboard. The columns below show distance to stop and
+        distance to target as of entry — not current value or unrealized P&amp;L, which this app has
+        no data to compute.
       </p>
       {positions.length === 0 ? (
         <p className="positions-empty">No open positions.</p>

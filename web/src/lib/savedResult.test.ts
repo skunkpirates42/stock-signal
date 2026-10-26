@@ -1,15 +1,26 @@
 import { describe, expect, it } from "vitest";
 import type { Artifact, Metric } from "@/lib/demo";
-import { groupArtifactsByKind, headlineFigures, savedMetricGroups, untrackedCostComponents } from "@/lib/savedResult";
+import {
+  groupArtifactsByKind,
+  headlineFigures,
+  savedMetricGroups,
+  untrackedCostComponents,
+} from "@/lib/savedResult";
 
 const REALIZED = "Realized closed trades; net of recorded costs";
 const MARKED = "Marked portfolio; latest observed close";
 
 const saved = (value: number, basis: string, unit = "USD"): Metric => ({
-  observation: { availability: "available", value, reason: null, detail: null }, unit, basis, source_pointer: "/comparison",
+  observation: { availability: "available", value, reason: null, detail: null },
+  unit,
+  basis,
+  source_pointer: "/comparison",
 });
 const missing = (detail: string, basis = "No separate saved accounting amount."): Metric => ({
-  observation: { availability: "unavailable", value: null, reason: "not_recorded", detail }, unit: "USD", basis, source_pointer: null,
+  observation: { availability: "unavailable", value: null, reason: "not_recorded", detail },
+  unit: "USD",
+  basis,
+  source_pointer: null,
 });
 
 const metrics: Record<string, Metric> = {
@@ -30,13 +41,25 @@ const metrics: Record<string, Metric> = {
 };
 
 const artifact = (kind: string): Artifact => ({
-  record_type: "artifact", id: `${kind}-id`, result_id: "result", kind, sha256: "a".repeat(64), mime_type: "application/json", byte_size: 1,
+  record_type: "artifact",
+  id: `${kind}-id`,
+  result_id: "result",
+  kind,
+  sha256: "a".repeat(64),
+  mime_type: "application/json",
+  byte_size: 1,
 });
 
 describe("headlineFigures", () => {
   it("leads with the realized figures and labels the marked ones", () => {
     const figures = headlineFigures(metrics);
-    expect(figures.map((figure) => figure.label)).toEqual(["Realized net P&L", "Closed trades", "Realized max drawdown", "Marked net P&L", "Marked max drawdown"]);
+    expect(figures.map((figure) => figure.label)).toEqual([
+      "Realized net P&L",
+      "Closed trades",
+      "Realized max drawdown",
+      "Marked net P&L",
+      "Marked max drawdown",
+    ]);
     expect(figures.slice(3).every((figure) => figure.note === "Marked to latest close")).toBe(true);
   });
 
@@ -58,7 +81,10 @@ describe("savedMetricGroups", () => {
     const [realized, marked] = savedMetricGroups(metrics);
     expect(realized.basis).toBe(REALIZED);
     expect(realized.rows.filter((row) => row.ownBasis !== null)).toEqual([
-      expect.objectContaining({ name: "censored_positions", ownBasis: "Positions open at window end" }),
+      expect.objectContaining({
+        name: "censored_positions",
+        ownBasis: "Positions open at window end",
+      }),
     ]);
     expect(marked.basis).toBe(MARKED);
     expect(marked.rows.every((row) => row.ownBasis === null)).toBe(true);
@@ -68,21 +94,39 @@ describe("savedMetricGroups", () => {
     const withoutCensored = { ...metrics };
     delete withoutCensored.censored_positions;
     const [realized] = savedMetricGroups(withoutCensored);
-    expect(realized.rows.find((row) => row.name === "censored_positions")).toMatchObject({ value: { text: "Unavailable", reason: "No saved metric." }, ownBasis: null });
+    expect(realized.rows.find((row) => row.name === "censored_positions")).toMatchObject({
+      value: { text: "Unavailable", reason: "No saved metric." },
+      ownBasis: null,
+    });
   });
 
   it("adds a cost group only for components that were saved", () => {
     expect(savedMetricGroups(metrics)).toHaveLength(2);
     const groups = savedMetricGroups({ ...metrics, fees: saved(3, "Saved fee total") });
-    expect(groups[2]).toMatchObject({ title: "Cost components", basis: "Saved fee total", rows: [expect.objectContaining({ name: "fees", value: expect.objectContaining({ text: "$3.00" }) })] });
+    expect(groups[2]).toMatchObject({
+      title: "Cost components",
+      basis: "Saved fee total",
+      rows: [
+        expect.objectContaining({
+          name: "fees",
+          value: expect.objectContaining({ text: "$3.00" }),
+        }),
+      ],
+    });
   });
 });
 
 describe("untrackedCostComponents", () => {
   it("lists every unavailable or missing component with its reason", () => {
     expect(untrackedCostComponents(metrics)).toEqual([
-      { label: "spread", reason: "Spread total was not saved. No separate saved accounting amount." },
-      { label: "slippage", reason: "Slippage total was not saved. No separate saved accounting amount." },
+      {
+        label: "spread",
+        reason: "Spread total was not saved. No separate saved accounting amount.",
+      },
+      {
+        label: "slippage",
+        reason: "Slippage total was not saved. No separate saved accounting amount.",
+      },
       { label: "fees", reason: "Fees were not saved. No separate saved accounting amount." },
       { label: "borrow", reason: "Borrow is not modeled. No separate saved accounting amount." },
       { label: "dividends", reason: "No saved metric." },
@@ -90,13 +134,19 @@ describe("untrackedCostComponents", () => {
   });
 
   it("drops a component that was saved", () => {
-    expect(untrackedCostComponents({ ...metrics, fees: saved(3, "Saved fee total") }).map((item) => item.label)).not.toContain("fees");
+    expect(
+      untrackedCostComponents({ ...metrics, fees: saved(3, "Saved fee total") }).map(
+        (item) => item.label,
+      ),
+    ).not.toContain("fees");
   });
 });
 
 describe("groupArtifactsByKind", () => {
   it("files known kinds and puts everything else under reproducibility", () => {
-    const groups = groupArtifactsByKind(["cashflows", "diagnostics", "dataset_metadata", "manifest", "trades"].map(artifact));
+    const groups = groupArtifactsByKind(
+      ["cashflows", "diagnostics", "dataset_metadata", "manifest", "trades"].map(artifact),
+    );
     expect(groups.accounting.map((item) => item.kind)).toEqual(["cashflows"]);
     expect(groups.quality.map((item) => item.kind)).toEqual(["diagnostics"]);
     expect(groups.data.map((item) => item.kind)).toEqual(["dataset_metadata"]);

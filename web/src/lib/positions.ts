@@ -16,7 +16,8 @@ export function distanceToStop(trade: Pick<Trade, "direction" | "entry" | "stop"
 }
 
 export function distanceToTarget(trade: Pick<Trade, "direction" | "entry" | "target">): Distance {
-  const dollars = trade.direction === "SHORT" ? trade.entry - trade.target : trade.target - trade.entry;
+  const dollars =
+    trade.direction === "SHORT" ? trade.entry - trade.target : trade.target - trade.entry;
   return { dollars, percent: trade.entry === 0 ? 0 : dollars / trade.entry };
 }
 

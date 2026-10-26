@@ -24,7 +24,10 @@ export default async function PositionsPage({
 
   return (
     <Page>
-      <PageHeader title="Positions" aside={<span className="micro">{positions.length} open</span>} />
+      <PageHeader
+        title="Positions"
+        aside={<span className="micro">{positions.length} open</span>}
+      />
       <ScopeNote>
         {scope === "live"
           ? "Live open positions and closed trades, plus older positions with an unknown source. Unknown positions can block trading until they’re reconciled. Backtest replay rows are hidden."

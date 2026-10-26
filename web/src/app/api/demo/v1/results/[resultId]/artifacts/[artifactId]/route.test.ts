@@ -11,9 +11,12 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("saved artifact proxy", () => {
   it("serves bounded allowlisted bytes without exposing the upstream address", async () => {
-    const upstream = vi.fn(async () => new Response("saved", {
-      headers: { "Content-Type": "text/plain; charset=utf-8", "Content-Length": "5" },
-    }));
+    const upstream = vi.fn(
+      async () =>
+        new Response("saved", {
+          headers: { "Content-Type": "text/plain; charset=utf-8", "Content-Length": "5" },
+        }),
+    );
     vi.stubGlobal("fetch", upstream);
 
     const response = await GET(new Request("http://example.test/api/demo"), context());
@@ -36,26 +39,47 @@ describe("saved artifact proxy", () => {
   });
 
   it.each([404, 413])("preserves an upstream %i response", async (status) => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status })),
+    );
     expect((await GET(new Request("http://example.test"), context())).status).toBe(status);
   });
 
   it("rejects unexpected content types", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("<html>", {
-      headers: { "Content-Type": "text/html", "Content-Length": "6" },
-    })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("<html>", {
+            headers: { "Content-Type": "text/html", "Content-Length": "6" },
+          }),
+      ),
+    );
     expect((await GET(new Request("http://example.test"), context())).status).toBe(502);
   });
 
   it("rejects declared and streamed content beyond the fixed bound", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("x", {
-      headers: { "Content-Type": "text/plain", "Content-Length": String(1024 * 1024 + 1) },
-    })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("x", {
+            headers: { "Content-Type": "text/plain", "Content-Length": String(1024 * 1024 + 1) },
+          }),
+      ),
+    );
     expect((await GET(new Request("http://example.test"), context())).status).toBe(413);
 
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("too long", {
-      headers: { "Content-Type": "text/plain", "Content-Length": "3" },
-    })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("too long", {
+            headers: { "Content-Type": "text/plain", "Content-Length": "3" },
+          }),
+      ),
+    );
     expect((await GET(new Request("http://example.test"), context())).status).toBe(413);
   });
 });

@@ -9,11 +9,20 @@ export interface PageHeaderProps {
 }
 
 export default function PageHeader({ title, eyebrow, aside, back }: PageHeaderProps) {
-  return <>
-    {back && <Link className="micro page-back" href={back.href}>← {back.label}</Link>}
-    <div className="page-head">
-      <div>{eyebrow && <p className="micro">{eyebrow}</p>}<h1>{title}</h1></div>
-      {aside}
-    </div>
-  </>;
+  return (
+    <>
+      {back && (
+        <Link className="micro page-back" href={back.href}>
+          ← {back.label}
+        </Link>
+      )}
+      <div className="page-head">
+        <div>
+          {eyebrow && <p className="micro">{eyebrow}</p>}
+          <h1>{title}</h1>
+        </div>
+        {aside}
+      </div>
+    </>
+  );
 }

@@ -26,7 +26,10 @@ export default function LiveStatus() {
         if (active) setError("API unavailable. Displayed records may be stale.");
       }
     }, document);
-    return () => { active = false; stop(); };
+    return () => {
+      active = false;
+      stop();
+    };
   }, [router]);
   const summary = describeStatus({ source, status, apiFailed: error !== null, checkedAt: checked });
   return <StatusLine summary={summary} error={error} />;

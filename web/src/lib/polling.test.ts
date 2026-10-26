@@ -7,17 +7,21 @@ it("refreshes visible pages, pauses hidden pages, and cleans up", async () => {
   let callback: (() => void) | undefined;
   const doc = {
     visibilityState: "visible" as DocumentVisibilityState,
-    addEventListener: vi.fn((_name: string, cb: unknown) => { callback = cb as () => void; }),
+    addEventListener: vi.fn((_name: string, cb: unknown) => {
+      callback = cb as () => void;
+    }),
     removeEventListener: vi.fn(),
   };
   const task = vi.fn(async () => {});
   const stop = startVisiblePolling(task, doc as unknown as Document, 100);
   await vi.advanceTimersByTimeAsync(100);
   expect(task).toHaveBeenCalledTimes(2);
-  doc.visibilityState = "hidden"; callback!();
+  doc.visibilityState = "hidden";
+  callback!();
   await vi.advanceTimersByTimeAsync(500);
   expect(task).toHaveBeenCalledTimes(2);
-  doc.visibilityState = "visible"; callback!();
+  doc.visibilityState = "visible";
+  callback!();
   await vi.advanceTimersByTimeAsync(0);
   expect(task).toHaveBeenCalledTimes(3);
   stop();

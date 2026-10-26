@@ -32,7 +32,11 @@ export interface ComparisonTable {
   sharedRetrospective: boolean | null;
 }
 
-const MONTH_DAY = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+const MONTH_DAY = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  timeZone: "UTC",
+});
 
 export function formatWindowDates(start: string, endExclusive: string): string {
   const startDate = new Date(start);
@@ -42,7 +46,10 @@ export function formatWindowDates(start: string, endExclusive: string): string {
   }
   const startYear = startDate.getUTCFullYear();
   const endYear = endDate.getUTCFullYear();
-  const startLabel = startYear === endYear ? MONTH_DAY.format(startDate) : `${MONTH_DAY.format(startDate)}, ${startYear}`;
+  const startLabel =
+    startYear === endYear
+      ? MONTH_DAY.format(startDate)
+      : `${MONTH_DAY.format(startDate)}, ${startYear}`;
   return `${startLabel} – ${MONTH_DAY.format(endDate)}, ${endYear}`;
 }
 
@@ -82,7 +89,12 @@ export function buildComparisonTable(results: Result[]): ComparisonTable {
   const sortedColumns = [...columnsByKey.values()].sort(
     (left, right) => left.start.localeCompare(right.start) || left.name.localeCompare(right.name),
   );
-  const columns = sortedColumns.map(({ key, name, dates, exactRange }) => ({ key, name, dates, exactRange }));
+  const columns = sortedColumns.map(({ key, name, dates, exactRange }) => ({
+    key,
+    name,
+    dates,
+    exactRange,
+  }));
   const columnIndex = new Map(columns.map((column, index) => [column.key, index]));
 
   const cellsByVariant = new Map<string, ComparisonEntry[][]>();

@@ -12,8 +12,8 @@ describe("summarizeEquityCurve", () => {
       point("2026-10-03T16:00:00", 100400),
     ]);
     expect(summary).toBe(
-      "Equity went from $100,000.00 at start to $100,400.00 at 2026-10-03 16:00 UTC, "
-      + "with a low of $98,500.50 and a high of $101,250.00 across 4 points.",
+      "Equity went from $100,000.00 at start to $100,400.00 at 2026-10-03 16:00 UTC, " +
+        "with a low of $98,500.50 and a high of $101,250.00 across 4 points.",
     );
   });
 });

@@ -17,10 +17,10 @@ describe("positions scope", () => {
   it("includes unknown exposure in the default view", async () => {
     const page = await Page({ searchParams: Promise.resolve({}) });
     const list = Children.toArray(page.props.children).find(
-      child => isValidElement(child) && child.type === OpenPositions,
+      (child) => isValidElement(child) && child.type === OpenPositions,
     );
     if (!isValidElement<{ positions: Trade[] }>(list)) throw new Error("Missing positions");
-    expect(list.props.positions.map(p => p.source)).toEqual(["live", "unknown"]);
+    expect(list.props.positions.map((p) => p.source)).toEqual(["live", "unknown"]);
     expect(getOpenPositions).not.toHaveBeenCalledWith("all");
   });
 });
