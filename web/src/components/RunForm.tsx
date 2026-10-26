@@ -3,16 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ReplayCatalog } from "@/lib/jobs";
-
-const ERROR_TEXT: Record<string, string> = {
-  dataset_changed:
-    "The approved dataset changed on this host. Refresh the catalog before trying again.",
-  dataset_unavailable: "The approved dataset is unavailable on this host.",
-  idempotency_conflict:
-    "This submission key was already used for different choices. Choose again and retry.",
-  job_store_busy: "The local job store is busy. Retry with the same choices.",
-  demo_unavailable: "The local demo service is unavailable. Check the dashboard process and retry.",
-};
+import { queueReplayRun } from "@/lib/runRequests";
 
 export default function RunForm({ catalog }: { catalog: ReplayCatalog }) {
   const router = useRouter();
@@ -36,36 +27,20 @@ export default function RunForm({ catalog }: { catalog: ReplayCatalog }) {
     setBusy(true);
     setError("");
     key.current ??= crypto.randomUUID();
-    try {
-      const response = await fetch("/api/demo/v1/runs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          strategy_id: catalog.strategy.id,
-          dataset_id: datasetId,
-          window_id: windowId,
-          cost_profile_id: costId,
-          idempotency_key: key.current,
-        }),
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        const code = payload?.error?.code as string | undefined;
-        if (code === "idempotency_conflict") key.current = null;
-        setError(
-          ERROR_TEXT[code ?? ""] ??
-            "The run request was rejected. Check the approved choices and retry.",
-        );
-        return;
-      }
-      const runId = payload?.data?.status?.run_id;
-      if (typeof runId !== "string") throw new Error("Missing run ID");
-      router.push(`/runs/${encodeURIComponent(runId)}`);
-    } catch {
-      setError("The submission response could not be read. Retry to look up the same run.");
-    } finally {
-      setBusy(false);
+    const outcome = await queueReplayRun({
+      strategy_id: catalog.strategy.id,
+      dataset_id: datasetId,
+      window_id: windowId,
+      cost_profile_id: costId,
+      idempotency_key: key.current,
+    });
+    setBusy(false);
+    if (outcome.ok) {
+      router.push(`/runs/${encodeURIComponent(outcome.runId)}`);
+      return;
     }
+    if (outcome.keyRejected) key.current = null;
+    setError(outcome.message);
   }
 
   return (

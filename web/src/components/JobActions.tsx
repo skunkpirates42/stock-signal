@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { JobStatus } from "@/lib/jobs";
 import { startVisiblePolling } from "@/lib/polling";
+import { requestRunCancel } from "@/lib/runRequests";
 
 export default function JobActions({ status }: { status: JobStatus }) {
   const router = useRouter();
@@ -26,30 +27,10 @@ export default function JobActions({ status }: { status: JobStatus }) {
     if (busy) return;
     setBusy(true);
     setError("");
-    try {
-      const response = await fetch(
-        `/api/demo/v1/runs/${encodeURIComponent(status.run_id)}/cancel`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: "{}",
-        },
-      );
-      if (!response.ok) {
-        const payload = await response.json();
-        setError(
-          payload?.error?.code === "job_store_busy"
-            ? "The job store is busy. Try cancelling again."
-            : "The cancel request failed. Try again.",
-        );
-        return;
-      }
-      router.refresh();
-    } catch {
-      setError("The local demo service could not be reached. Try again.");
-    } finally {
-      setBusy(false);
-    }
+    const outcome = await requestRunCancel(status.run_id);
+    setBusy(false);
+    if (outcome.ok) router.refresh();
+    else setError(outcome.message);
   }
 
   return (
