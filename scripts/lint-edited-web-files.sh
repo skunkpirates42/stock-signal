@@ -3,8 +3,12 @@ input=$(cat)
 cwd=$(printf "%s" "$input" | jq -r '.cwd')
 repo=$(git -C "$cwd" rev-parse --show-toplevel) || exit 0
 
-edited=$(printf "%s" "$input" | jq -r '.tool_input.command // empty' |
-  sed -nE 's/^\*\*\* (Add File|Update File|Move to): //p' |
+# Claude's Edit/Write send tool_input.file_path; Codex's apply_patch sends the patch in tool_input.command.
+edited=$({
+  printf "%s" "$input" | jq -r '.tool_input.file_path // empty'
+  printf "%s" "$input" | jq -r '.tool_input.command // empty' |
+    sed -nE 's/^\*\*\* (Add File|Update File|Move to): //p'
+} |
   while read -r path; do
     case "$path" in (/*) echo "$path" ;; (*) echo "$cwd/$path" ;; esac
   done |
@@ -14,7 +18,7 @@ edited=$(printf "%s" "$input" | jq -r '.tool_input.command // empty' |
 cd "$repo/web" || exit 0
 echo "$edited" | xargs pnpm exec prettier --write --ignore-unknown >/dev/null 2>&1
 
-# ESLint errors go back to Codex as feedback (exit 2) so it fixes them in the same turn.
+# Exit 2 returns ESLint errors to the agent as feedback so it fixes them in the same turn.
 lintable=$(echo "$edited" | grep -E '\.(js|jsx|mjs|cjs|ts|tsx)$')
 [ -z "$lintable" ] && exit 0
 lint_output=$(echo "$lintable" | xargs pnpm exec eslint 2>&1) && exit 0
