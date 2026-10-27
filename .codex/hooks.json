@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"$(git rev-parse --show-toplevel)/scripts/lint-edited-web-files.sh\"",
+            "timeout": 120,
+            "statusMessage": "Formatting and linting edited web files"
+          }
+        ]
+      }
+    ]
+  }
+}
