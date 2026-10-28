@@ -51,6 +51,7 @@ class AlpacaBroker:
         self.events = []
         self.open_positions = {}
         self.blocked = None
+        self.safe_to_flatten = False
         self._restore()
 
     @staticmethod
@@ -147,6 +148,11 @@ class AlpacaBroker:
             if state == 'filled' and qty != row['requested_qty'] and not self._protective(row):
                 raise ValueError('Filled status without complete quantity')
             payload = json.loads(row['payload_json'])
+            if self._protective(row):
+                broker_qty = _f(getattr(order, 'qty', None))
+                if broker_qty is None or broker_qty < qty or int(broker_qty) != broker_qty:
+                    raise ValueError('Invalid broker protective quantity')
+                payload['broker_qty'] = int(broker_qty)
             if qty > row['applied_qty']:
                 if row['purpose'] == 'entry':
                     tid = row['trade_id']
@@ -185,7 +191,7 @@ class AlpacaBroker:
                         event = ('close', row['trade_id'])
             _update(conn, 'orders', oid, {'broker_id': str(order.id), 'state': state,
                 'filled_qty': qty, 'applied_qty': qty, 'fill_price': price,
-                'trade_id': row['trade_id'], 'last_error': state if state in ('rejected','expired','suspended') else None, 'updated_at': now()})
+                'trade_id': row['trade_id'], 'payload_json': json.dumps(payload), 'last_error': state if state in ('rejected','expired','suspended') else None, 'updated_at': now()})
         self._restore()
         if event:
             with _connect(self.db_path) as conn:
@@ -231,12 +237,18 @@ class AlpacaBroker:
     def reconcile(self):
         from alpaca.trading.requests import GetOrderByIdRequest
         self.blocked = None
+        self.safe_to_flatten = False
+        orders = self._orders()
+        children_by_parent = {}
+        for row in orders:
+            parent_id = json.loads(row['payload_json']).get('parent_id')
+            if parent_id:
+                children_by_parent.setdefault(parent_id, []).append(row)
         # Parent first, then children, including fills received between bars.
-        for row in self._orders():
+        for row in orders:
             payload = json.loads(row['payload_json'])
             bracket = payload.get('execution_policy') == 'bracket_v1'
-            children = [o for o in self._orders(row['ticker'])
-                        if json.loads(o['payload_json']).get('parent_id') == row['id']]
+            children = children_by_parent.get(row['id'], [])
             needs_discovery = bracket and len(children) != 2 and (
                 row['state'] not in TERMINAL or row['applied_qty'] > 0)
             if row['state'] in TERMINAL and not needs_discovery:
@@ -270,18 +282,27 @@ class AlpacaBroker:
                         for s, p in self.open_positions.items()}
             if actual != expected:
                 self.blocked = f'Broker/DB exposure mismatch: expected={expected}, actual={actual}'
+            orders = self._orders()
             if any(o['state'] not in TERMINAL and not (self._protective(o) and
-                    o['state'] in ('new', 'accepted', 'held', 'partially_filled')) for o in self._orders()):
+                    o['state'] in ('new', 'accepted', 'held', 'partially_filled')) for o in orders):
                 self.blocked = self.blocked or 'Order execution pending reconciliation'
-            for symbol, pos in self.open_positions.items():
-                if self.has_bracket(symbol):
-                    legs = [o for o in self._orders(symbol) if self._protective(o) and
-                            o['trade_id'] == pos['db_id'] and o['state'] not in TERMINAL]
-                    parent = next(o for o in self._orders(symbol) if o['id'] == pos['entry_order_id'])
-                    if len(legs) != 2 or parent['state'] != 'filled':
+            self.safe_to_flatten = self.blocked is None
+            by_id = {o['id']: o for o in orders}
+            children_by_trade = {}
+            for row in orders:
+                if self._protective(row):
+                    children_by_trade.setdefault(row['trade_id'], []).append(row)
+            for pos in self.open_positions.values():
+                parent = by_id.get(pos['entry_order_id'])
+                if parent and json.loads(parent['payload_json']).get('execution_policy') == 'bracket_v1':
+                    legs = [o for o in children_by_trade.get(pos['db_id'], []) if o['state'] not in TERMINAL]
+                    quantities_match = all(json.loads(o['payload_json']).get('broker_qty', -1) -
+                                           o['applied_qty'] == pos['remaining_shares'] for o in legs)
+                    if len(legs) != 2 or parent['state'] != 'filled' or not quantities_match:
                         self.blocked = self.blocked or 'Bracket protection incomplete; reconcile explicitly'
             self.capital = _f(self._client.get_account().equity, self.capital)
         except Exception as exc:
+            self.safe_to_flatten = False
             self.blocked = f'Reconciliation unavailable: {exc}'
         return self.blocked is None
 
@@ -341,7 +362,7 @@ class AlpacaBroker:
                 # A successful DELETE acknowledges a request, not cancellation.
                 # Next heartbeat rechecks fills and confirmed terminal states.
                 return None
-            if self.blocked and not self.blocked.startswith('Bracket protection incomplete'):
+            if not self.safe_to_flatten:
                 return None
         pos = self.open_positions.get(ticker)
         if pos is None:

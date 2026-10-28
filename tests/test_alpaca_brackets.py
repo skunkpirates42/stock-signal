@@ -23,7 +23,7 @@ class BracketClient(FakeClient):
             order.legs = []
             for kind in ('limit', 'stop'):
                 key = order.id + '-' + kind
-                leg = NS(id=key, type=kind, status='new', filled_qty='0',
+                leg = NS(id=key, type=kind, status='new', qty=order_data.qty, filled_qty='0',
                          filled_avg_price=None, filled_at=None, symbol=order.symbol,
                          sign=-order.sign)
                 order.legs.append(leg)
@@ -105,7 +105,9 @@ def test_partial_target_then_resized_stop_cumulative_accounting(tmp_path):
     c,b = setup(tmp_path)
     parent = c.submitted[0]
     c.fill(parent+'-limit',40,104,'partially_filled')
-    b.reconcile(); b.reconcile()
+    c.orders[parent+'-stop'].qty = 60
+    assert b.reconcile()
+    assert b.reconcile()
     assert b.open_positions['NVDA']['remaining_shares'] == 60
     c.orders[parent+'-limit'].status = 'canceled'
     c.fill(parent+'-stop',60,98)
@@ -212,3 +214,24 @@ def test_canceled_partial_entry_is_not_considered_protected(tmp_path):
     c.orders[c.submitted[0]].status = 'canceled'
     assert not b.reconcile()
     assert 'protection incomplete' in b.blocked
+
+
+@pytest.mark.parametrize('qty', [1,99,101,None,1.5])
+def test_inconsistent_protective_quantity_blocks_entries(tmp_path,qty):
+    c,b = setup(tmp_path)
+    c.orders[c.submitted[0]+'-stop'].qty = qty
+    assert not b.reconcile()
+    assert b.open_position({**LONG,'ticker':'MSFT'},1) is None
+    assert len(c.submitted) == 1
+
+
+@pytest.mark.parametrize('direction', ['LONG','SHORT'])
+@pytest.mark.parametrize('open_price,low,high', [(100,95,105),(95,94,96),(105,104,106)])
+def test_touch_tie_and_gap_bars_never_duplicate_bracket_exit(tmp_path,direction,open_price,low,high):
+    from live.trader import LiveTrader
+    c,b = setup(tmp_path,direction)
+    trader = LiveTrader(['NVDA'],b.db_path,broker=b)
+    trader.process_batch({'NVDA':dict(timestamp='2026-10-28T18:00Z',open=open_price,
+                                     low=low,high=high,close=open_price,volume=100)})
+    assert len(c.submitted) == 1 and not c.cancels
+    assert b.open_positions['NVDA']['remaining_shares'] == 100
