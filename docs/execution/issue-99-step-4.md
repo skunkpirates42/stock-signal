@@ -84,3 +84,24 @@ revision fixed throughout. No weakening of the replay guard was required.
 
 Draft PR: https://github.com/skunkpirates42/stock-signal/pull/103. Market-hours acceptance
 remains pending; no claim of successful live broker execution is made.
+
+## After-hours paper API smoke test — October 28, 16:48 EDT
+
+Following explicit user authorization, one diagnostic SPY share was submitted through
+production `_intent` / `_submit` with the `bracket_v1` policy and scratch storage. This
+was an API integration check, not a strategy-generated trade or paper activation.
+Alpaca confirmed the regular session was closed; the account initially had zero orders
+and positions. The market/GTC bracket was accepted with zero filled quantity, and nested
+retrieval returned a held take-profit limit and held stop-loss stop, each for one share.
+Production recording/discovery journaled all three identities.
+
+The harness canceled the test orders and verified the parent and both children were
+`canceled`, each with zero fills. Production reconciliation persisted all three canceled
+states. Final open orders and positions were both empty. No process remains running.
+
+Sanitized evidence: [after-hours result](evidence/issue-97-after-hours-2026-10-28.json).
+Scratch DB, full result and bounded harness remain in `/tmp/stock-signal-103-smoke`.
+This supersedes the earlier statement that no broker submissions had been made. It
+validates API acceptance, nested response compatibility, journaling and cancellation;
+filled-parent activation, broker-driven exits and the market-hours acceptance gate
+remain unverified. PR #103 remains draft.
