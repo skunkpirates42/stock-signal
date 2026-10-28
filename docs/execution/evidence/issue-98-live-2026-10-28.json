@@ -1,0 +1,50 @@
+{
+  "verified": true,
+  "observed_at": "2026-10-28T19:30:45.564981+00:00",
+  "revision": "441a5c3b33e561a0db10c2f979b8458fc7e5a49f",
+  "broker": "local",
+  "feed": "IEX",
+  "market_open": true,
+  "state": {
+    "minutes": 56,
+    "batch_calls": 1,
+    "batch_timestamp": "2026-10-28 19:25:00+00:00"
+  },
+  "failure_count": 1,
+  "status_after_following_tick": [
+    {
+      "scope": "live:local:issue-98-manual",
+      "updated_at": "2026-10-28T19:30:44.393955+00:00",
+      "data_at": "2026-10-28 19:20:00+00:00",
+      "status": "blocked",
+      "detail": "ValueError: issue-98 manual live acceptance: forced indicator failure; consecutive worker failures: 1; failed batch not retried; awaiting a successful new batch"
+    }
+  ],
+  "dashboard_api_status": {
+    "latest_bar": null,
+    "runtime": [
+      {
+        "data_at": "2026-10-28 19:20:00+00:00",
+        "detail": "ValueError: issue-98 manual live acceptance: forced indicator failure; consecutive worker failures: 1; failed batch not retried; awaiting a successful new batch",
+        "scope": "live:local:issue-98-manual",
+        "status": "blocked",
+        "updated_at": "2026-10-28T19:30:44.393955+00:00"
+      }
+    ],
+    "unresolved_orders": []
+  },
+  "broker_orders": 0,
+  "intentional_traceback": "Trading worker failed; failed batch not retried\nTraceback (most recent call last):\n  File \"/tmp/stock-signal-issue-98/live/worker.py\", line 34, in _run\n    self.trader.tick()\n  File \"/tmp/stock-signal-issue-98/live/trader.py\", line 183, in tick\n    self._finish(s)\n  File \"/tmp/stock-signal-issue-98/live/trader.py\", line 139, in _finish\n    self._drain_ready()\n  File \"/tmp/stock-signal-issue-98/live/trader.py\", line 145, in _drain_ready\n    self.process_batch(self.ready.pop(ts))\n  File \"/tmp/stock-signal-98-direct-check.py\", line 29, in process_batch\n    return super().process_batch(bars)\n  File \"/tmp/stock-signal-issue-98/live/trader.py\", line 301, in process_batch\n    regime = self._regime(decision_at)\n  File \"/tmp/stock-signal-issue-98/live/trader.py\", line 233, in _regime\n    values[sym] = self._indicators(sym, window)\n  File \"/tmp/stock-signal-98-direct-check.py\", line 35, in fail\n    def fail(*args,**kwargs): raise ValueError('issue-98 manual live acceptance: forced indicator failure')\nValueError: issue-98 manual live acceptance: forced indicator failure\n",
+  "shutdown_status": "stopped",
+  "dashboard_render": {
+    "collapsed_badge": "live:local:issue-98-manual: blocked",
+    "attention_class": "status-attention",
+    "verified": true,
+    "method": "actual StatusLine rendered from captured live dashboard API response"
+  },
+  "artifact_sha256": {
+    "evidence.json": "f75153acbadf279b6571872a5dae8fb1b0cda2ff742f5156063ff533767f33b6",
+    "dashboard-status.html": "ce3860fc310e92fb9d2636743a6f90ec83118dee5efc265770a7c97806b40b26",
+    "live.db": "b1a4d4bb79a9a6173cf841a2d22580e7329fc9f62e68769c40c0c787c0109a55"
+  }
+}
