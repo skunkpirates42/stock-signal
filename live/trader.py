@@ -48,6 +48,8 @@ class LiveTrader:
         self.processed = {}
         self.watermark = None
         self.worker_error = None
+        self.worker_failure_count = 0
+        self._worker_recovery_required = False
         self.on_event = None
         init_db(self.db_path)
         self.broker = broker or self._rebuild_broker()
@@ -128,7 +130,9 @@ class LiveTrader:
         self.buckets[symbol] = None
         self.last_closed[symbol] = b['start']
         if len(b['minutes']) != 5:
-            set_status(self.scope, 'incomplete', f'{symbol}: incomplete five-minute bucket', b['start'], self.db_path)
+            detail = self.worker_error_detail
+            set_status(self.scope, 'blocked' if detail else 'incomplete',
+                       detail or f'{symbol}: incomplete five-minute bucket', b['start'], self.db_path)
             return None
         bar = {k: b[k] for k in ('open', 'high', 'low', 'close', 'volume')}
         bar['timestamp'] = b['start']
@@ -143,9 +147,22 @@ class LiveTrader:
             else:
                 break
 
+    @property
+    def worker_error_detail(self):
+        if not self.worker_failure_count:
+            return None
+        return (f'{self.worker_error}; consecutive worker failures: {self.worker_failure_count}; '
+                'failed batch not retried; awaiting a successful new batch')
+
+    def record_worker_error(self, exc):
+        self.worker_error = f'{type(exc).__name__}: {exc}'
+        self.worker_failure_count += 1
+        self._worker_recovery_required = True
+        self.broker.blocked = self.worker_error
+
     def recover_worker_error(self):
-        """Clear worker failures only after restoring durable execution state."""
-        if not self.worker_error:
+        """Restore execution state without clearing the outstanding worker failure."""
+        if not self._worker_recovery_required:
             return
         if self.is_alpaca:
             self.broker._restore()
@@ -158,7 +175,7 @@ class LiveTrader:
                     'SELECT * FROM local_pending WHERE scope=?', (self.scope,))}
         if self.legacy_blocked:
             self.broker.blocked = self.legacy_blocked
-        self.worker_error = None
+        self._worker_recovery_required = False
 
     def tick(self, ts=None):
         ts = utc(ts or datetime.now(timezone.utc))
@@ -178,17 +195,18 @@ class LiveTrader:
             for pos in self.broker.open_positions.values():
                 pos['pending_exit'] = {'reason': 'session_close'}
                 save_position(pos, self.db_path)
-        if self.worker_error:
-            self.broker.blocked = self.worker_error
+        if self._worker_recovery_required:
+            self.broker.blocked = self.broker.blocked or self.worker_error
         self._broker_events()
         waiting = any(p.get('pending_exit', {}).get('reason') == 'session_close'
                       for p in self.broker.open_positions.values() if p.get('pending_exit'))
-        if waiting and not self.broker.blocked:
+        if waiting and not self.broker.blocked and not self.worker_failure_count:
             set_status(self.scope, 'unresolved', 'Session flatten awaiting an observed executable price',
                        db_path=self.db_path)
             return
-        set_status(self.scope, 'blocked' if self.broker.blocked else 'running',
-                   self.broker.blocked or 'Worker heartbeat; data freshness is separate', db_path=self.db_path)
+        detail = self.worker_error_detail or self.broker.blocked
+        set_status(self.scope, 'blocked' if detail else 'running',
+                   detail or 'Worker heartbeat; data freshness is separate', db_path=self.db_path)
 
     def _broker_events(self):
         if self.is_alpaca:
@@ -333,8 +351,13 @@ class LiveTrader:
                             conn.execute('INSERT OR REPLACE INTO local_pending VALUES (?,?,?)',
                                          (self.scope,s,json.dumps(self.pending[s])))
             results[s] = signal
-        set_status(self.scope, 'blocked' if self.broker.blocked else 'running', self.broker.blocked or '',
-                   decision_at, self.db_path)
+        # A completed batch proves pipeline recovery only after durable execution
+        # state has also recovered. Empty/stale batches above never clear failures.
+        detail = (self.worker_error_detail if self._worker_recovery_required else None) or self.broker.blocked
+        set_status(self.scope, 'blocked' if detail else 'running', detail or '', decision_at, self.db_path)
+        if not self._worker_recovery_required:
+            self.worker_error = None
+            self.worker_failure_count = 0
         return results
 
     def _on_bar_close(self, symbol, bar):

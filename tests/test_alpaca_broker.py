@@ -173,16 +173,22 @@ def test_sdk_requests_are_bounded_and_never_automatically_retried(monkeypatch):
     assert client._retry==0
 
 
-def test_worker_failure_clears_only_after_successful_recovery(tmp_path):
+def test_worker_failure_clears_only_after_reconciliation_and_new_batch(tmp_path):
     from live.trader import LiveTrader
     c = FakeClient(); b = broker(tmp_path,c)
     t = LiveTrader(['NVDA'],b.db_path,broker=b)
-    t.worker_error = b.blocked = 'worker failed'
+    t.record_worker_error(RuntimeError('worker failed'))
     t.tick('2026-06-10T14:00Z')
-    assert b.blocked == 'worker failed'
+    assert b.blocked == 'RuntimeError: worker failed'
     c.fail = 'positions'
     t.recover_worker_error()
     assert t.worker_error and b.blocked
+    t.process_batch({'NVDA': dict(timestamp='2026-06-10T14:00Z', open=100, high=101,
+                                low=99, close=100, volume=10)})
+    assert t.worker_failure_count == 1 and b.blocked
     c.fail = None
     t.recover_worker_error()
-    assert t.worker_error is None and b.blocked is None
+    assert t.worker_error == 'RuntimeError: worker failed' and b.blocked is None
+    t.process_batch({'NVDA': dict(timestamp='2026-06-10T14:05Z', open=100, high=101,
+                                low=99, close=100, volume=10)})
+    assert t.worker_error is None and t.worker_failure_count == 0

@@ -34,10 +34,10 @@ class TradingWorker:
                     self.trader.tick()
                     next_tick = time.monotonic() + 5
             except Exception as exc:
-                self.trader.worker_error = str(exc)
-                self.trader.broker.blocked = str(exc)
+                logging.exception('Trading worker failed; failed batch not retried')
+                self.trader.record_worker_error(exc)
                 try:
-                    set_status(self.trader.scope, 'blocked', str(exc), db_path=self.trader.db_path)
+                    set_status(self.trader.scope, 'blocked', self.trader.worker_error_detail, db_path=self.trader.db_path)
                 except Exception:
                     logging.exception('Could not persist worker failure status')
             finally:
