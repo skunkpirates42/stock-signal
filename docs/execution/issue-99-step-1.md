@@ -87,3 +87,15 @@ Final checks: 79 focused correctness tests passed; the full backend suite passed
 `git diff --check` passed. Final exported metrics equal the regenerated snapshot,
 and the exported manifest/report both identify the new exit policy. No UI files
 changed, so frontend checks were not required.
+
+## Independent review
+
+Two separate read-only review agents checked commit `2a14929` against baseline
+`1b182a1`, project standards, and issues #97/#99. Neither found a code defect or
+scope violation. The standards review noted one optional duplication cleanup:
+the protective and pending/session exit paths repeat close/persist/emit bookkeeping.
+That low-severity suggestion is deferred to keep this execution-policy patch focused.
+The spec review confirmed the live touching-bar observation above is still an
+outstanding acceptance requirement. The PR remains draft pending that evidence.
+The reviewers inspected code and relied on the recorded test results; they did
+not independently rerun the suite.
