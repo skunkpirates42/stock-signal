@@ -34,3 +34,25 @@ it.each(["blocked", "stopped", "unresolved", "incomplete"])(
     expect(html).toContain("ValueError: forced failure; failed batch not retried");
   },
 );
+
+it.each(["open", "closed", "unavailable"])(
+  "shows global market %s in the collapsed status",
+  (state) => {
+    const summary = describeStatus({
+      source: null,
+      status: null,
+      apiFailed: false,
+      checkedAt: null,
+    });
+    const html = renderToStaticMarkup(
+      createElement(StatusLine, {
+        summary,
+        error: null,
+        marketLabel: `US regular market: ${state}`,
+        marketCheckedAt: "2026-10-28T15:00:00Z",
+      }),
+    );
+    expect(html.match(/<summary>(.*?)<\/summary>/)?.[1]).toContain(`US regular market: ${state}`);
+    expect(html).toContain("extended hours are excluded");
+  },
+);
