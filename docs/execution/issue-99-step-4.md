@@ -61,3 +61,26 @@ Market hours ended while this change was being implemented (2026-10-28, after 16
 No broker orders were submitted, no configuration was activated and no collector is left
 running. A fresh bounded market-hours acceptance remains pending; keep the PR draft and
 #97 open until that evidence is available.
+
+## Verification and independent review
+
+Final implementation revision `ab2de57`: `.venv/bin/python -m pytest tests/ -q --tb=short`
+passed **473 tests** in 118.25 seconds. Two existing dependency warnings (LibreSSL and
+websockets deprecation). `git diff --check` passed. Fixture `metrics.json` equals the
+merged expected snapshot in full. No UI changes.
+
+Two separate default-runtime review agents examined the patch against `32e30e6`:
+`bracket_spec` and `bracket_standards`. No custom research-task model was requested.
+Spec found missing protective quantity validation; fixed with persisted broker quantity,
+remaining-quantity reconciliation and undersized/oversized/missing/fractional regressions.
+Standards found repeated historical scans and flatten authorization coupled to display
+text; fixed with order indexes and an explicit `safe_to_flatten` result. Both reviewers
+confirmed their findings resolved. Reviewers inspected code; the coordinator ran tests.
+
+An initial full run exposed missing pending-flatten restoration, repaired and regression
+tested. A later run overlapped implementation edits and hit the existing queued-replay
+revision guard (`strategy_version` in its saved log). The final passing run held code and
+revision fixed throughout. No weakening of the replay guard was required.
+
+Draft PR: https://github.com/skunkpirates42/stock-signal/pull/103. Market-hours acceptance
+remains pending; no claim of successful live broker execution is made.
