@@ -84,11 +84,13 @@ class LiveTrader:
         cutoff = utc(datetime.now(timezone.utc)) - pd.Timedelta(seconds=config.BAR_LATENESS_SECONDS)
         for s in self.symbols:
             df = get_bars(s, self.window_size)
-            records = [r for r in df.to_dict('records') if in_regular_hours(r['timestamp']) and
-                       utc(r['timestamp']) + pd.Timedelta(minutes=5) <= cutoff]
+            # REST timestamps carry alpaca-py's TzInfo; mixing it with live bars' stdlib UTC breaks indicators.
+            records = [{**r, 'timestamp': utc(r['timestamp'])} for r in df.to_dict('records')]
+            records = [r for r in records if in_regular_hours(r['timestamp']) and
+                       r['timestamp'] + pd.Timedelta(minutes=5) <= cutoff]
             self.windows[s] = deque(records, maxlen=self.window_size)
             if records:
-                self.last_closed[s] = utc(records[-1]['timestamp'])
+                self.last_closed[s] = records[-1]['timestamp']
 
     def _emit(self, kind, payload):
         if self.on_event:
