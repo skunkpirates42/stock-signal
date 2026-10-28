@@ -56,7 +56,10 @@ def manifest_for(bars, feed, gate='baseline'):
             'dataset_sha256':hashlib.sha256(serialized.encode()).hexdigest(), 'feed':feed,
             'start':min(times).isoformat() if times else None, 'end':max(times).isoformat() if times else None,
             'symbols':sorted(bars), 'settings':settings, 'gate':gate,
-            'fill_policy':'next_completed_5min_close', 'session_policy':config.SESSION_POLICY,
+            'fill_policy':'next_completed_5min_close',
+            'exit_policy':'touching_bar_level_or_gap_open_stop_first_v1',
+            'session_exit_policy':'observed_close_before_session_end_else_pending',
+            'session_policy':config.SESSION_POLICY,
             'allocation':'exit first, alphabetical symbol order, unlevered gross exposure cap',
             'schema_version':2, 'accounting_version': ACCOUNTING_VERSION,
             'accounting_mode': 'causal_capital_rerun',
@@ -264,7 +267,10 @@ def export_result(result, directory):
         + f"Censored positions: {result['censored_positions']}; pending candidates: {result['pending_candidates']}\n"
         + f"Accounting version {result['accounting']['accounting_version']}: "
         + f"{result['accounting']['postings']} postings; unavailable inputs {result['accounting']['unavailable_count']}.\n"
-        + 'Fill policy: next completed five-minute close. Costs are modeled, not measured spread.\n'
+        + 'Entry fill policy: next completed five-minute close.\n'
+        + 'Exit policy: touching bar stop/target level or gap open; stop wins ties, including gaps.\n'
+        + 'Session exits: observed close before session end, otherwise pending next executable close.\n'
+        + 'Costs are modeled, not measured spread.\n'
         + f"Feed: {result['manifest']['feed']}. Dataset: {result['manifest']['dataset_sha256']}\n")
 
 

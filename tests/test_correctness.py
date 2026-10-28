@@ -108,8 +108,8 @@ def test_replay_order_invariance_historical_fills_and_all_signals(tmp_path,monke
     trades=a['trades']
     closed=[t for t in trades if t['outcome']!='OPEN']
     assert len(closed)==2
-    assert all(t['entry']==101 and t['exit_price']==97 for t in closed)
-    assert all(t['outcome']=='LOSS' and t['exit_reason']=='target' for t in closed)
+    assert all(t['entry']==101 and t['exit_price']==105 for t in closed)
+    assert all(t['outcome']=='WIN' and t['exit_reason']=='target' for t in closed)
     assert all(t['entry_at'].startswith('2026-06-10') for t in closed)
     with _connect(str(tmp_path/'a.db')) as c:
         assert c.execute('SELECT count(*) FROM signals').fetchone()[0]==12
@@ -138,7 +138,7 @@ def test_invalid_duplicates_and_future_regime(tmp_path):
     assert t._regime(utc('2026-06-10T14:00Z')) is None
 
 
-def test_local_pending_entry_and_exit_survive_restart(tmp_path,monkeypatch):
+def test_local_pending_entry_and_touch_exit_survive_restart(tmp_path,monkeypatch):
     monkeypatch.setattr(config,'WARMUP_BARS',1)
     monkeypatch.setattr('live.trader.compute_indicators',lambda df:{'close':float(df.close.iloc[-1])})
     monkeypatch.setattr('live.trader.generate_signal',candidate)
@@ -150,10 +150,13 @@ def test_local_pending_entry_and_exit_survive_restart(tmp_path,monkeypatch):
     t.process_batch({'AAA':bar('2026-06-10T14:05Z',101)})
     assert t.broker.open_positions['AAA']['entry']==101
     t.process_batch({'AAA':bar('2026-06-10T14:10Z',105)})
+    assert t.broker.closed_trades[-1]['outcome']=='WIN'
+    assert t.broker.closed_trades[-1]['bars_held']==1
     t=LiveTrader(['AAA'],db)
     t.process_batch({'AAA':bar('2026-06-10T14:15Z',97)})
-    assert t.broker.closed_trades[-1]['outcome']=='LOSS'
-    assert t.broker.closed_trades[-1]['bars_held']==2
+    assert not t.broker.has_open('AAA')
+    with _connect(db) as conn:
+        assert conn.execute("SELECT count(*) FROM trades WHERE outcome='WIN'").fetchone()[0] == 1
 
 
 def test_flatten_and_overnight_policies_preserve_no_fill_at_closed_market(tmp_path,monkeypatch):
@@ -169,8 +172,8 @@ def test_flatten_and_overnight_policies_preserve_no_fill_at_closed_market(tmp_pa
         if policy=='flatten':
             assert t.broker.closed_trades[-1]['exit_at'].startswith('2026-11-27T17:55')
         else:
-            t.broker.open_positions['AAA']['pending_exit']={'reason':'stop'}
-            t.process_batch({'AAA':bar('2026-11-27T17:55Z',89)})
+            t.broker.open_positions['AAA']['pending_exit']={'reason':'session_close'}
+            t.process_batch({'AAA':bar('2026-11-27T17:55Z',101)})
             assert t.broker.has_open('AAA')  # no fill invented at 18:00, when market is closed
 
 
@@ -225,6 +228,7 @@ def test_saved_fixture_to_dashboard_api_matches_snapshot(tmp_path):
     assert api.get('/api/open').get_json()==[]
     assert len(api.get('/api/open?source=all').get_json())==result['censored_positions']
     assert result['manifest']['dataset_sha256']
+    assert result['manifest']['exit_policy']=='touching_bar_level_or_gap_open_stop_first_v1'
 
 
 def test_invalid_indicator_values_are_wait_and_json_safe():
@@ -356,3 +360,65 @@ def test_worker_recovery_retains_legacy_block(tmp_path):
     t.recover_worker_error()
     assert t.worker_error is None
     assert 'Legacy' in t.broker.blocked
+
+
+@pytest.mark.parametrize("direction,stop,target,open_,high,low,price,reason", [
+    ("LONG", 98, 104, 100, 101, 97, 98, "stop"),
+    ("LONG", 98, 104, 100, 105, 99, 104, "target"),
+    ("SHORT", 102, 96, 100, 103, 99, 102, "stop"),
+    ("SHORT", 102, 96, 100, 101, 95, 96, "target"),
+    ("LONG", 98, 104, 97, 101, 96, 97, "stop"),
+    ("LONG", 98, 104, 105, 106, 99, 105, "target"),
+    ("SHORT", 102, 96, 103, 104, 99, 103, "stop"),
+    ("SHORT", 102, 96, 95, 101, 94, 95, "target"),
+    ("LONG", 98, 104, 100, 105, 97, 98, "stop"),
+    ("SHORT", 102, 96, 100, 103, 95, 102, "stop"),
+    # Stop-first remains conservative even if the open was beyond the target.
+    ("LONG", 98, 104, 105, 106, 97, 98, "stop"),
+    ("SHORT", 102, 96, 95, 103, 94, 102, "stop"),
+])
+@pytest.mark.parametrize("timestamp", ["2026-06-10T14:00Z", "2026-06-10T19:50Z", "2026-06-10T19:55Z"])
+def test_local_touch_exit_on_observed_bar(tmp_path, monkeypatch, direction, stop, target,
+                                         open_, high, low, price, reason, timestamp):
+    monkeypatch.setattr(config, 'SESSION_POLICY', 'flatten')
+    db = str(tmp_path / 'touch.db')
+    broker = PaperBroker(policy=FillPolicy(10, 2, .01))
+    trader = LiveTrader(['AAA'], db, broker=broker)
+    pos = broker.open_position(dict(ticker='AAA', direction=direction, entry=100,
+                                   stop=stop, target=target, entry_at='2026-06-10T13:55Z'), 0)
+    pos['db_id'] = log_trade_open(pos, db)
+    events = []
+    trader.on_event = lambda kind, payload: events.append((kind, payload))
+    row = {**bar(timestamp, 100, high, low), 'open': open_}
+    trader.process_batch({'AAA': row})
+    assert not broker.has_open('AAA')
+    trade = broker.closed_trades[-1]
+    assert trade['exit_price'] == price
+    assert trade['exit_reason'] == reason
+    assert utc(trade['exit_at']) == utc(timestamp) + pd.Timedelta(minutes=5)
+    assert trade['bars_held'] == 1
+    assert trade['costs'] == round(broker.policy.cost(100, pos['shares']) +
+                                   broker.policy.cost(price, pos['shares']), 2)
+    assert [kind for kind, _ in events] == ['close']
+    trader.process_batch({'AAA': row})
+    restored = LiveTrader(['AAA'], db)
+    assert not restored.broker.has_open('AAA')
+    with _connect(db) as conn:
+        saved = conn.execute('SELECT * FROM trades').fetchone()
+        assert saved['exit_price'] == price and saved['bars_held'] == 1
+        assert saved['exit_at'] == trade['exit_at']
+
+
+def test_local_close_entry_does_not_use_earlier_intrabar_range(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, 'WARMUP_BARS', 1)
+    monkeypatch.setattr('live.trader.compute_indicators', lambda df: {'close': float(df.close.iloc[-1])})
+    monkeypatch.setattr('live.trader.generate_signal', candidate)
+    trader = LiveTrader(['AAA'], str(tmp_path / 'entry-range.db'))
+    trader.process_batch({'AAA': bar('2026-06-10T14:00Z')})
+    trader.process_batch({'AAA': bar('2026-06-10T14:05Z', 100, 105, 97)})
+    assert trader.broker.has_open('AAA')
+    assert not trader.broker.closed_trades
+    trader.process_batch({'AAA': bar('2026-06-10T14:10Z', 100, 105, 99)})
+    assert trader.broker.closed_trades[-1]['exit_price'] == 104
+    assert trader.broker.closed_trades[-1]['bars_held'] == 1
+    assert 'AAA' not in trader.pending  # cannot reenter on an exit bar
