@@ -132,3 +132,40 @@ def test_bar_close_never_calls_a_paid_llm_provider(tmp_path, monkeypatch):
     conn.close()
     assert stored[1] == "template"
     assert stored[0], "every signal is logged with reasoning, WAIT included"
+
+
+def test_live_bar_after_rest_seed_produces_a_signal(tmp_path, monkeypatch):
+    """REST bars carry alpaca-py's TzInfo(0); live bars carry datetime.timezone.utc.
+
+    Mixing the two in one window made the timestamp column object dtype and
+    _session_vwap raised, so the live loop never logged a signal (issue #94).
+    """
+    from pydantic_core import TzInfo
+    import pandas as pd
+    import live.trader as trader_module
+
+    rest_utc = TzInfo(0)
+    base = datetime(2026, 6, 10, 13, 30, tzinfo=rest_utc)
+    rows = []
+    for i in range(60):
+        close = 100 + (i % 7) - 3
+        rows.append({"timestamp": base + timedelta(minutes=5 * i), "open": close - 0.5,
+                     "high": close + 1.0, "low": close - 1.0, "close": close,
+                     "volume": 1000 + 10 * (i % 5)})
+    monkeypatch.setattr(trader_module, "get_bars", lambda symbol, limit: pd.DataFrame(rows))
+
+    db = str(tmp_path / "seeded.db")
+    trader = LiveTrader(["AAA"], db_path=db, window_size=120)
+    trader.seed()
+    assert len(trader.windows["AAA"]) == 60
+
+    live_ts = trader.last_closed["AAA"] + timedelta(minutes=5)
+    live_bar = {"timestamp": live_ts.to_pydatetime().astimezone(timezone.utc), "open": 100.0,
+                "high": 101.0, "low": 99.0, "close": 100.5, "volume": 1500}
+    signals = trader.process_batch({"AAA": live_bar})
+
+    assert "AAA" in signals
+    conn = sqlite3.connect(db)
+    logged = conn.execute("SELECT COUNT(*) FROM signals WHERE ticker = 'AAA'").fetchone()[0]
+    conn.close()
+    assert logged == 1
