@@ -54,8 +54,15 @@ class FakeClient:
         o.filled_qty, o.filled_avg_price, o.status = str(qty), str(price), status
 
 
+class LegacyBroker(AlpacaBroker):
+    """Exercise recovery of pre-bracket durable orders."""
+    def _intent(self, ticker, purpose, qty, payload, signal_id=None, trade_id=None):
+        payload = {k: v for k, v in payload.items() if k != 'execution_policy'}
+        return super()._intent(ticker, purpose, qty, payload, signal_id, trade_id)
+
+
 def broker(tmp_path, client=None):
-    return AlpacaBroker(client=client or FakeClient(), db_path=str(tmp_path/'orders.db'))
+    return LegacyBroker(client=client or FakeClient(), db_path=str(tmp_path/'orders.db'))
 
 
 def test_confirmed_entry_exit_and_outcome_from_fill(tmp_path):

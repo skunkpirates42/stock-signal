@@ -7,11 +7,12 @@ import json
 import math
 import uuid
 from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
 import config
 from db.logger import (_connect, _insert, _update, init_db, now, trade_values,
-                       load_open_positions)
+                       load_open_positions, save_position)
 
-TERMINAL = {'filled', 'canceled', 'rejected', 'expired', 'done_for_day', 'suspended'}
+TERMINAL = {'filled', 'canceled', 'rejected', 'expired'}
 
 
 def _status(order):
@@ -72,7 +73,8 @@ class AlpacaBroker:
         for row in load_open_positions(self.db_path, 'live', 'alpaca', self.account):
             if row['ticker'] in self.open_positions:
                 raise RuntimeError('Duplicate broker-scoped positions require reconciliation')
-            row.update(db_id=row['id'], status='OPEN')
+            row.update(db_id=row['id'], status='OPEN',
+                       pending_exit=json.loads(row.get('state_json') or 'null'))
             self.open_positions[row['ticker']] = row
 
     def _orders(self, ticker=None):
@@ -100,20 +102,27 @@ class AlpacaBroker:
         return oid
 
     def _submit(self, oid):
-        from alpaca.trading.enums import OrderSide, TimeInForce
-        from alpaca.trading.requests import MarketOrderRequest
+        from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass
+        from alpaca.trading.requests import MarketOrderRequest, StopLossRequest, TakeProfitRequest
         with _connect(self.db_path) as conn:
             row = dict(conn.execute('SELECT * FROM orders WHERE id=?', (oid,)).fetchone())
             # Persist before leaving the process. A crash here requires lookup/reconciliation.
             _update(conn, 'orders', oid, {'state': 'unresolved', 'updated_at': now()})
         payload = json.loads(row['payload_json'])
         buy = (payload['direction'] == 'LONG') == (row['purpose'] == 'entry')
+        bracket = payload.get('execution_policy') == 'bracket_v1'
+        legs = dict(order_class=OrderClass.BRACKET,
+                    stop_loss=StopLossRequest(stop_price=payload['stop']),
+                    take_profit=TakeProfitRequest(limit_price=payload['target'])) if bracket else {}
         try:
             order = self._client.submit_order(order_data=MarketOrderRequest(
                 symbol=row['ticker'], qty=row['requested_qty'],
                 side=OrderSide.BUY if buy else OrderSide.SELL,
-                time_in_force=TimeInForce.DAY, client_order_id=oid))
+                time_in_force=TimeInForce.GTC if bracket else TimeInForce.DAY,
+                client_order_id=oid, **legs))
             self._record(oid, order)
+            if bracket:
+                self._discover_legs(oid, order)
         except Exception as exc:
             self._error(oid, exc)
 
@@ -135,7 +144,7 @@ class AlpacaBroker:
             qty = int(qty)
             if qty and (price is None or price <= 0):
                 raise ValueError('Filled quantity without confirmed price')
-            if state == 'filled' and qty != row['requested_qty']:
+            if state == 'filled' and qty != row['requested_qty'] and not self._protective(row):
                 raise ValueError('Filled status without complete quantity')
             payload = json.loads(row['payload_json'])
             if qty > row['applied_qty']:
@@ -183,18 +192,68 @@ class AlpacaBroker:
                 payload = dict(conn.execute('SELECT * FROM trades WHERE id=?', (event[1],)).fetchone())
             self.events.append((event[0], payload))
 
+    def _discover_legs(self, oid, order):
+        """Persist broker-generated child identities before applying their fills."""
+        with _connect(self.db_path) as conn:
+            parent = dict(conn.execute('SELECT * FROM orders WHERE id=?', (oid,)).fetchone())
+            payload = json.loads(parent['payload_json'])
+            for leg in getattr(order, 'legs', None) or []:
+                kind = str(getattr(getattr(leg, 'type', None), 'value', getattr(leg, 'type', '')))
+                if kind not in ('limit', 'stop'):
+                    raise ValueError('Unexpected bracket leg type')
+                lid = 'leg-' + str(leg.id)
+                child_payload = {'direction': payload['direction'], 'parent_id': oid,
+                                 'exit_reason': 'target' if kind == 'limit' else 'stop'}
+                existing = conn.execute('SELECT id FROM orders WHERE id=?', (lid,)).fetchone()
+                if not existing:
+                    _insert(conn, 'orders', dict(id=lid, broker_id=str(leg.id), source='live',
+                        backend='alpaca', account=self.account, ticker=parent['ticker'],
+                        purpose='exit', state='new', requested_qty=parent['requested_qty'],
+                        trade_id=parent['trade_id'], payload_json=json.dumps(child_payload),
+                        created_at=now(), updated_at=now()))
+                elif parent['trade_id'] is not None:
+                    _update(conn, 'orders', lid, {'trade_id': parent['trade_id']})
+        # Children may be returned before any entry fill. Record fills only once
+        # the parent trade exists; unresolved child fills then block reconciliation.
+        for leg in getattr(order, 'legs', None) or []:
+            self._record('leg-' + str(leg.id), leg)
+
+    @staticmethod
+    def _protective(row):
+        return bool(json.loads(row['payload_json']).get('parent_id'))
+
+    def has_bracket(self, ticker):
+        pos = self.open_positions.get(ticker)
+        return bool(pos and any(o['id'] == pos.get('entry_order_id') and
+            json.loads(o['payload_json']).get('execution_policy') == 'bracket_v1'
+            for o in self._orders(ticker)))
+
     def reconcile(self):
+        from alpaca.trading.requests import GetOrderByIdRequest
         self.blocked = None
+        # Parent first, then children, including fills received between bars.
         for row in self._orders():
-            if row['state'] in TERMINAL:
+            payload = json.loads(row['payload_json'])
+            bracket = payload.get('execution_policy') == 'bracket_v1'
+            children = [o for o in self._orders(row['ticker'])
+                        if json.loads(o['payload_json']).get('parent_id') == row['id']]
+            needs_discovery = bracket and len(children) != 2 and (
+                row['state'] not in TERMINAL or row['applied_qty'] > 0)
+            if row['state'] in TERMINAL and not needs_discovery:
                 continue
             try:
                 if row['state'] == 'pending_submission':
                     self._submit(row['id'])
                     continue
-                order = (self._client.get_order_by_id(row['broker_id']) if row['broker_id'] else
-                         self._client.get_order_by_client_id(row['id']))
+                if row['broker_id']:
+                    order = (self._client.get_order_by_id(row['broker_id'],
+                                filter=GetOrderByIdRequest(nested=True)) if bracket else
+                             self._client.get_order_by_id(row['broker_id']))
+                else:
+                    order = self._client.get_order_by_client_id(row['id'])
                 self._record(row['id'], order)
+                if bracket:
+                    self._discover_legs(row['id'], order)
             except Exception as exc:
                 self._error(row['id'], exc)
         try:
@@ -211,8 +270,16 @@ class AlpacaBroker:
                         for s, p in self.open_positions.items()}
             if actual != expected:
                 self.blocked = f'Broker/DB exposure mismatch: expected={expected}, actual={actual}'
-            if any(o['state'] not in TERMINAL for o in self._orders()):
+            if any(o['state'] not in TERMINAL and not (self._protective(o) and
+                    o['state'] in ('new', 'accepted', 'held', 'partially_filled')) for o in self._orders()):
                 self.blocked = self.blocked or 'Order execution pending reconciliation'
+            for symbol, pos in self.open_positions.items():
+                if self.has_bracket(symbol):
+                    legs = [o for o in self._orders(symbol) if self._protective(o) and
+                            o['trade_id'] == pos['db_id'] and o['state'] not in TERMINAL]
+                    parent = next(o for o in self._orders(symbol) if o['id'] == pos['entry_order_id'])
+                    if len(legs) != 2 or parent['state'] != 'filled':
+                        self.blocked = self.blocked or 'Bracket protection incomplete; reconcile explicitly'
             self.capital = _f(self._client.get_account().equity, self.capital)
         except Exception as exc:
             self.blocked = f'Reconciliation unavailable: {exc}'
@@ -227,13 +294,58 @@ class AlpacaBroker:
         shares = math.floor(self.capital * self.position_pct / signal['entry'])
         if shares < 1:
             return None
-        payload = {**signal, 'entry_bar': entry_bar, 'signal_id': signal_id}
+        levels = {}
+        for name in ('stop', 'target'):
+            value = _f(signal.get(name))
+            if value is None or value <= 0:
+                return None
+            tick = Decimal('0.01') if value >= 1 else Decimal('0.0001')
+            levels[name] = float(Decimal(str(value)).quantize(tick, rounding=ROUND_HALF_UP))
+        if not (levels['stop'] < signal['entry'] < levels['target'] if signal['direction'] == 'LONG'
+                else levels['target'] < signal['entry'] < levels['stop']):
+            return None
+        payload = {**signal, **levels, 'entry_bar': entry_bar, 'signal_id': signal_id,
+                   'execution_policy': 'bracket_v1'}
         oid = self._intent(signal['ticker'], 'entry', shares, payload, signal_id)
         self._submit(oid)
         return self.open_positions.get(signal['ticker'])
 
     def close_position(self, ticker, exit_price, outcome, exit_bar, bars_held=None, exit_reason=None):
-        pos = self.open_positions[ticker]
+        if self.has_bracket(ticker):
+            # OHLC is never an instruction to duplicate a resting protective leg.
+            if (exit_reason or outcome.lower()) in ('stop', 'target'):
+                return None
+            pos = self.open_positions[ticker]
+            pos['pending_exit'] = {'reason': exit_reason or outcome.lower(), 'exit_bar': exit_bar}
+            save_position(pos, self.db_path)
+            self.reconcile()
+            if ticker not in self.open_positions:
+                return None
+            pos = self.open_positions[ticker]
+            children = [o for o in self._orders(ticker) if self._protective(o) and
+                        json.loads(o['payload_json'])['parent_id'] == pos['entry_order_id']]
+            if len(children) != 2:
+                self.blocked = 'Bracket children unknown; flatten cannot safely proceed'
+                return None
+            active = [o for o in self._orders(ticker) if o['state'] not in TERMINAL and
+                      (o['trade_id'] == pos['db_id'] or o['id'] == pos['entry_order_id'])]
+            for row in active:
+                if not self._protective(row) and row['purpose'] == 'exit':
+                    return None
+                try:
+                    self._client.cancel_order_by_id(row['broker_id'])
+                except Exception as exc:
+                    self._error(row['id'], exc)
+                    return None
+            if active:
+                # A successful DELETE acknowledges a request, not cancellation.
+                # Next heartbeat rechecks fills and confirmed terminal states.
+                return None
+            if self.blocked and not self.blocked.startswith('Bracket protection incomplete'):
+                return None
+        pos = self.open_positions.get(ticker)
+        if pos is None:
+            return None
         if any(o['state'] not in TERMINAL for o in self._orders(ticker)):
             return None
         payload = {'direction': pos['direction'], 'exit_reason': exit_reason or outcome.lower(),
