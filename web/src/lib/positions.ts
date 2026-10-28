@@ -8,8 +8,7 @@ export interface Distance {
 const STALE_AFTER_MS = 24 * 60 * 60 * 1000;
 
 // As-of-entry only: how far price had to move from the entry price to hit the stop or
-// target. This says nothing about where price is now — there is no quote feed behind
-// this dashboard to know that.
+// target. Live price distances are calculated separately in prices.ts.
 export function distanceToStop(trade: Pick<Trade, "direction" | "entry" | "stop">): Distance {
   const dollars = trade.direction === "SHORT" ? trade.stop - trade.entry : trade.entry - trade.stop;
   return { dollars, percent: trade.entry === 0 ? 0 : dollars / trade.entry };

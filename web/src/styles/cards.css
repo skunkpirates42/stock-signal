@@ -486,3 +486,13 @@
 main > .card + .card {
   margin-top: calc(var(--space) * 2);
 }
+
+.level-scale-current {
+  position: absolute;
+  top: -4px;
+  width: 10px;
+  height: 10px;
+  background: currentColor;
+  transform: translateX(-50%) rotate(45deg);
+  z-index: 1;
+}

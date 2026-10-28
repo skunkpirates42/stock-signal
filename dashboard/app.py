@@ -16,6 +16,7 @@ from pathlib import Path
 from flask import Flask, Response, abort, jsonify, render_template, request
 
 import config
+from dashboard.prices import PositionPrices
 from alerts.feed import build_alert_events
 from analytics.metrics import compute_metrics, equity_curve, load_closed_trades
 from db.logger import load_open_positions, init_db, scope_sql, _connect
@@ -42,6 +43,15 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
     init_db(app.config["DB_PATH"])
     demo = DemoReadService(app.config["DEMO_DB_PATH"], owner_id=app.config["DEMO_OWNER_ID"])
     jobs = JobStore(app.config["DEMO_JOB_DB_PATH"])
+
+    prices = PositionPrices()
+
+    @app.route("/api/position-prices")
+    def api_position_prices():
+        positions = load_open_positions(app.config["DB_PATH"], source="live")
+        result = jsonify(prices.get([p["ticker"] for p in positions]))
+        result.headers["Cache-Control"] = "no-store"
+        return result
 
     def _db():
         return app.config["DB_PATH"]
