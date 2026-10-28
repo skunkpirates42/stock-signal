@@ -44,7 +44,7 @@ databases and output directories `/tmp/stock-signal-95-{before,after}-report`.
 | Expectancy | +16.37 | +26.17 | Revised per-trade payoffs. |
 | Profit factor | 1.448 | 1.775 | Winning and losing P&L totals change. |
 | Total P&L | +458.46 | +732.78 | Earlier entry reference prices change fixture economics. |
-| Max drawdown | 367.30 (0.364%) | 314.29 (0.312%) | Changed realized-equity path. |
+| Max drawdown | 367.30 (0.364%) | 314.29 (0.311%) | Changed realized-equity path. |
 | Average bars held | 8.3 | 9.3 | Entry bar now counts. |
 | Mean realized R | +0.808 | +0.607 | Signal levels now align with entry prices in this fixture. |
 | Winning / losing R | +2.374 / −1.000 | +2.000 / −1.000 | Fixture opens coincide with signal prices; no general 2R guarantee. |
@@ -59,3 +59,14 @@ LONG/SHORT entry-bar target and stop-first ties, crossed-level rejection, costs,
 restart/duplicates, stale/future/session/early-close guards, allocation before
 intrabar exit proceeds and accounting cash availability. Full backend results,
 independent review and live evidence are recorded when completed.
+
+## Independent review
+
+Separate spec and standards agents reviewed `e4b6ddb...33e7862` read-only.
+Neither found a material implementation defect. Both identified the stale trader
+module description; standards also noted the accounting-posting helper description.
+Both docstrings were corrected. The spec reviewer used the supplied issue requirements
+and tracked policy because its GitHub network request failed. Reviews did not rerun
+tests. Historical results/interview documents named by #95 are ignored local files;
+they were updated locally without publishing their preexisting contents in this PR.
+The tracked policy and accounting-contract update explain the historical distinction.

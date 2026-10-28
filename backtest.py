@@ -171,7 +171,7 @@ def _prepare_accounting_events(events, accounting_mode):
 
 
 def _apply_accounting_events(events, through, accounting_broker, run_id, db_path):
-    """Post due accounting events before the batch allocation cycle, once each."""
+    """Post accounting events available through the given boundary, once each."""
     applied = []
     while events and utc(events[0]['scheduled_at']) <= through:
         event = dict(events.pop(0))

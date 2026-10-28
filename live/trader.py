@@ -1,6 +1,7 @@
 """Shared chronological bar pipeline and live minute aggregation.
 
-Local entries use the next observed completed five-minute bar's close. Stop/target
+Local entries use the next observed five-minute bar's open, including entry-bar
+protection. Bars are processed after completion; fills are simulated. Stop/target
 exits fill on the touching bar at the level, or its open when gapped past that level,
 with stop-first ties. Session flatten uses observed closes. Alpaca executes
 asynchronously at confirmed market fills.

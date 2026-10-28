@@ -284,7 +284,9 @@ def test_delayed_fill_rejects_crossed_risk_levels(tmp_path, direction, stop, tar
     t = LiveTrader(['AAA'], str(tmp_path/'fill.db'))
     t.pending['AAA'] = dict(ticker='AAA', direction=direction, entry=100, stop=stop,
         target=target, decision_at='2026-06-10T14:05Z', signal_id=None)
-    t.process_batch({'AAA': bar('2026-06-10T14:05Z', fill)})
+    # The close is valid: only the crossed open must reject this candidate.
+    row = {**bar('2026-06-10T14:05Z', 100, max(103, fill), min(97, fill)), 'open': fill}
+    t.process_batch({'AAA': row})
     assert not t.broker.open_positions
     assert not load_open_positions(t.db_path)
     assert not t.pending
