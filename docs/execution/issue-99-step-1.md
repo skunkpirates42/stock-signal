@@ -78,8 +78,8 @@ A bounded live check on October 28 at 14:17 EDT used `BROKER=local`, template
 synthesis and `/tmp/stock-signal-99-live.db`. The initial sandbox attempt failed
 DNS resolution. With network access the market clock reported OPEN, all eight
 symbols seeded, and the stream subscribed. The process stopped after 45 seconds;
-no open/close event occurred. This verifies startup only: observing an actual
-live touching-bar exit remains an outstanding acceptance check. No broker orders
+no open/close event occurred. This verifies startup only: that initial run did not
+complete acceptance. The subsequent run below completes the live touching-bar check. No broker orders
 were submitted and no unattended collector was left running.
 
 Final checks: 79 focused correctness tests passed; the full backend suite passed
@@ -96,6 +96,33 @@ scope violation. The standards review noted one optional duplication cleanup:
 the protective and pending/session exit paths repeat close/persist/emit bookkeeping.
 That low-severity suggestion is deferred to keep this execution-policy patch focused.
 The spec review confirmed the live touching-bar observation above is still an
-outstanding acceptance requirement. The PR remains draft pending that evidence.
+outstanding acceptance requirement. That evidence was subsequently captured below; the acceptance gap is resolved.
 The reviewers inspected code and relied on the recorded test results; they did
 not independently rerun the suite.
+
+
+## Completed live acceptance: October 28, 2026
+
+A second run from 15:04:36 to 15:20:40 EDT used revision `1bc5b0d`, live IEX
+minute bars, `BROKER=local`, and a fresh `/tmp/stock-signal-100-live/live.db`.
+Order submission was disabled in the harness. Entries came from the normal
+signal engine; no positions or touches were injected.
+
+MSFT entered LONG at 528.66 at 15:15 EDT, with stop 527.9058 and target 532.1185.
+The 15:15–15:20 bar had O/H/L/C 528.545 / 528.65 / 527.60 / 528.35 and volume
+5,281. The low touched the stop, while the open did not gap through it. The local
+exit was **527.9058**, reason `stop`, timestamp **15:20 EDT**, and `bars_held=1`.
+It was observed and persisted at approximately 15:20:37 after the configured
+late-bar allowance. This verifies simulated touching-bar pricing, not a real-time
+broker fill at the instant of touch.
+
+The verifier reconstructed the bar from all five received minute bars and checked
+the persisted trade's exit price, time, reason, bars held, P&L and local scope.
+The orders table contained zero rows. The harness stopped automatically after
+verification; other hypothetical positions remain only in the scratch database.
+
+[Captured evidence](evidence/issue-100-live-2026-10-28.json) includes the five raw
+minute bars, touching bar, saved trade, run revision and artifact hashes. Full
+capture and verification scripts, seed bars, event journal and SQLite database
+remain in `/tmp/stock-signal-100-live/`. This closes the outstanding local live
+acceptance item for PR #100; Alpaca bracket work remains deferred.

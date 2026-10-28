@@ -1,0 +1,145 @@
+{
+  "trade": {
+    "ticker": "MSFT",
+    "direction": "LONG",
+    "entry": 528.66,
+    "stop": 527.9058,
+    "target": 532.1185,
+    "signal_id": 4,
+    "shares": 18,
+    "remaining_shares": 0,
+    "entry_bar": 2,
+    "status": "CLOSED",
+    "backend": "local",
+    "account": "issue-100-live-check",
+    "entry_cost": 0.0,
+    "observed_bars": 1,
+    "entry_at": "2026-10-28T19:15:00+00:00",
+    "run_id": null,
+    "db_id": 3,
+    "exit_price": 527.9058,
+    "exit_at": "2026-10-28T19:20:00+00:00",
+    "outcome": "LOSS",
+    "exit_reason": "stop",
+    "gross_pnl": -13.58,
+    "costs": 0.0,
+    "pnl": -13.58,
+    "exit_bar": 3,
+    "bars_held": 1,
+    "elapsed_seconds": 300.0
+  },
+  "touching_bar": {
+    "open": 528.545,
+    "high": 528.65,
+    "low": 527.6,
+    "close": 528.35,
+    "volume": 5281.0,
+    "timestamp": "2026-10-28 19:15:00+00:00"
+  },
+  "expected_price": 527.9058,
+  "expected_exit_at": "2026-10-28 19:20:00+00:00",
+  "checked_at": "2026-10-28T19:20:37.529469+00:00",
+  "minute_bars": [
+    {
+      "kind": "minute",
+      "received_at": "2026-10-28T19:16:00.090100+00:00",
+      "payload": {
+        "symbol": "MSFT",
+        "timestamp": "2026-10-28 19:15:00+00:00",
+        "open": 528.545,
+        "high": 528.65,
+        "low": 528.48,
+        "close": 528.49,
+        "volume": 1043.0
+      }
+    },
+    {
+      "kind": "minute",
+      "received_at": "2026-10-28T19:17:00.094541+00:00",
+      "payload": {
+        "symbol": "MSFT",
+        "timestamp": "2026-10-28 19:16:00+00:00",
+        "open": 528.51,
+        "high": 528.51,
+        "low": 528.33,
+        "close": 528.33,
+        "volume": 440.0
+      }
+    },
+    {
+      "kind": "minute",
+      "received_at": "2026-10-28T19:18:00.096441+00:00",
+      "payload": {
+        "symbol": "MSFT",
+        "timestamp": "2026-10-28 19:17:00+00:00",
+        "open": 528.06,
+        "high": 528.14,
+        "low": 527.6,
+        "close": 527.71,
+        "volume": 1611.0
+      }
+    },
+    {
+      "kind": "minute",
+      "received_at": "2026-10-28T19:19:00.159500+00:00",
+      "payload": {
+        "symbol": "MSFT",
+        "timestamp": "2026-10-28 19:18:00+00:00",
+        "open": 527.74,
+        "high": 527.83,
+        "low": 527.66,
+        "close": 527.83,
+        "volume": 703.0
+      }
+    },
+    {
+      "kind": "minute",
+      "received_at": "2026-10-28T19:20:00.129190+00:00",
+      "payload": {
+        "symbol": "MSFT",
+        "timestamp": "2026-10-28 19:19:00+00:00",
+        "open": 527.85,
+        "high": 528.35,
+        "low": 527.755,
+        "close": 528.35,
+        "volume": 1484.0
+      }
+    }
+  ],
+  "manifest": {
+    "revision": "1bc5b0d76606303b09ba76697590e12ce9d9315d",
+    "started_at": "2026-10-28T19:04:36.899267+00:00",
+    "broker": "local",
+    "db": "/tmp/stock-signal-100-live/live.db",
+    "symbols": [
+      "AAPL",
+      "NVDA",
+      "TSLA",
+      "SPY",
+      "QQQ",
+      "MSFT",
+      "AMZN",
+      "META"
+    ],
+    "feed": "IEX",
+    "session_policy": "overnight",
+    "exit_policy": "touching_bar_level_or_gap_open_stop_first_v1",
+    "entry_policy": "next_completed_5min_close",
+    "order_submission": "disabled",
+    "position_source": "natural deterministic live signals; no injected positions"
+  },
+  "sha256": {
+    "check.py": "c88f421211296dd8b972f57745fcbb335df61a1b549211811508a1eeda52def4",
+    "manifest.json": "51440f8219e2c9d0dc93742bd08e0f0d3dd516069777342007dd78124de79cae",
+    "seed.json": "10ac0a7e507a081c7216f8da722aca2f0c14cebd04aaa009c9f51fcecfb09d2d",
+    "events.jsonl": "1d056a71efa5abaee4119dc582dc6981e47c9c65e2881280fbaefcf0ed8bb327",
+    "live.db": "841e625cde33478857acf7b62a9ecd03a578b0ee5b49ef25d450f6403a5fac61",
+    "verified-exit.json": "eb3a73513144d1b738ec5bc7b81b400aeaa7b36ca3d39b9f4d309a7c22edbb5d"
+  },
+  "verification": {
+    "five_minute_reconstruction": "passed",
+    "persisted_trade_matches": "passed",
+    "broker_order_count": 0,
+    "stopped": true
+  }
+}
