@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import Mock
 
 import requests
@@ -22,10 +23,9 @@ def test_batch_cached_and_timestamp_preserved(monkeypatch):
                                   'QQQ': {'p': 200, 't': '2026-01-02T15:00:01Z'}})
     service = PositionPrices()
     result = service.get(['SPY', 'QQQ', 'SPY'])
-    assert result['market_open'] is False
     assert result['prices']['SPY'] == {'price': 105, 'timestamp': '2026-01-02T15:00:00+00:00'}
     assert service.get(['QQQ', 'SPY']) == result
-    assert get.call_count == 2
+    assert get.call_count == 1
     assert get.call_args_list[0].kwargs['params'] == {'symbols': 'QQQ,SPY', 'feed': 'iex'}
     assert all(call.kwargs['timeout'] == 3 for call in get.call_args_list)
     assert 'offline' not in str(result)
@@ -57,10 +57,9 @@ def test_failure_clears_old_prices_and_is_cached(monkeypatch):
     get.side_effect = requests.Timeout('sensitive error must never be returned')
     result = service.get(['SPY'])
     assert result['prices'] == {}
-    assert result['market_open'] is None
     assert 'sensitive' not in str(result)
     service.get(['SPY'])
-    assert get.call_count == 4
+    assert get.call_count == 2
 
 
 def test_endpoint_only_marks_live_positions(monkeypatch, tmp_path):
@@ -74,3 +73,35 @@ def test_endpoint_only_marks_live_positions(monkeypatch, tmp_path):
     assert response.headers['Cache-Control'] == 'no-store'
     assert list(response.json['prices']) == ['SPY']
     assert get.call_args_list[0].kwargs['params']['symbols'] == 'SPY'
+
+
+def test_alpaca_nanosecond_timestamps_on_python39(monkeypatch):
+    configure(monkeypatch, {'SPY': {'p': 105, 't': '2026-01-02T15:00:17.135906123Z'}})
+    result = PositionPrices().get(['SPY'])
+    assert result['prices']['SPY']['timestamp'] == '2026-01-02T15:00:17.135906+00:00'
+
+
+@pytest.mark.parametrize("is_open", [True, False, None])
+def test_shared_market_status_without_positions(monkeypatch, tmp_path, is_open):
+    from dashboard.app import create_app
+    monkeypatch.setenv('ALPACA_API_KEY', 'offline')
+    monkeypatch.setenv('ALPACA_SECRET_KEY', 'offline')
+    response = Mock()
+    response.json.return_value = {'is_open': is_open}
+    get = Mock(return_value=response)
+    monkeypatch.setattr('dashboard.prices.requests.get', get)
+    app = create_app(str(tmp_path / 'empty.db'))
+    client = app.test_client()
+    first = client.get('/api/market-status')
+    assert first.json['market_open'] is is_open
+    assert first.headers['Cache-Control'] == 'no-store'
+    assert client.get('/api/market-status').json == first.json
+    assert get.call_count == 1
+
+
+def test_clock_failure_does_not_report_closed(monkeypatch):
+    from dashboard.prices import MarketStatus
+    monkeypatch.setenv('ALPACA_API_KEY', 'offline')
+    monkeypatch.setenv('ALPACA_SECRET_KEY', 'offline')
+    monkeypatch.setattr('dashboard.prices.requests.get', Mock(side_effect=requests.Timeout()))
+    assert MarketStatus().get()['market_open'] is None

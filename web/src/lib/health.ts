@@ -67,3 +67,15 @@ export function describeStatus({
     unresolvedOrders: status?.unresolved_orders ?? [],
   };
 }
+
+export interface MarketStatus {
+  market_open: boolean | null;
+  checked_at: string;
+}
+
+export function marketStatusLabel(status: MarketStatus | null, now: number): string {
+  const age = now - Date.parse(status?.checked_at ?? "");
+  if (!status || !Number.isFinite(age) || age < -5000 || age > 60000 || status.market_open === null)
+    return "US regular market: unavailable";
+  return status.market_open ? "US regular market: open" : "US regular market: closed";
+}

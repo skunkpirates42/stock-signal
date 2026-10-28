@@ -6,7 +6,6 @@ export interface PriceMark {
 }
 export interface PositionPrices {
   feed: "iex";
-  market_open: boolean | null;
   checked_at: string;
   prices: Record<string, PriceMark>;
 }

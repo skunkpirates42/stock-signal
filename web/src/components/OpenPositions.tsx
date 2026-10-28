@@ -53,19 +53,13 @@ export default function OpenPositions({ positions, now }: OpenPositionsProps) {
     <section className="open-positions">
       <h2 className="micro">Open positions</h2>
       <p className="positions-note">
-        Live positions use the latest IEX trade, checked every five seconds while visible. Estimated
-        unrealized P&amp;L excludes fees and is not a guaranteed exit value. Historical and
-        unknown-source positions show distances as of entry.
+        Live positions use the latest IEX trade, refreshed while visible with five seconds between
+        requests. Estimated unrealized P&amp;L excludes fees and is not a guaranteed exit value.
+        Historical and unknown-source positions show distances as of entry.
       </p>
-      {hasLive && (
+      {hasLive && failed && (
         <p className="micro" role="status">
-          {failed
-            ? "Price service unavailable. Last received prices may be stale."
-            : prices?.market_open === false
-              ? "Regular market closed · showing last available trades."
-              : prices?.market_open === true
-                ? "Regular market open · IEX"
-                : "Market status unavailable"}
+          Price service unavailable. Last received prices may be stale.
         </p>
       )}
       {positions.length === 0 ? (
