@@ -165,7 +165,7 @@ def load_closed_trades(db_path: str = None, source: str = None, backend=None, ac
         params.append(closed_to)
     if clauses:
         sql += " WHERE " + " AND ".join(clauses)
-    sql += " ORDER BY COALESCE(t.exit_at,t.closed_at) IS NULL, COALESCE(t.exit_at,t.closed_at), t.id"
+    sql += " ORDER BY COALESCE(t.exit_at,t.closed_at) IS NULL, COALESCE(t.exit_at,t.closed_at), t.ticker, t.id"
     rows = conn.execute(sql, params).fetchall()
     conn.close()
     return [dict(r) for r in rows]

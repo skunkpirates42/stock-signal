@@ -1,8 +1,9 @@
 """Shared chronological bar pipeline and live minute aggregation.
 
-Local fills use the next observed completed five-minute bar's close. This deliberately
-models a five-minute execution delay, never an already-observed signal close or touched
-threshold. Alpaca executes asynchronously at confirmed market fills.
+Local entries use the next observed completed five-minute bar's close. Stop/target
+exits fill on the touching bar at the level, or its open when gapped past that level,
+with stop-first ties. Session flatten uses observed closes. Alpaca executes
+asynchronously at confirmed market fills.
 """
 import json
 from collections import deque
@@ -238,12 +239,27 @@ class LiveTrader:
             return {}
         executable = decision_at < session_bounds(ts)[1]
         exited = set()
-        # Execute previously queued exits at the newly observed close, before allocation.
+        # Resolve local protective exits on the touching bar before close-time flatten/allocation.
         for s, bar in sorted(bars.items()):
             pos = self.broker.open_positions.get(s)
             if not pos:
                 continue
             pos['observed_bars'] = (pos.get('observed_bars') or 0) + 1
+            trigger = check_exit(pos, bar)
+            if trigger and not self.is_alpaca:
+                # Keep check_exit's stop-first tie rule; apply gaps only to the
+                # selected level. The final regular-hours bar can touch intrabar.
+                price = trigger['exit_price']
+                open_price = float(bar['open'])
+                lower_level = (pos['direction'] == 'LONG') == (trigger['reason'] == 'stop')
+                price = min(price, open_price) if lower_level else max(price, open_price)
+                trade = self.broker.close_position(s, price, trigger['outcome'], self.bar_count[s],
+                    bars_held=pos['observed_bars'], exit_reason=trigger['reason'],
+                    exit_at=decision_at.isoformat())
+                close_trade(pos['db_id'], trade, self.db_path)
+                self._emit('close', trade)
+                exited.add(s)
+                continue
             pending_exit = pos.get('pending_exit')
             flatten = config.SESSION_POLICY == 'flatten' and flatten_due(decision_at)
             if not self.is_alpaca and executable and (pending_exit or flatten):
@@ -254,15 +270,12 @@ class LiveTrader:
                 self._emit('close', trade)
                 exited.add(s)
                 continue
-            trigger = check_exit(pos, bar)
             if trigger:
                 if self.is_alpaca:
                     trade = self.broker.close_position(s, trigger['exit_price'], trigger['outcome'], self.bar_count[s],
                                                        exit_reason=trigger['reason'])
                     self._broker_events()
                     exited.add(s)
-                else:
-                    pos['pending_exit'] = trigger
             save_position(pos, self.db_path)
         # Execute prior candidates only on a later observation, with deterministic sizing.
         for s, bar in sorted(bars.items()):
