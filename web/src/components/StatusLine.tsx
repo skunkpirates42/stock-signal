@@ -17,6 +17,13 @@ export default function StatusLine({ summary, error }: StatusLineProps) {
             <span className={`status-heartbeat-${summary.heartbeat}`}>
               Heartbeat {summary.heartbeat}
             </span>
+            {summary.runtime
+              .filter((row) => row.status !== "running")
+              .map((row) => (
+                <span className="status-attention" key={row.scope}>
+                  {row.scope}: {row.status}
+                </span>
+              ))}
             {summary.unresolvedOrders.length > 0 && (
               <span className="status-attention">
                 {summary.unresolvedOrders.length} unresolved{" "}

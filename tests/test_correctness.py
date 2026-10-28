@@ -315,9 +315,9 @@ def test_worker_recovery_restores_local_durable_exposure(tmp_path):
     p = t.broker.open_position(dict(ticker='AAA',direction='LONG',entry=100,stop=99,target=102),0)
     p['db_id'] = log_trade_open(p,t.db_path)
     t.broker.close_position('AAA',98,'stop',1)  # simulate failure before DB close commit
-    t.worker_error = t.broker.blocked = 'database is locked'
+    t.record_worker_error(RuntimeError('database is locked'))
     t.recover_worker_error()
-    assert t.worker_error is None and t.broker.blocked is None
+    assert t.worker_error == 'RuntimeError: database is locked' and t.broker.blocked is None
     assert t.broker.has_open('AAA') and t.broker.capital == config.STARTING_CAPITAL
 
 
@@ -352,7 +352,7 @@ def test_worker_recovery_retains_legacy_block(tmp_path):
     with _connect(db) as conn:
         conn.execute("INSERT INTO trades(ticker,outcome) VALUES ('OLD','OPEN')")
     t = LiveTrader(['OLD'],db)
-    t.worker_error = t.broker.blocked = 'database is locked'
+    t.record_worker_error(RuntimeError('database is locked'))
     t.recover_worker_error()
-    assert t.worker_error is None
+    assert t.worker_failure_count == 1
     assert 'Legacy' in t.broker.blocked
