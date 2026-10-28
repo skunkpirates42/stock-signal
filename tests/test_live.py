@@ -160,7 +160,7 @@ def test_live_bar_after_rest_seed_produces_a_signal(tmp_path, monkeypatch):
     assert len(trader.windows["AAA"]) == 60
 
     live_ts = trader.last_closed["AAA"] + timedelta(minutes=5)
-    live_bar = {"timestamp": live_ts.to_pydatetime().astimezone(timezone.utc), "open": 100.0,
+    live_bar = {"timestamp": live_ts, "open": 100.0,
                 "high": 101.0, "low": 99.0, "close": 100.5, "volume": 1500}
     signals = trader.process_batch({"AAA": live_bar})
 
