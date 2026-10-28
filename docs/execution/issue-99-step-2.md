@@ -70,3 +70,36 @@ and tracked policy because its GitHub network request failed. Reviews did not re
 tests. Historical results/interview documents named by #95 are ignored local files;
 they were updated locally without publishing their preexisting contents in this PR.
 The tracked policy and accounting-contract update explain the historical distinction.
+
+Final fixed-revision validation: **446 backend tests passed**, with only the existing
+LibreSSL/urllib3 and websockets deprecation warnings. `git diff --check` passed.
+No UI changes require frontend checks. An earlier full run encountered the demo
+worker's strategy-version guard because a commit occurred during the suite; the
+isolated test and complete rerun with a stable revision both passed. The new
+accounting regression also initially needed a Decimal comparison rather than a
+formatted string comparison. No demo-worker application change was needed.
+Both reviewers confirmed their documentation findings resolved.
+
+## Completed live acceptance: October 28, 2026
+
+The bounded IEX capture ran from 15:41:56 to approximately 15:55:39 EDT with
+`BROKER=local`, the existing overnight session policy, a scratch SQLite database
+and broker submission explicitly disabled. The initial partial bucket was dropped;
+natural deterministic signals from the 15:45–15:50 bucket queued entries.
+
+TSLA LONG filled at **403.61**, the 15:50–15:55 bar's **open**, with
+`entry_at=2026-10-28T19:50:00+00:00`. Its signal stop **402.2134** and target
+**406.5832** were retained. The fill was observed after 15:55:35, not at wall-clock
+15:50: this proves the simulation reference price and timestamp, not broker latency.
+
+The verifier rebuilt the complete entry bar from five received minute bars and
+checked saved entry fields, signal levels, live/local scope and zero order rows.
+The process stopped automatically; scratch positions are hypothetical only.
+[Captured evidence](evidence/issue-95-live-2026-10-28.json) includes the raw minutes,
+bar, saved trade/signal and artifact hashes. Full scripts, seed and journal remain
+in `/tmp/stock-signal-95-live/`. The capture began on the merged baseline plus the
+working execution patch (diff hash recorded), subsequently committed in `33e7862`;
+later runtime-file edits corrected docstrings only.
+
+A final replay at `6c716dd` exactly matches the regenerated snapshot. All 30 trades
+retain the previous fixture's ticker, direction, signal levels and outcome.
