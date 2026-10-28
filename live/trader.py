@@ -129,7 +129,9 @@ class LiveTrader:
         self.buckets[symbol] = None
         self.last_closed[symbol] = b['start']
         if len(b['minutes']) != 5:
-            set_status(self.scope, 'incomplete', f'{symbol}: incomplete five-minute bucket', b['start'], self.db_path)
+            detail = self.worker_error_detail
+            set_status(self.scope, 'blocked' if detail else 'incomplete',
+                       detail or f'{symbol}: incomplete five-minute bucket', b['start'], self.db_path)
             return None
         bar = {k: b[k] for k in ('open', 'high', 'low', 'close', 'volume')}
         bar['timestamp'] = b['start']

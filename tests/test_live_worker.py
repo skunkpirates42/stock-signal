@@ -82,3 +82,22 @@ def test_original_exception_logged_even_if_failure_status_cannot_persist(tmp_pat
         fail_batch(trader, monkeypatch)
     assert [record.exc_info[0] for record in caplog.records if record.exc_info] == [ValueError, RuntimeError]
     assert trader.worker_failure_count == 1
+
+
+def test_incomplete_bucket_preserves_failure_until_successful_batch(tmp_path, monkeypatch):
+    trader = LiveTrader(['AAA'], str(tmp_path / 'worker.db'))
+    fail_batch(trader, monkeypatch)
+    trader.recover_worker_error()
+    trader.on_minute_bar('AAA', '2026-06-10T14:05Z', 100, 101, 99, 100, 1)
+    trader.on_minute_bar('AAA', '2026-06-10T14:10Z', 100, 101, 99, 100, 1)
+    # Inspect before any heartbeat can restore the worker failure status.
+    row = status(trader)
+    assert row['status'] == 'blocked'
+    assert 'ValueError: forced batch failure' in row['detail']
+    assert 'consecutive worker failures: 1' in row['detail']
+    assert 'not retried' in row['detail']
+    assert trader.worker_failure_count == 1
+    monkeypatch.setattr(trader, '_regime', lambda _: None)
+    trader.process_batch({'AAA': bar('2026-06-10T14:10Z')})
+    assert trader.worker_failure_count == 0
+    assert status(trader)['status'] == 'running'
