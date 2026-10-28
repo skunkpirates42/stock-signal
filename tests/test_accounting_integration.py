@@ -181,3 +181,22 @@ def test_borrow_accrual_intervals_do_not_conflict_and_missing_costs_are_unknown(
     assert marked['cash_equity_reconciles'] is False
     assert marked['cash_equity_status'] == 'unknown_execution_costs'
     assert marked['cash_equity_max_error'] is None
+
+
+def test_cash_known_during_entry_bar_cannot_fund_its_open(tmp_path, monkeypatch):
+    import config
+    monkeypatch.setattr(config, 'WARMUP_BARS', 1)
+    monkeypatch.setattr('live.trader.compute_indicators', lambda df: {'close': 100})
+    monkeypatch.setattr('live.trader.generate_signal', lambda s, ind: dict(
+        ticker=s, direction='LONG', confidence=.7, entry=100, stop=98, target=104,
+        rr=2, votes={}, vote_tally={'bull': 4, 'bear': 2, 'neutral': 0}, indicators_json='{}'))
+    baseline = run_portfolio(_bars(), str(tmp_path / 'baseline-open.db'))
+    assert len(baseline['trades']) == 1
+    event = _posting(event_kind='distribution_settlement', receivable_delta='0',
+        cash_delta='100000', occurred_at='2026-06-10T13:37Z', knowledge_at='2026-06-10T13:37Z')
+    later = run_portfolio(_bars(), str(tmp_path / 'later-cash.db'), accounting_events=[event])
+    assert later['trades'][0]['shares'] == baseline['trades'][0]['shares']
+    assert Decimal(later['accounting']['cash_delta']) == Decimal('100000')
+    earlier = run_portfolio(_bars(), str(tmp_path / 'earlier-cash.db'), accounting_events=[
+        {**event, 'occurred_at': '2026-06-10T13:35Z', 'knowledge_at': '2026-06-10T13:35Z'}])
+    assert earlier['trades'][0]['shares'] > baseline['trades'][0]['shares']

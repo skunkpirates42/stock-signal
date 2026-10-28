@@ -235,7 +235,7 @@ class LiveTrader:
         return classify(values['SPY'], values['QQQ'])
 
     def process_batch(self, bars):
-        """All bars in a batch have the same start timestamp; exits precede entries."""
+        """All bars share a start time; local open entries precede intrabar exits."""
         bars = {s:b for s,b in bars.items() if s not in self.processed or utc(b['timestamp']) > self.processed[s]}
         if not bars:
             return {}
@@ -257,6 +257,21 @@ class LiveTrader:
             return {}
         executable = decision_at < session_bounds(ts)[1]
         exited = set()
+        # Allocate at the open before any later intrabar exits can release capital.
+        for s, bar in sorted(bars.items()):
+            pending = self.pending.pop(s, None)
+            if self.source == 'live' and not self.is_alpaca:
+                with _connect(self.db_path) as conn:
+                    conn.execute('DELETE FROM local_pending WHERE scope=? AND ticker=?', (self.scope,s))
+            if pending and executable and not self.broker.has_open(s) and not self.broker.blocked:
+                same_session = utc(pending['decision_at']).date() == ts.date()
+                if same_session and pd.Timedelta(0) <= ts - utc(pending['decision_at']) <= pd.Timedelta(minutes=5) and not (
+                        config.SESSION_POLICY == 'flatten' and decision_at >= session_bounds(ts)[1] - pd.Timedelta(minutes=5)):
+                    fill = {**pending, 'entry': float(bar['open']), 'entry_at': ts.isoformat()}
+                    pos = self.broker.open_position(fill, self.bar_count[s], pending['signal_id'])
+                    if pos:
+                        pos['db_id'] = log_trade_open(pos, self.db_path, self.source)
+                        self._emit('open', pos)
         # Resolve local protective exits on the touching bar before close-time flatten/allocation.
         for s, bar in sorted(bars.items()):
             pos = self.broker.open_positions.get(s)
@@ -295,21 +310,6 @@ class LiveTrader:
                     self._broker_events()
                     exited.add(s)
             save_position(pos, self.db_path)
-        # Execute prior candidates only on a later observation, with deterministic sizing.
-        for s, bar in sorted(bars.items()):
-            pending = self.pending.pop(s, None)
-            if self.source == 'live' and not self.is_alpaca:
-                with _connect(self.db_path) as conn:
-                    conn.execute('DELETE FROM local_pending WHERE scope=? AND ticker=?', (self.scope,s))
-            if pending and executable and not self.broker.has_open(s) and s not in exited and not self.broker.blocked:
-                same_session = utc(pending['decision_at']).date() == ts.date()
-                if same_session and pd.Timedelta(0) < decision_at - utc(pending['decision_at']) <= pd.Timedelta(minutes=10) and not (
-                        config.SESSION_POLICY == 'flatten' and decision_at >= session_bounds(ts)[1] - pd.Timedelta(minutes=5)):
-                    fill = {**pending, 'entry': float(bar['close']), 'entry_at': decision_at.isoformat()}
-                    pos = self.broker.open_position(fill, self.bar_count[s], pending['signal_id'])
-                    if pos:
-                        pos['db_id'] = log_trade_open(pos, self.db_path, self.source)
-                        self._emit('open', pos)
         results = {}
         regime = self._regime(decision_at)
         for s, bar in sorted(bars.items()):

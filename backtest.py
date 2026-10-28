@@ -56,11 +56,11 @@ def manifest_for(bars, feed, gate='baseline'):
             'dataset_sha256':hashlib.sha256(serialized.encode()).hexdigest(), 'feed':feed,
             'start':min(times).isoformat() if times else None, 'end':max(times).isoformat() if times else None,
             'symbols':sorted(bars), 'settings':settings, 'gate':gate,
-            'fill_policy':'next_completed_5min_close',
+            'fill_policy':'next_5min_open_signal_levels_v1',
             'exit_policy':'touching_bar_level_or_gap_open_stop_first_v1',
             'session_exit_policy':'observed_close_before_session_end_else_pending',
             'session_policy':config.SESSION_POLICY,
-            'allocation':'exit first, alphabetical symbol order, unlevered gross exposure cap',
+            'allocation':'open entries before intrabar exits, alphabetical symbol order, unlevered gross exposure cap',
             'schema_version':2, 'accounting_version': ACCOUNTING_VERSION,
             'accounting_mode': 'causal_capital_rerun',
             'accounting_status': 'scenario inputs only; historical coverage is not established'}
@@ -230,11 +230,12 @@ def run_portfolio(bars, db_path=None, feed='fixture', gate=None, gate_name='base
             if ts.date() != previous_day:
                 conn.commit()
                 previous_day = ts.date()
-            # A completed bar is actionable at its close.  Accounting events at that
-            # same time precede the existing exits-before-entries allocation cycle.
+            # Only accounting known by the open may fund open-price allocation.
+            posting_statuses.extend(_apply_accounting_events(
+                pending_accounting, ts, accounting_broker, run_id, db_path))
+            trader.process_batch(events[ts])
             posting_statuses.extend(_apply_accounting_events(
                 pending_accounting, ts + pd.Timedelta(minutes=5), accounting_broker, run_id, db_path))
-            trader.process_batch(events[ts])
         # Post-window events are deliberately retained as pending, not forced into the
         # window or converted into assumed settlement cash.
     with _connect(db_path) as conn:
@@ -267,7 +268,7 @@ def export_result(result, directory):
         + f"Censored positions: {result['censored_positions']}; pending candidates: {result['pending_candidates']}\n"
         + f"Accounting version {result['accounting']['accounting_version']}: "
         + f"{result['accounting']['postings']} postings; unavailable inputs {result['accounting']['unavailable_count']}.\n"
-        + 'Entry fill policy: next completed five-minute close.\n'
+        + 'Entry fill policy: next observed five-minute open; signal levels retained; crossed levels reject entry.\n'
         + 'Exit policy: touching bar stop/target level or gap open; stop wins ties, including gaps.\n'
         + 'Session exits: observed close before session end, otherwise pending next executable close.\n'
         + 'Costs are modeled, not measured spread.\n'

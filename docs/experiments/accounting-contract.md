@@ -1,5 +1,11 @@
 # Proposed accounting contract — T01
 
+> Execution update (issue #95): current local replay uses next observed five-minute
+> open entries and entry-bar stop-first protection. The close-fill descriptions below
+> describe the original contract/results; saved artifacts and the separately frozen
+> `research/shadow.py` close-fill policy remain unchanged. See
+> [step 2](../execution/issue-99-step-2.md) for timing and comparison limits.
+
 Prepared September 18, 2026. Specification version: `accounting-contract-v1-draft`.
 Status: proposed; independent Astra review and human/domain resolution of the broker
 questions below are still required. This document does not implement or activate a policy.

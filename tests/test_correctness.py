@@ -151,7 +151,7 @@ def test_local_pending_entry_and_touch_exit_survive_restart(tmp_path,monkeypatch
     assert t.broker.open_positions['AAA']['entry']==101
     t.process_batch({'AAA':bar('2026-06-10T14:10Z',105)})
     assert t.broker.closed_trades[-1]['outcome']=='WIN'
-    assert t.broker.closed_trades[-1]['bars_held']==1
+    assert t.broker.closed_trades[-1]['bars_held']==2
     t=LiveTrader(['AAA'],db)
     t.process_batch({'AAA':bar('2026-06-10T14:15Z',97)})
     assert not t.broker.has_open('AAA')
@@ -409,16 +409,83 @@ def test_local_touch_exit_on_observed_bar(tmp_path, monkeypatch, direction, stop
         assert saved['exit_at'] == trade['exit_at']
 
 
-def test_local_close_entry_does_not_use_earlier_intrabar_range(tmp_path, monkeypatch):
+def test_local_open_entry_uses_entry_bar_range(tmp_path, monkeypatch):
     monkeypatch.setattr(config, 'WARMUP_BARS', 1)
     monkeypatch.setattr('live.trader.compute_indicators', lambda df: {'close': float(df.close.iloc[-1])})
     monkeypatch.setattr('live.trader.generate_signal', candidate)
     trader = LiveTrader(['AAA'], str(tmp_path / 'entry-range.db'))
     trader.process_batch({'AAA': bar('2026-06-10T14:00Z')})
     trader.process_batch({'AAA': bar('2026-06-10T14:05Z', 100, 105, 97)})
-    assert trader.broker.has_open('AAA')
-    assert not trader.broker.closed_trades
-    trader.process_batch({'AAA': bar('2026-06-10T14:10Z', 100, 105, 99)})
-    assert trader.broker.closed_trades[-1]['exit_price'] == 104
+    assert not trader.broker.has_open('AAA')
+    assert trader.broker.closed_trades[-1]['exit_price'] == 98
     assert trader.broker.closed_trades[-1]['bars_held'] == 1
     assert 'AAA' not in trader.pending  # cannot reenter on an exit bar
+
+
+@pytest.mark.parametrize('direction,stop,target,high,low,exit_price', [
+    ('LONG', 98, 104, 103, 99, None),
+    ('LONG', 98, 104, 105, 99, 104),
+    ('LONG', 98, 104, 105, 97, 98),
+    ('SHORT', 104, 98, 103, 99, None),
+    ('SHORT', 104, 98, 103, 97, 98),
+    ('SHORT', 104, 98, 105, 97, 104),
+])
+def test_next_open_price_timestamp_and_entry_bar_exit(tmp_path, direction, stop, target, high, low, exit_price):
+    db = str(tmp_path / 'open.db')
+    broker = PaperBroker(policy=FillPolicy(10, 2, .01))
+    trader = LiveTrader(['AAA'], db, broker=broker)
+    trader.pending['AAA'] = dict(ticker='AAA', direction=direction, entry=100,
+        stop=stop, target=target, decision_at='2026-06-10T14:05Z', signal_id=None)
+    row = {**bar('2026-06-10T14:05Z', 102, high, low), 'open': 101}
+    trader.process_batch({'AAA': row})
+    with _connect(db) as conn:
+        saved = dict(conn.execute('SELECT * FROM trades').fetchone())
+    assert saved['entry'] == 101
+    assert utc(saved['entry_at']) == utc(row['timestamp'])
+    assert saved['stop'] == stop and saved['target'] == target
+    assert saved['exit_price'] == exit_price
+    if exit_price is not None:
+        assert saved['bars_held'] == 1
+        assert utc(saved['exit_at']) == utc('2026-06-10T14:10Z')
+        assert saved['costs'] == round(broker.policy.cost(101, saved['shares']) +
+                                       broker.policy.cost(exit_price, saved['shares']), 2)
+    else:
+        assert broker.open_positions['AAA']['observed_bars'] == 1
+    trader.process_batch({'AAA': row})
+    restored = LiveTrader(['AAA'], db)
+    assert restored.broker.has_open('AAA') == (exit_price is None)
+    with _connect(db) as conn:
+        assert conn.execute('SELECT count(*) FROM trades').fetchone()[0] == 1
+
+
+@pytest.mark.parametrize('decision,bar_time,accepted', [
+    ('2026-06-10T14:05Z', '2026-06-10T14:05Z', True),
+    ('2026-06-10T14:05Z', '2026-06-10T14:10Z', True),
+    ('2026-06-10T14:05Z', '2026-06-10T14:15Z', False),
+    ('2026-06-10T14:10Z', '2026-06-10T14:05Z', False),
+    ('2026-06-09T14:05Z', '2026-06-10T14:05Z', False),
+    ('2026-11-27T17:50Z', '2026-11-27T17:50Z', False),
+])
+def test_open_entry_preserves_staleness_session_and_flatten_guards(tmp_path, monkeypatch, decision, bar_time, accepted):
+    monkeypatch.setattr(config, 'SESSION_POLICY', 'flatten')
+    trader = LiveTrader(['AAA'], str(tmp_path / 'timing.db'))
+    trader.pending['AAA'] = dict(ticker='AAA', direction='LONG', entry=100,
+        stop=98, target=104, decision_at=decision, signal_id=None)
+    trader.process_batch({'AAA': bar(bar_time)})
+    assert trader.broker.has_open('AAA') == accepted
+    assert not trader.pending
+
+
+def test_intrabar_exit_cannot_fund_other_symbols_open_entry(tmp_path):
+    db = str(tmp_path / 'capital.db')
+    broker = PaperBroker(starting_capital=1000, position_pct=1, policy=FillPolicy())
+    trader = LiveTrader(['AAA', 'BBB'], db, broker=broker)
+    pos = broker.open_position(dict(ticker='AAA', direction='LONG', entry=100,
+        stop=98, target=104, entry_at='2026-06-10T14:00Z'), 0)
+    pos['db_id'] = log_trade_open(pos, db)
+    trader.pending['BBB'] = dict(ticker='BBB', direction='LONG', entry=100,
+        stop=98, target=104, decision_at='2026-06-10T14:05Z', signal_id=None)
+    trader.process_batch({'AAA': bar('2026-06-10T14:05Z', 100, 105, 99),
+                          'BBB': bar('2026-06-10T14:05Z')})
+    assert len(broker.closed_trades) == 1
+    assert not broker.has_open('BBB')
