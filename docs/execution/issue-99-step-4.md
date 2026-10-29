@@ -105,3 +105,36 @@ This supersedes the earlier statement that no broker submissions had been made. 
 validates API acceptance, nested response compatibility, journaling and cancellation;
 filled-parent activation, broker-driven exits and the market-hours acceptance gate
 remain unverified. PR #103 remains draft.
+
+## Market-hours paper acceptance — October 29, 09:36 EDT
+
+**Passed**, on implementation revision `1606526`. This supersedes the pending acceptance
+status above. The user authorized the bounded manual check while the market was open.
+The paper account started and ended with zero open orders and positions. One synthetic
+SPY share used production `_intent` / `_submit` / `reconcile` with isolated scratch storage;
+no strategy configuration was activated and no market bars were processed.
+
+- Requested market/GTC bracket at 13:35:58.699 UTC, target $767.89 and stop $766.84.
+- Parent filled at 13:36:11.111733 UTC for $767.78. Nested observations changed from
+  pending parent / held children to filled parent / resting target. The broker reported
+  the stop as held during this short observation window; this does not independently
+  establish stop-trigger behavior.
+- Alpaca filled the target at 13:36:26.730494 UTC for $767.93 and canceled the sibling
+  stop before cleanup issued any cancellation. No fallback market exit was needed.
+- Production reconciliation recorded one closed trade, target exit, zero remaining
+  shares and $0.15 paper P&L. Exactly three journal orders: filled entry, filled target,
+  canceled stop. Restart after entry and again after exit applied no duplicate fills.
+- Cleanup confirmed zero open orders and positions. The bounded harness exited.
+
+This demonstrates broker-driven target execution without waiting for a completed bar.
+It is not a latency benchmark: entry took approximately 12.4 seconds in the paper
+simulator, and the harness did not record the exact market event that triggered the
+limit fill. A live stop fill, SHORT execution and cancellation races remain covered by
+offline fake-client tests, not this one-share acceptance. No profitability claim follows.
+
+Sanitized evidence: [market-hours result](evidence/issue-97-market-hours-2026-10-29.json).
+The manual harness and isolated journal remain in `/tmp/stock-signal-103-market`.
+Two preflight attempts submitted no orders because a fresh quote appeared milliseconds
+ahead of the local clock; allowing up to five seconds of clock skew resolved that check.
+Production code is unchanged. JSON assertions and `git diff --check` passed; the prior
+independent code reviews and 473-test backend result remain applicable.
