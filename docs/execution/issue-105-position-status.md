@@ -61,9 +61,11 @@ credentials or broker request payloads. It requires no direct broker read or cre
   node web/scripts/check-position-state.mjs`. No browser dependency was added to the app.
   Use the dev server's matching hostname; its origin guard rejects 127.0.0.1 chunk requests
   when configured for localhost.
-- The pnpm launcher could not fetch/verify its pinned 10.33.0 release in the restricted
-  environment. Equivalent installed binaries were used (`web/node_modules/.bin/`):
-  `vitest run`, `tsc --noEmit`, `eslint`, `next build`. Dependencies/lockfiles unchanged.
+- The pnpm launcher initially could not fetch/verify its pinned 10.33.0 release in the
+  restricted environment. Installed binaries supplied the initial checks. After approved
+  execution outside that restriction, the repository formatting hook and exact `pnpm test`
+  command both passed (325 tests). Type checking, lint and build used the installed
+  `web/node_modules/.bin/` binaries. Dependencies/lockfiles unchanged.
 
 ## Independent review
 
