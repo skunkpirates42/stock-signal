@@ -235,3 +235,74 @@ def test_touch_tie_and_gap_bars_never_duplicate_bracket_exit(tmp_path,direction,
                                      low=low,high=high,close=open_price,volume=100)})
     assert len(c.submitted) == 1 and not c.cancels
     assert b.open_positions['NVDA']['remaining_shares'] == 100
+
+
+@pytest.mark.parametrize('direction', ['LONG', 'SHORT'])
+@pytest.mark.parametrize('cancel_mode', ['pending', 'timeout'])
+@pytest.mark.parametrize('fill_qty', [0, 25, 100])
+def test_unfilled_session_flatten_survives_restart_and_fill_race(
+        tmp_path, monkeypatch, direction, cancel_mode, fill_qty):
+    import config
+    from live.trader import LiveTrader
+    c = BracketClient()
+    c.next_state = 'new'
+    c.cancel_mode = cancel_mode
+    b = AlpacaBroker(client=c, db_path=str(tmp_path/'flatten.db'))
+    signal = LONG if direction == 'LONG' else {**LONG, 'direction':'SHORT', 'stop':102., 'target':96.}
+    b.open_position(signal, 0)
+    parent = c.submitted[0]
+    assert not b.open_positions
+    monkeypatch.setattr(config, 'SESSION_POLICY', 'flatten')
+    trader = LiveTrader(['NVDA'], b.db_path, broker=b)
+    trader.tick('2026-10-28T19:56:00Z')
+    assert parent in c.cancels
+    assert len(c.submitted) == 1
+    # Restart after an unconfirmed cancellation, possibly with a racing fill.
+    if fill_qty:
+        c.fill(parent, fill_qty, 100.5, 'filled' if fill_qty == 100 else 'partially_filled')
+    c.cancel_mode = 'confirm'
+    c.next_state = 'filled'
+    monkeypatch.setattr(config, 'SESSION_POLICY', 'overnight')
+    b = AlpacaBroker(client=c, db_path=b.db_path)
+    trader = LiveTrader(['NVDA'], b.db_path, broker=b)
+    for _ in range(3):
+        trader.tick('2026-10-29T13:31:00Z')
+    assert not b.open_positions
+    assert not b.has_open('NVDA')
+    assert not c.get_all_positions()
+    assert len(c.submitted) == (2 if fill_qty else 1)
+    if fill_qty:
+        assert c.requests[-1].qty == fill_qty
+        with _connect(b.db_path) as conn:
+            row = conn.execute('SELECT * FROM trades').fetchone()
+            assert row['remaining_shares'] == 0 and row['exit_reason'] == 'session_close'
+
+
+def test_session_flatten_cancels_unsent_entry_without_submitting(tmp_path, monkeypatch):
+    import config
+    from live.trader import LiveTrader
+    c = BracketClient()
+    b = AlpacaBroker(client=c, db_path=str(tmp_path/'unsent.db'))
+    b._intent('NVDA', 'entry', 100, {**LONG, 'entry_bar':0, 'execution_policy':'bracket_v1'})
+    monkeypatch.setattr(config, 'SESSION_POLICY', 'flatten')
+    LiveTrader(['NVDA'], b.db_path, broker=b).tick('2026-10-28T19:56:00Z')
+    assert not c.requests and not c.cancels
+    assert b._orders()[0]['state'] == 'canceled'
+
+
+def test_session_flatten_resolves_lost_entry_response_without_resubmitting(tmp_path, monkeypatch):
+    import config
+    from live.trader import LiveTrader
+    c = BracketClient()
+    c.next_state = 'new'
+    c.fail = 'after'
+    b = AlpacaBroker(client=c, db_path=str(tmp_path/'lost.db'))
+    b.open_position(LONG, 0)
+    c.fail = None
+    b = AlpacaBroker(client=c, db_path=b.db_path)
+    monkeypatch.setattr(config, 'SESSION_POLICY', 'flatten')
+    trader = LiveTrader(['NVDA'], b.db_path, broker=b)
+    trader.tick('2026-10-28T19:56:00Z')
+    trader.tick('2026-10-28T19:56:01Z')
+    assert len(c.submitted) == 1 and c.submitted[0] in c.cancels
+    assert not b.has_open('NVDA')

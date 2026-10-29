@@ -76,6 +76,12 @@ class AlpacaBroker:
                 raise RuntimeError('Duplicate broker-scoped positions require reconciliation')
             row.update(db_id=row['id'], status='OPEN',
                        pending_exit=json.loads(row.get('state_json') or 'null'))
+            if not row['pending_exit'] and row.get('entry_order_id'):
+                with _connect(self.db_path) as conn:
+                    parent = conn.execute('SELECT payload_json FROM orders WHERE id=? AND account=?',
+                                          (row['entry_order_id'], self.account)).fetchone()
+                if parent:
+                    row['pending_exit'] = json.loads(parent['payload_json']).get('pending_exit')
             self.open_positions[row['ticker']] = row
 
     def _orders(self, ticker=None):
@@ -234,6 +240,36 @@ class AlpacaBroker:
             json.loads(o['payload_json']).get('execution_policy') == 'bracket_v1'
             for o in self._orders(ticker)))
 
+    def request_session_flatten(self):
+        """Persist cancellation intent even when an entry has no trade yet."""
+        with _connect(self.db_path) as conn:
+            rows = conn.execute("SELECT * FROM orders WHERE backend='alpaca' AND account=? "
+                                "AND purpose='entry'", (self.account,)).fetchall()
+            for row in rows:
+                payload = json.loads(row['payload_json'])
+                if (payload.get('execution_policy') == 'bracket_v1' and
+                        row['state'] not in TERMINAL and not payload.get('pending_exit')):
+                    payload['pending_exit'] = {'reason': 'session_close'}
+                    _update(conn, 'orders', row['id'], {'payload_json': json.dumps(payload),
+                                                      'updated_at': now()})
+
+    def _cancel_flatten_entries(self):
+        orders = self._orders()
+        flatten_ids = {o['id'] for o in orders if o['purpose'] == 'entry' and
+                       json.loads(o['payload_json']).get('pending_exit')}
+        for row in orders:
+            parent_id = json.loads(row['payload_json']).get('parent_id')
+            if row['state'] in TERMINAL or not (row['id'] in flatten_ids or parent_id in flatten_ids):
+                continue
+            if not row['broker_id']:
+                self.blocked = self.blocked or 'Flatten entry identity awaiting reconciliation'
+                continue
+            try:
+                self._client.cancel_order_by_id(row['broker_id'])
+            except Exception as exc:
+                self._error(row['id'], exc)
+        # A DELETE is only an acknowledgement. Observe terminal states next tick.
+
     def reconcile(self):
         from alpaca.trading.requests import GetOrderByIdRequest
         self.blocked = None
@@ -255,6 +291,11 @@ class AlpacaBroker:
                 continue
             try:
                 if row['state'] == 'pending_submission':
+                    if bracket and payload.get('pending_exit'):
+                        # No request was sent: cancel the durable intent locally.
+                        with _connect(self.db_path) as conn:
+                            _update(conn, 'orders', row['id'], {'state': 'canceled', 'updated_at': now()})
+                        continue
                     self._submit(row['id'])
                     continue
                 if row['broker_id']:
@@ -268,6 +309,7 @@ class AlpacaBroker:
                     self._discover_legs(row['id'], order)
             except Exception as exc:
                 self._error(row['id'], exc)
+        self._cancel_flatten_entries()
         try:
             actual = {}
             for p in self._client.get_all_positions():

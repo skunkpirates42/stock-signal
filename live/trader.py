@@ -185,6 +185,8 @@ class LiveTrader:
                 self._finish(s)
         self._drain_ready(force=True)
         if self.is_alpaca:
+            if config.SESSION_POLICY == 'flatten' and flatten_due(ts):
+                self.broker.request_session_flatten()
             self.broker.reconcile()
             if self.legacy_blocked:
                 self.broker.blocked = self.legacy_blocked
