@@ -17,6 +17,7 @@ from flask import Flask, Response, abort, jsonify, render_template, request
 
 import config
 from dashboard.prices import MarketStatus, PositionPrices
+from dashboard.position_state import position_state
 from alerts.feed import build_alert_events
 from analytics.metrics import compute_metrics, equity_curve, load_closed_trades
 from db.logger import load_open_positions, init_db, scope_sql, _connect
@@ -133,6 +134,16 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
     def api_open():
         return jsonify(load_open_positions(_db(), source=request.args.get("source", "live"),
             backend=request.args.get("backend"), account=request.args.get("account")))
+
+    @app.route("/api/position-state")
+    def api_position_state():
+        try:
+            response = jsonify(position_state(_db()))
+        except (sqlite3.Error, ValueError, TypeError):
+            response = jsonify(error="Position state unavailable")
+            response.status_code = 503
+        response.headers['Cache-Control'] = 'no-store'
+        return response
 
     @app.route("/api/signals/<int:signal_id>/explain", methods=["POST"])
     def api_explain(signal_id):

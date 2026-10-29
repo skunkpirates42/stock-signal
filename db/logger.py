@@ -97,6 +97,9 @@ def init_db(db_path=None):
                 scope TEXT, ticker TEXT, payload_json TEXT, PRIMARY KEY(scope,ticker));
             CREATE TABLE IF NOT EXISTS runtime_status (
                 scope TEXT PRIMARY KEY, updated_at TEXT, data_at TEXT, status TEXT, detail TEXT);
+            CREATE TABLE IF NOT EXISTS broker_observations (
+                account TEXT PRIMARY KEY, attempted_at TEXT, observed_at TEXT,
+                reconciled_at TEXT, status TEXT, positions_json TEXT);
             CREATE INDEX IF NOT EXISTS trades_scope ON trades(source, backend, account, outcome);
             CREATE UNIQUE INDEX IF NOT EXISTS trade_entry_order ON trades(entry_order_id)
                 WHERE entry_order_id IS NOT NULL;

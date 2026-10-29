@@ -1,5 +1,6 @@
 import DataTable from "@/components/DataTable";
 import type { Trade } from "@/lib/types";
+import { provenance } from "@/lib/execution";
 import { formatCurrency, formatPrice, formatTimestamp } from "@/lib/format";
 import { shareOfMax } from "@/lib/scale";
 
@@ -41,7 +42,7 @@ export default function FillsTable({ trades }: FillsTableProps) {
               <td>
                 {trade.ticker}{" "}
                 <small>
-                  {trade.source ?? "unknown"} · {trade.backend ?? "unknown backend"}
+                  {provenance(trade)} · {trade.account ?? "unknown account"}
                 </small>
               </td>
               <td>{trade.direction}</td>
