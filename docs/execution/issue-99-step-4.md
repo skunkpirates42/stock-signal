@@ -138,3 +138,36 @@ Two preflight attempts submitted no orders because a fresh quote appeared millis
 ahead of the local clock; allowing up to five seconds of clock skew resolved that check.
 Production code is unchanged. JSON assertions and `git diff --check` passed; the prior
 independent code reviews and 473-test backend result remain applicable.
+
+## Follow-up review: unfilled entries at session flatten
+
+Fresh independent review after market-hours acceptance found a P1: session flatten
+visited only existing positions, so an unfilled GTC bracket entry could survive the
+cutoff and open exposure the next day. An offline reproduction confirmed the case.
+
+Fixed in `797a673`. The worker now persists session-close intent on unfinished bracket
+entries before reconciliation. Unsent intents are canceled locally; uncertain submissions
+must recover their broker identity before cancellation. Confirmed late fills inherit the
+parent's pending exit even after restart or a change to overnight policy. Cancellation
+acknowledgements alone never authorize a market exit; reconciliation confirms terminal
+states and exits only the remaining observed quantity. No schema changes or new broker
+orders were needed to validate this repair.
+
+Verification at the fixed implementation revision:
+
+- Focused broker/worker suite: 59 passed. Final bracket suite after an indexed parent
+  lookup refinement: 41 passed.
+- Full backend suite: **484 passed, 3 skipped**, two existing dependency warnings,
+  in 71.84 seconds. Skips are the existing optional ignored local dataset/scenario
+  checks, unavailable in the isolated worktree; portable fixtures ran.
+- `git diff --check` passed.
+- Separate default-runtime spec and standards reviewers reviewed the fix. Spec confirmed
+  the P1 resolved and independently ran all 14 new regressions successfully. Coverage
+  includes LONG/SHORT, zero/partial/full racing fills, pending/timeout cancellation,
+  restart/policy changes, unsent intents and lost submission responses.
+- Standards found no material issues. Its historical-order-scan concern was resolved
+  with indexed parent lookups; one nonblocking repeated-policy-predicate suggestion is
+  deferred. No custom research-task models were used.
+
+The prior paper target-fill evidence remains evidence for `1606526`; the new session
+flatten edge cases are verified offline at `797a673`, not by additional market orders.
