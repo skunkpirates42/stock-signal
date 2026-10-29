@@ -1,4 +1,5 @@
 import type { Trade } from "@/lib/types";
+import { provenance } from "@/lib/execution";
 import { formatCurrency, formatPrice, formatTimestamp } from "@/lib/format";
 import { distanceToStop, distanceToTarget } from "@/lib/positions";
 import { markedPosition, priceIsStale, type PriceMark } from "@/lib/prices";
@@ -40,8 +41,8 @@ export default function PositionCard({
       </header>
 
       <p className="micro">
-        {position.source ?? "unknown source"} · {position.backend ?? "unknown backend"} ·{" "}
-        {position.account ?? "unknown account"}
+        {provenance(position)} · {position.source ?? "unknown source"} ·{" "}
+        {position.backend ?? "unknown backend"} · {position.account ?? "unknown account"}
       </p>
       <LevelScale
         stop={position.stop}

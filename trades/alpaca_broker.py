@@ -5,6 +5,7 @@ are called by the live worker, not the websocket ingestion callback.
 """
 import json
 import math
+import sqlite3
 import uuid
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
@@ -274,6 +275,8 @@ class AlpacaBroker:
         from alpaca.trading.requests import GetOrderByIdRequest
         self.blocked = None
         self.safe_to_flatten = False
+        observed = None
+        observation_at = None
         orders = self._orders()
         children_by_parent = {}
         for row in orders:
@@ -320,6 +323,8 @@ class AlpacaBroker:
                 if side in ('long', 'short'):
                     qty = abs(qty) * (1 if side == 'long' else -1)
                 actual[p.symbol] = qty
+            observed = actual
+            observation_at = now()
             expected = {s: p['remaining_shares'] * (1 if p['direction'] == 'LONG' else -1)
                         for s, p in self.open_positions.items()}
             if actual != expected:
@@ -346,6 +351,22 @@ class AlpacaBroker:
         except Exception as exc:
             self.safe_to_flatten = False
             self.blocked = f'Reconciliation unavailable: {exc}'
+        # Observational metadata only. Never expose broker exceptions in dashboard data.
+        try:
+            with _connect(self.db_path) as conn:
+                conn.execute('INSERT INTO broker_observations VALUES (?,?,?,?,?,?) '
+                    'ON CONFLICT(account) DO UPDATE SET attempted_at=excluded.attempted_at, '
+                    'observed_at=COALESCE(excluded.observed_at,broker_observations.observed_at), '
+                    'reconciled_at=COALESCE(excluded.reconciled_at,broker_observations.reconciled_at), '
+                    'status=excluded.status, '
+                    'positions_json=COALESCE(excluded.positions_json,broker_observations.positions_json)',
+                    (self.account, now(), observation_at, now() if not self.blocked else None,
+                     'ok' if not self.blocked else 'unconfirmed',
+                     json.dumps(observed) if observed is not None else None))
+        except sqlite3.Error:
+            # Telemetry failure must not interrupt execution or change its result.
+            # Persisted evidence retains its original timestamp and expires normally.
+            pass
         return self.blocked is None
 
     def alpaca_open_symbols(self):
