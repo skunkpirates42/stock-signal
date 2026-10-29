@@ -1,0 +1,74 @@
+{
+  "requested_qty": 1,
+  "policy": "bracket_v1",
+  "purpose": "after-hours API acceptance/cancellation only; synthetic diagnostic, not strategy signal",
+  "journal_order_count": 3,
+  "all_canceled": true,
+  "positions_unchanged": true,
+  "open_orders_unchanged": true,
+  "journal_states": [
+    {
+      "purpose": "entry",
+      "state": "canceled",
+      "applied_qty": 0
+    },
+    {
+      "purpose": "exit",
+      "state": "canceled",
+      "applied_qty": 0
+    },
+    {
+      "purpose": "exit",
+      "state": "canceled",
+      "applied_qty": 0
+    }
+  ],
+  "completed_at": "2026-10-28T20:48:28.511885+00:00",
+  "code_revision": "8c29c9648ab790a4eca0ab552c67d017de97dbf6",
+  "harness_sha256": "fcc9656d1060c9cee1585763f39e1ac55b118b0a96344da5577762d9e2d58a7b",
+  "preflight": {
+    "checked_at": "2026-10-28T20:48:25.564432+00:00",
+    "market_open": false,
+    "next_open": "2026-10-29 09:30:00-04:00",
+    "symbol": "SPY",
+    "reference_price": 773.08,
+    "reference_at": "2026-10-28 20:00:17.135906+00:00"
+  },
+  "baseline": {
+    "open_order_count": 0,
+    "position_count": 0
+  },
+  "accepted": {
+    "status": "accepted",
+    "order_class": "bracket",
+    "type": "market",
+    "time_in_force": "gtc",
+    "filled_qty": "0",
+    "legs": [
+      {
+        "type": "limit",
+        "status": "held",
+        "qty": "1"
+      },
+      {
+        "type": "stop",
+        "status": "held",
+        "qty": "1"
+      }
+    ]
+  },
+  "final_orders": [
+    {
+      "status": "canceled",
+      "filled_qty": "0"
+    },
+    {
+      "status": "canceled",
+      "filled_qty": "0"
+    },
+    {
+      "status": "canceled",
+      "filled_qty": "0"
+    }
+  ]
+}

@@ -185,13 +185,17 @@ class LiveTrader:
                 self._finish(s)
         self._drain_ready(force=True)
         if self.is_alpaca:
+            if config.SESSION_POLICY == 'flatten' and flatten_due(ts):
+                self.broker.request_session_flatten()
             self.broker.reconcile()
             if self.legacy_blocked:
                 self.broker.blocked = self.legacy_blocked
-            if config.SESSION_POLICY == 'flatten' and flatten_due(ts):
-                for s, pos in list(self.broker.open_positions.items()):
-                    self.broker.close_position(s, pos['entry'], 'session_close', self.bar_count.get(s, 0),
-                                               exit_reason='session_close')
+            for s, pos in list(self.broker.open_positions.items()):
+                pending = pos.get('pending_exit')
+                if pending or (config.SESSION_POLICY == 'flatten' and flatten_due(ts)):
+                    reason = pending['reason'] if pending else 'session_close'
+                    self.broker.close_position(s, pos['entry'], reason, self.bar_count.get(s, 0),
+                                               exit_reason=reason)
         if not self.is_alpaca and config.SESSION_POLICY == 'flatten' and flatten_due(ts):
             for pos in self.broker.open_positions.values():
                 pos['pending_exit'] = {'reason': 'session_close'}
@@ -305,7 +309,7 @@ class LiveTrader:
                 exited.add(s)
                 continue
             if trigger:
-                if self.is_alpaca:
+                if self.is_alpaca and not self.broker.has_bracket(s):
                     trade = self.broker.close_position(s, trigger['exit_price'], trigger['outcome'], self.bar_count[s],
                                                        exit_reason=trigger['reason'])
                     self._broker_events()

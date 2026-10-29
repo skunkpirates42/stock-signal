@@ -1,0 +1,504 @@
+{
+  "purpose": "Authorized manual one-share paper acceptance; synthetic diagnostic, not a strategy signal",
+  "revision": "16065266faa3201c894e3f46442c3049afd81c79",
+  "observations": [
+    {
+      "at": "2026-10-29T13:35:59.061176+00:00",
+      "orders": [
+        {
+          "type": "market",
+          "status": "pending_new",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        },
+        {
+          "type": "limit",
+          "status": "held",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        },
+        {
+          "type": "stop",
+          "status": "held",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-29T13:36:01.526999+00:00",
+      "orders": [
+        {
+          "type": "market",
+          "status": "pending_new",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        },
+        {
+          "type": "limit",
+          "status": "held",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        },
+        {
+          "type": "stop",
+          "status": "held",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-29T13:36:03.882100+00:00",
+      "orders": [
+        {
+          "type": "market",
+          "status": "pending_new",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        },
+        {
+          "type": "limit",
+          "status": "held",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        },
+        {
+          "type": "stop",
+          "status": "held",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-29T13:36:06.262500+00:00",
+      "orders": [
+        {
+          "type": "market",
+          "status": "pending_new",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        },
+        {
+          "type": "limit",
+          "status": "held",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        },
+        {
+          "type": "stop",
+          "status": "held",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-29T13:36:08.560619+00:00",
+      "orders": [
+        {
+          "type": "market",
+          "status": "pending_new",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        },
+        {
+          "type": "limit",
+          "status": "held",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        },
+        {
+          "type": "stop",
+          "status": "held",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-29T13:36:10.831820+00:00",
+      "orders": [
+        {
+          "type": "market",
+          "status": "new",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        },
+        {
+          "type": "limit",
+          "status": "held",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        },
+        {
+          "type": "stop",
+          "status": "held",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-29T13:36:13.419652+00:00",
+      "orders": [
+        {
+          "type": "market",
+          "status": "filled",
+          "qty": "1",
+          "filled_qty": "1",
+          "fill_price": "767.78",
+          "filled_at": "2026-10-29 13:36:11.111733+00:00"
+        },
+        {
+          "type": "limit",
+          "status": "pending_new",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        },
+        {
+          "type": "stop",
+          "status": "held",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-29T13:36:15.955790+00:00",
+      "orders": [
+        {
+          "type": "market",
+          "status": "filled",
+          "qty": "1",
+          "filled_qty": "1",
+          "fill_price": "767.78",
+          "filled_at": "2026-10-29 13:36:11.111733+00:00"
+        },
+        {
+          "type": "limit",
+          "status": "pending_new",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        },
+        {
+          "type": "stop",
+          "status": "held",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-29T13:36:18.171490+00:00",
+      "orders": [
+        {
+          "type": "market",
+          "status": "filled",
+          "qty": "1",
+          "filled_qty": "1",
+          "fill_price": "767.78",
+          "filled_at": "2026-10-29 13:36:11.111733+00:00"
+        },
+        {
+          "type": "limit",
+          "status": "pending_new",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        },
+        {
+          "type": "stop",
+          "status": "held",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-29T13:36:20.467236+00:00",
+      "orders": [
+        {
+          "type": "market",
+          "status": "filled",
+          "qty": "1",
+          "filled_qty": "1",
+          "fill_price": "767.78",
+          "filled_at": "2026-10-29 13:36:11.111733+00:00"
+        },
+        {
+          "type": "limit",
+          "status": "pending_new",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        },
+        {
+          "type": "stop",
+          "status": "held",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-29T13:36:22.689451+00:00",
+      "orders": [
+        {
+          "type": "market",
+          "status": "filled",
+          "qty": "1",
+          "filled_qty": "1",
+          "fill_price": "767.78",
+          "filled_at": "2026-10-29 13:36:11.111733+00:00"
+        },
+        {
+          "type": "limit",
+          "status": "new",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        },
+        {
+          "type": "stop",
+          "status": "held",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-29T13:36:24.909680+00:00",
+      "orders": [
+        {
+          "type": "market",
+          "status": "filled",
+          "qty": "1",
+          "filled_qty": "1",
+          "fill_price": "767.78",
+          "filled_at": "2026-10-29 13:36:11.111733+00:00"
+        },
+        {
+          "type": "limit",
+          "status": "new",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        },
+        {
+          "type": "stop",
+          "status": "held",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-29T13:36:27.110000+00:00",
+      "orders": [
+        {
+          "type": "market",
+          "status": "filled",
+          "qty": "1",
+          "filled_qty": "1",
+          "fill_price": "767.78",
+          "filled_at": "2026-10-29 13:36:11.111733+00:00"
+        },
+        {
+          "type": "limit",
+          "status": "filled",
+          "qty": "1",
+          "filled_qty": "1",
+          "fill_price": "767.93",
+          "filled_at": "2026-10-29 13:36:26.730494+00:00"
+        },
+        {
+          "type": "stop",
+          "status": "canceled",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-29T13:36:27.242488+00:00",
+      "orders": [
+        {
+          "type": "market",
+          "status": "filled",
+          "qty": "1",
+          "filled_qty": "1",
+          "fill_price": "767.78",
+          "filled_at": "2026-10-29 13:36:11.111733+00:00"
+        },
+        {
+          "type": "limit",
+          "status": "filled",
+          "qty": "1",
+          "filled_qty": "1",
+          "fill_price": "767.93",
+          "filled_at": "2026-10-29 13:36:26.730494+00:00"
+        },
+        {
+          "type": "stop",
+          "status": "canceled",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-29T13:36:29.442763+00:00",
+      "orders": [
+        {
+          "type": "market",
+          "status": "filled",
+          "qty": "1",
+          "filled_qty": "1",
+          "fill_price": "767.78",
+          "filled_at": "2026-10-29 13:36:11.111733+00:00"
+        },
+        {
+          "type": "limit",
+          "status": "filled",
+          "qty": "1",
+          "filled_qty": "1",
+          "fill_price": "767.93",
+          "filled_at": "2026-10-29 13:36:26.730494+00:00"
+        },
+        {
+          "type": "stop",
+          "status": "canceled",
+          "qty": "1",
+          "filled_qty": "0",
+          "fill_price": "None",
+          "filled_at": "None"
+        }
+      ]
+    }
+  ],
+  "preflight_clock": {
+    "open": true,
+    "timestamp": "2026-10-29 09:35:58.463565-04:00"
+  },
+  "preflight_quote": {
+    "ask": 767.84,
+    "bid": 767.81,
+    "age_seconds": -0.002708,
+    "timestamp": "2026-10-29T13:35:58.626853989Z"
+  },
+  "started_at": "2026-10-29T13:35:58.699053+00:00",
+  "market_open": true,
+  "baseline_open_orders": 0,
+  "baseline_positions": 0,
+  "requested_qty": 1,
+  "payload": {
+    "ticker": "SPY",
+    "direction": "LONG",
+    "entry": 767.84,
+    "stop": 766.84,
+    "target": 767.89,
+    "entry_bar": 0,
+    "execution_policy": "bracket_v1"
+  },
+  "restart_reconciled": true,
+  "broker_exit": "limit",
+  "final_open_orders": 0,
+  "final_position_count": 0,
+  "trades": [
+    {
+      "ticker": "SPY",
+      "entry": 767.78,
+      "exit_price": 767.93,
+      "shares": 1,
+      "remaining_shares": 0,
+      "outcome": "WIN",
+      "exit_reason": "target",
+      "pnl": 0.15,
+      "entry_at": "2026-10-29 13:36:11.111733+00:00",
+      "exit_at": "2026-10-29 13:36:26.730494+00:00"
+    }
+  ],
+  "journal_orders": [
+    {
+      "purpose": "entry",
+      "state": "filled",
+      "applied_qty": 1
+    },
+    {
+      "purpose": "exit",
+      "state": "filled",
+      "applied_qty": 1
+    },
+    {
+      "purpose": "exit",
+      "state": "canceled",
+      "applied_qty": 0
+    }
+  ],
+  "restart_idempotent": true,
+  "completed_at": "2026-10-29T13:36:29.899036+00:00",
+  "cleanup_verified": true,
+  "passed": true
+}
