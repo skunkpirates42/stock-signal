@@ -19,7 +19,7 @@ export default function PositionExecution({
     execution.protection === "confirmed" &&
     Object.values(execution.legs).every((leg) => observationFresh(leg.updated_at ?? null, now));
   return (
-    <div className="card">
+    <div className="card stack stack-detail">
       <p>
         {position.ticker} · Alpaca paper · {position.account} · trade #{position.id}
       </p>

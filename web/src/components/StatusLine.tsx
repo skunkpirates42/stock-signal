@@ -32,12 +32,6 @@ export default function StatusLine({
                   {row.scope}: {row.status}
                 </span>
               ))}
-            {summary.unresolvedOrders.length > 0 && (
-              <span className="status-attention">
-                {summary.unresolvedOrders.length} unresolved{" "}
-                {summary.unresolvedOrders.length === 1 ? "order" : "orders"}
-              </span>
-            )}
           </>
         }
       >
@@ -60,12 +54,6 @@ export default function StatusLine({
         </div>
       </Disclosure>
       {error && <p role="alert">{error}</p>}
-      {summary.unresolvedOrders.map((order) => (
-        <p className="status-attention" key={order.id}>
-          {order.ticker} {order.purpose}: {order.state} · confirmed {order.filled_qty}/
-          {order.requested_qty} shares
-        </p>
-      ))}
     </aside>
   );
 }

@@ -26,7 +26,7 @@ export default function PositionCard({
   const toTarget = distanceToTarget(position);
 
   return (
-    <article className="card position-card">
+    <article className="card position-card stack">
       <header className="position-card-head">
         <span className="position-card-ticker num">{position.ticker}</span>
         <span
@@ -39,6 +39,13 @@ export default function PositionCard({
           {formatTimestamp(position.entry_at ?? position.created_at)}
         </span>
       </header>
+
+      {position.source === "live" && (
+        <dl className="position-live-price">
+          <dt className="micro">{stalePrice ? "Last known price" : "Live price"}</dt>
+          <dd className="num">{mark ? formatPrice(mark.price) : "—"}</dd>
+        </dl>
+      )}
 
       <p className="micro">
         {provenance(position)} · {position.source ?? "unknown source"} ·{" "}
@@ -67,10 +74,6 @@ export default function PositionCard({
       <dl className="pair-grid">
         {position.source === "live" && (
           <>
-            <div>
-              <dt className="micro">Last price</dt>
-              <dd className="num">{mark ? formatPrice(mark.price) : "—"}</dd>
-            </div>
             <div>
               <dt className="micro">Est. unrealized P&amp;L{stalePrice ? " (stale)" : ""}</dt>
               <dd className="num">{marked ? formatCurrency(marked.pnl) : "—"}</dd>

@@ -1,0 +1,20 @@
+/* The parent owns vertical rhythm. Reset child margins so legacy component
+   spacing cannot add to a stack's gap. Each nested stack resets its own gap. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-content);
+}
+
+.stack-detail {
+  gap: var(--space-detail);
+}
+
+.stack-section {
+  gap: var(--space-section);
+}
+
+.stack > * {
+  min-width: 0;
+  margin-block: 0;
+}

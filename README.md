@@ -113,6 +113,21 @@ DB_PATH=fixture.db .venv/bin/python -m demo.worker
 For live Alpaca data or LLM explanations, copy `.env.example` to `.env` and fill in keys.
 `FLASK_API_URL` points the web app at an API that isn't on port 8000.
 
+After installing the Python and frontend dependencies above and configuring Alpaca keys
+in `.env`, launch the live stack from one terminal:
+
+```bash
+./start-live.sh
+```
+
+This starts the signal and paper-trading engines together (`run_live.py`), the Flask API,
+and the frontend at http://127.0.0.1:3000. It uses your existing `BROKER` setting
+(`local` by default; `alpaca` submits to the Alpaca paper account) and `DB_PATH`.
+`DASHBOARD_PORT` is read from configuration and passed to the frontend automatically.
+The engine idles outside market hours. Logs are saved per launch under `.live-logs/`;
+Ctrl-C or a service exit stops the whole stack. The optional replay worker for `/run`
+still uses the separate command above.
+
 Tests and checks:
 
 ```bash

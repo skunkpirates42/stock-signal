@@ -36,6 +36,9 @@
   --radius-sm: 6px;
   --radius-xs: 3px;
   --space: 8px;
+  --space-detail: var(--space);
+  --space-content: calc(var(--space) * 2);
+  --space-section: calc(var(--space) * 4);
 
   --rail-width: 200px;
   --canvas: 1400px;

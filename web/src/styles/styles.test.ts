@@ -8,7 +8,8 @@ const NAMED_COLOR =
   /\b(?:white|black|red|green|blue|yellow|orange|purple|pink|gray|grey|silver|navy|teal|aqua|cyan|magenta|lime|maroon|olive)\b/i;
 const SCALE_TOKEN = /^var\(--text-[a-z]+\)$/;
 const SPACING_PROPERTY = /^(?:padding|margin|gap|row-gap|column-gap)(?:-[a-z-]+)?$/;
-const SPACE_TERM = /calc\([^()]*var\(--space\)[^()]*\)|var\(--space\)/g;
+const SPACE_TERM =
+  /calc\([^()]*var\(--space\)[^()]*\)|var\(--space(?:-(?:detail|content|section))?\)/g;
 const RADIUS_TOKEN = /^var\(--radius(?:-[a-z]+)?\)$/;
 // The visually-hidden clip pattern needs a literal -1px margin.
 const SR_ONLY_MARGIN = "-1px";

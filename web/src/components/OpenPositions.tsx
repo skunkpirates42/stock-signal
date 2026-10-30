@@ -50,7 +50,7 @@ export default function OpenPositions({ positions, now }: OpenPositionsProps) {
     };
   }, [hasLive]);
   return (
-    <section className="open-positions">
+    <section className="open-positions stack">
       <h2 className="micro">Open positions</h2>
       <p className="positions-note">
         Live positions use the latest IEX trade, refreshed while visible with five seconds between

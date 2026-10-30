@@ -51,6 +51,30 @@ export default function SystemPage() {
         API.
       </ScopeNote>
 
+      <Card title="Spacing and vertical rhythm">
+        <div className="stack">
+          <p className="note">
+            Use stack for related content (16px), stack stack-detail for compact details (8px), and
+            stack stack-section between page sections (32px). These use the shared space-content,
+            space-detail and space-section tokens, derived from the 8px space unit. The parent owns
+            spacing; direct child margins are reset to avoid doubled gaps.
+          </p>
+          <div className="stack stack-section">
+            <section className="stack">
+              <h3>Section heading</h3>
+              <div className="card stack stack-detail">
+                <p>Related detail</p>
+                <p className="note">8px between details; 16px from heading to content.</p>
+              </div>
+            </section>
+            <section className="stack">
+              <h3>Next section</h3>
+              <p className="note">32px separates sections, independent of component margins.</p>
+            </section>
+          </div>
+        </div>
+      </Card>
+
       <Card title="Color tokens">
         <div className="system-swatches">
           {COLOR_TOKENS.map((token) => (
