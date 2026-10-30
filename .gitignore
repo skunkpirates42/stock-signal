@@ -12,3 +12,4 @@ venv/
 
 research-output/
 demo-worker/
+.live-logs/

@@ -7,6 +7,7 @@ import { formatPrice, formatTimestamp } from "@/lib/format";
 import OpenPositions from "./OpenPositions";
 import FillsTable from "./FillsTable";
 import PositionExecution from "./PositionExecution";
+import Disclosure from "./Disclosure";
 
 export default function PositionsView() {
   const [data, setData] = useState<PositionState | null>(null);
@@ -35,6 +36,8 @@ export default function PositionsView() {
           )
             throw new Error("Invalid response");
           if (active) {
+            // The response can be newer than the last one-second clock tick.
+            setNow(new Date());
             setData(next);
             setFailed(false);
           }
@@ -69,99 +72,122 @@ export default function PositionsView() {
     (p) => p.provenance !== "Alpaca paper" || p.account === selected,
   );
   return (
-    <>
-      {failed && (
-        <p role="status">
-          Position service unavailable. Showing last-known data; current holdings and protection are
-          unconfirmed.
-        </p>
-      )}
-      {!current && <p role="status">Position data is stale. Current protection is unconfirmed.</p>}
-      <p className="micro">
-        Endpoint fetched: {formatTimestamp(data.fetched_at)}. Broker observations and IEX price
-        times are separate.
-      </p>
-      <section aria-label="Paper account status">
-        <h2>Alpaca paper account</h2>
-        {data.accounts.length > 0 ? (
-          <label>
-            Selected account{" "}
-            <select value={selected} onChange={(event) => setAccount(event.target.value)}>
-              {data.accounts.map((item) => (
-                <option key={item.account} value={item.account}>
-                  {item.account}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : (
-          <p>
-            No observed paper account. Broker holdings unavailable; this does not confirm an empty
-            account.
-          </p>
-        )}
-        {scope && (
-          <>
-            <p role="status">
-              Account: {brokerCurrent ? scope.status : "stale / unavailable"} · observation result:{" "}
-              {scope.observation_status}
-            </p>
+    <div className="stack stack-section">
+      <aside className="status-line" aria-label="Paper account status">
+        <Disclosure
+          summary={
+            <>
+              <span>Alpaca paper account</span>
+              <span
+                role="status"
+                className={!current || scope?.mismatch ? "status-attention" : undefined}
+              >
+                {failed
+                  ? "Position service unavailable"
+                  : !current
+                    ? "Position data is stale"
+                    : scope
+                      ? brokerCurrent
+                        ? scope.status
+                        : "Broker observation stale / unavailable"
+                      : "No account observed"}
+              </span>
+            </>
+          }
+        >
+          <div className="status-detail stack stack-detail">
+            {failed ? (
+              <p>Showing last-known data; current holdings and protection are unconfirmed.</p>
+            ) : !current ? (
+              <p>Current protection is unconfirmed.</p>
+            ) : null}
             <p>
-              Last broker observation: {formatTimestamp(scope.observed_at)} · last successful
-              reconciliation: {formatTimestamp(scope.reconciled_at)}
+              Endpoint fetched: {formatTimestamp(data.fetched_at)}. Broker observations and IEX
+              price times are separate.
             </p>
-            <p>
-              Worker heartbeat: {formatTimestamp(scope.heartbeat_at)} ·{" "}
-              {observationFresh(scope.heartbeat_at, now, data.stale_seconds)
-                ? scope.worker_status
-                : "stale / unknown"}
-            </p>
-            {scope.mismatch && (
-              <p role="status">
-                Journal/broker mismatch. Broker: {JSON.stringify(scope.broker_positions)}; journal:{" "}
-                {JSON.stringify(scope.journal_positions)}. No repair is performed here.
+            {data.accounts.length > 0 ? (
+              <label>
+                Selected account{" "}
+                <select value={selected} onChange={(event) => setAccount(event.target.value)}>
+                  {data.accounts.map((item) => (
+                    <option key={item.account} value={item.account}>
+                      {item.account}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <p>
+                No observed paper account. Broker holdings unavailable; this does not confirm an
+                empty account.
               </p>
             )}
-          </>
-        )}
-        {data.pending_entries
-          .filter((entry) => entry.account === selected)
-          .map((entry) => (
-            <div className="card" key={entry.id}>
-              <p>
-                {entry.ticker} · pending Alpaca paper entry · {entry.state}
-              </p>
-              <p>
-                Requested {entry.requested_qty} · filled {entry.filled_qty} · actual average{" "}
-                {formatPrice(entry.fill_price)} · protection awaiting entry fill
-              </p>
-              {entry.pending_exit && <p>Pending exit: {entry.pending_exit}</p>}
-              {Object.entries(entry.execution?.legs ?? {}).map(([kind, leg]) => (
-                <p key={kind}>
-                  {kind === "stop" ? "Stop" : "Target"}{" "}
-                  {formatPrice(kind === "stop" ? entry.stop : entry.target)} · {leg.state}
-                  {leg.state === "held" ? " · awaiting activation" : ""}
-                  {" · not confirmed active"}
-                  {!brokerCurrent || !observationFresh(leg.updated_at ?? null, now)
-                    ? " · observation stale/unknown"
-                    : ""}
+            {scope && (
+              <div className="stack stack-detail">
+                <p role="status">
+                  Account: {brokerCurrent ? scope.status : "stale / unavailable"} · observation
+                  result: {scope.observation_status}
                 </p>
-              ))}
-            </div>
-          ))}
-        {positions
-          .filter((p) => p.execution)
-          .map((p) => (
-            <PositionExecution
-              key={p.id}
-              position={p}
-              current={brokerCurrent && !scope?.mismatch}
-              now={now}
-            />
-          ))}
-      </section>
+                <p>
+                  Last broker observation: {formatTimestamp(scope.observed_at)} · last successful
+                  reconciliation: {formatTimestamp(scope.reconciled_at)}
+                </p>
+                <p>
+                  Worker heartbeat: {formatTimestamp(scope.heartbeat_at)} ·{" "}
+                  {observationFresh(scope.heartbeat_at, now, data.stale_seconds)
+                    ? scope.worker_status
+                    : "stale / unknown"}
+                </p>
+                {scope.mismatch && (
+                  <p role="status">
+                    Journal/broker mismatch. Broker: {JSON.stringify(scope.broker_positions)};
+                    journal: {JSON.stringify(scope.journal_positions)}. No repair is performed here.
+                  </p>
+                )}
+              </div>
+            )}
+            <section className="stack" aria-label="Paper execution status">
+              {data.pending_entries
+                .filter((entry) => entry.account === selected)
+                .map((entry) => (
+                  <div className="card stack stack-detail" key={entry.id}>
+                    <p>
+                      {entry.ticker} · pending Alpaca paper entry · {entry.state}
+                    </p>
+                    <p>
+                      Requested {entry.requested_qty} · filled {entry.filled_qty} · actual average{" "}
+                      {formatPrice(entry.fill_price)} · protection awaiting entry fill
+                    </p>
+                    {entry.pending_exit && <p>Pending exit: {entry.pending_exit}</p>}
+                    {Object.entries(entry.execution?.legs ?? {}).map(([kind, leg]) => (
+                      <p key={kind}>
+                        {kind === "stop" ? "Stop" : "Target"}{" "}
+                        {formatPrice(kind === "stop" ? entry.stop : entry.target)} · {leg.state}
+                        {leg.state === "held" ? " · awaiting activation" : ""}
+                        {" · not confirmed active"}
+                        {!brokerCurrent || !observationFresh(leg.updated_at ?? null, now)
+                          ? " · observation stale/unknown"
+                          : ""}
+                      </p>
+                    ))}
+                  </div>
+                ))}
+              {positions
+                .filter((p) => p.execution)
+                .map((p) => (
+                  <PositionExecution
+                    key={p.id}
+                    position={p}
+                    current={brokerCurrent && !scope?.mismatch}
+                    now={now}
+                  />
+                ))}
+            </section>
+          </div>
+        </Disclosure>
+      </aside>
       <OpenPositions positions={positions} now={now} />
-      <section aria-label="Actual broker exit fills">
+      <section className="stack" aria-label="Actual broker exit fills">
         <h2>Actual broker exit fills</h2>
         <p className="micro">
           Confirmed cumulative fills from the journal; prices below are broker fills, not IEX
@@ -181,6 +207,6 @@ export default function PositionsView() {
           (trade) => trade.backend !== "alpaca" || trade.account === selected,
         )}
       />
-    </>
+    </div>
   );
 }

@@ -21,7 +21,7 @@ export default function FillsTable({ trades }: FillsTableProps) {
   const shares = shareOfMax(sorted.map((trade) => trade.pnl ?? 0));
 
   return (
-    <div className="fills-table">
+    <div className="fills-table stack">
       <h2>Recent fills</h2>
       <DataTable>
         <thead>

@@ -34,6 +34,7 @@ it("labels stale estimates and renders the price marker", () => {
     }),
   );
   expect(html).toContain("STALE PRICE");
+  expect(html).toContain("Last known price");
   expect(html).toContain("$12.00");
   expect(html).toContain("level-scale-current");
   expect(html).toContain("(last price)");
@@ -50,4 +51,19 @@ it("shows missing prices honestly and leaves replay at entry", () => {
   );
   expect(replay).not.toContain("unrealized");
   expect(replay).not.toContain("level-scale-current");
+  expect(replay).not.toContain("Live price");
+});
+
+it("shows the live price above the scale without duplicating it in the metrics", () => {
+  const html = renderToStaticMarkup(
+    createElement(PositionCard, {
+      position,
+      stale: false,
+      mark: { price: 103, timestamp: position.created_at },
+      now: new Date(position.created_at),
+    }),
+  );
+  expect(html).toContain('Live price</dt><dd class="num">$103.00</dd>');
+  expect(html.indexOf("Live price")).toBeLessThan(html.indexOf("level-scale"));
+  expect(html).not.toContain(">Last price</dt>");
 });

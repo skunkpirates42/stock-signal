@@ -448,6 +448,7 @@
 
 .position-card-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space);
   margin-bottom: calc(var(--space) * 2);
@@ -460,6 +461,17 @@
 
 .position-card-age {
   margin-left: auto;
+}
+
+.position-live-price {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space);
+}
+
+.position-live-price dd {
+  font-size: var(--text-stat);
 }
 
 .positions-note {
