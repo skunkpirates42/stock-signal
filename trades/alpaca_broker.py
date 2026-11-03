@@ -283,46 +283,15 @@ class AlpacaBroker:
         # A DELETE is only an acknowledgement. Observe terminal states next tick.
 
     def reconcile(self):
-        from alpaca.trading.requests import GetOrderByIdRequest
         self.blocked = None
         self.safe_to_flatten = False
         observed = None
         observation_at = None
         orders = self._orders()
-        children_by_parent = {}
-        for row in orders:
-            parent_id = _parent_order_id(row)
-            if parent_id:
-                children_by_parent.setdefault(parent_id, []).append(row)
+        known_leg_counts = self._count_known_legs_by_parent(orders)
         # Parent first, then children, including fills received between bars.
         for row in orders:
-            payload = _payload(row)
-            bracket = _is_bracket(row)
-            children = children_by_parent.get(row['id'], [])
-            needs_discovery = bracket and len(children) != 2 and (
-                row['state'] not in TERMINAL_ORDER_STATES or row['applied_qty'] > 0)
-            if row['state'] in TERMINAL_ORDER_STATES and not needs_discovery:
-                continue
-            try:
-                if row['state'] == 'pending_submission':
-                    if bracket and payload.get('pending_exit'):
-                        # No request was sent: cancel the durable intent locally.
-                        with _connect(self.db_path) as conn:
-                            _update(conn, 'orders', row['id'], {'state': 'canceled', 'updated_at': now()})
-                        continue
-                    self._submit(row['id'])
-                    continue
-                if row['broker_id']:
-                    order = (self._client.get_order_by_id(row['broker_id'],
-                                filter=GetOrderByIdRequest(nested=True)) if bracket else
-                             self._client.get_order_by_id(row['broker_id']))
-                else:
-                    order = self._client.get_order_by_client_id(row['id'])
-                self._apply_broker_order_state(row['id'], order)
-                if bracket:
-                    self._discover_legs(row['id'], order)
-            except Exception as exc:
-                self._mark_unresolved(row['id'], exc)
+            self._sync_order_with_broker(row, known_leg_counts.get(row['id'], 0))
         self._cancel_flatten_entries()
         try:
             observed = self._fetch_broker_positions()
@@ -353,6 +322,51 @@ class AlpacaBroker:
             # Persisted evidence retains its original timestamp and expires normally.
             pass
         return self.blocked is None
+
+    @staticmethod
+    def _count_known_legs_by_parent(orders):
+        counts = {}
+        for row in orders:
+            parent_id = _parent_order_id(row)
+            if parent_id:
+                counts[parent_id] = counts.get(parent_id, 0) + 1
+        return counts
+
+    def _sync_order_with_broker(self, row, known_leg_count):
+        if not self._needs_broker_sync(row, known_leg_count):
+            return
+        try:
+            if row['state'] == 'pending_submission':
+                self._resolve_pending_submission(row)
+                return
+            order = self._fetch_broker_order(row)
+            self._apply_broker_order_state(row['id'], order)
+            if _is_bracket(row):
+                self._discover_legs(row['id'], order)
+        except Exception as exc:
+            self._mark_unresolved(row['id'], exc)
+
+    @staticmethod
+    def _needs_broker_sync(row, known_leg_count):
+        if row['state'] not in TERMINAL_ORDER_STATES:
+            return True
+        return _is_bracket(row) and known_leg_count != 2 and row['applied_qty'] > 0
+
+    def _resolve_pending_submission(self, row):
+        if _is_bracket(row) and _payload(row).get('pending_exit'):
+            # No request was sent: cancel the durable intent locally.
+            with _connect(self.db_path) as conn:
+                _update(conn, 'orders', row['id'], {'state': 'canceled', 'updated_at': now()})
+            return
+        self._submit(row['id'])
+
+    def _fetch_broker_order(self, row):
+        from alpaca.trading.requests import GetOrderByIdRequest
+        if not row['broker_id']:
+            return self._client.get_order_by_client_id(row['id'])
+        if _is_bracket(row):
+            return self._client.get_order_by_id(row['broker_id'], filter=GetOrderByIdRequest(nested=True))
+        return self._client.get_order_by_id(row['broker_id'])
 
     def _fetch_broker_positions(self):
         signed_qty_by_symbol = {}
