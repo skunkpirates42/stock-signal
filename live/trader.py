@@ -166,7 +166,7 @@ class LiveTrader:
         if not self._worker_recovery_required:
             return
         if self.is_alpaca:
-            self.broker._restore()
+            self.broker._reload_open_positions()
             if not self.broker.reconcile():
                 return
         else:
