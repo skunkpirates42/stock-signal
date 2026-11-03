@@ -325,40 +325,14 @@ class AlpacaBroker:
                 self._mark_unresolved(row['id'], exc)
         self._cancel_flatten_entries()
         try:
-            actual = {}
-            for p in self._client.get_all_positions():
-                qty = _float_or_default(p.qty)
-                if qty is None:
-                    raise ValueError('Missing broker position quantity')
-                side = str(getattr(getattr(p, 'side', None), 'value', getattr(p, 'side', ''))).lower()
-                if side in ('long', 'short'):
-                    qty = abs(qty) * (1 if side == 'long' else -1)
-                actual[p.symbol] = qty
-            observed = actual
+            observed = self._fetch_broker_positions()
             observation_at = now()
-            expected = {s: p['remaining_shares'] * (1 if p['direction'] == 'LONG' else -1)
-                        for s, p in self.open_positions.items()}
-            if actual != expected:
-                self.blocked = f'Broker/DB exposure mismatch: expected={expected}, actual={actual}'
+            self._block_on_exposure_mismatch(observed)
             orders = self._orders()
-            if any(o['state'] not in TERMINAL_ORDER_STATES and not (self._is_bracket_leg(o) and
-                    o['state'] in ('new', 'accepted', 'held', 'partially_filled')) for o in orders):
-                self.blocked = self.blocked or 'Order execution pending reconciliation'
+            self._block_on_unsettled_orders(orders)
             self.safe_to_flatten = self.blocked is None
-            by_id = {o['id']: o for o in orders}
-            children_by_trade = {}
-            for row in orders:
-                if self._is_bracket_leg(row):
-                    children_by_trade.setdefault(row['trade_id'], []).append(row)
-            for pos in self.open_positions.values():
-                parent = by_id.get(pos['entry_order_id'])
-                if parent and _is_bracket(parent):
-                    legs = [o for o in children_by_trade.get(pos['db_id'], []) if o['state'] not in TERMINAL_ORDER_STATES]
-                    quantities_match = all(_payload(o).get('broker_qty', -1) -
-                                           o['applied_qty'] == pos['remaining_shares'] for o in legs)
-                    if len(legs) != 2 or parent['state'] != 'filled' or not quantities_match:
-                        self.blocked = self.blocked or 'Bracket protection incomplete; reconcile explicitly'
-            self.capital = _float_or_default(self._client.get_account().equity, self.capital)
+            self._block_on_incomplete_bracket_protection(orders)
+            self.capital = self._fetch_account_equity()
         except Exception as exc:
             self.safe_to_flatten = False
             self.blocked = f'Reconciliation unavailable: {exc}'
@@ -379,6 +353,47 @@ class AlpacaBroker:
             # Persisted evidence retains its original timestamp and expires normally.
             pass
         return self.blocked is None
+
+    def _fetch_broker_positions(self):
+        signed_qty_by_symbol = {}
+        for position in self._client.get_all_positions():
+            qty = _float_or_default(position.qty)
+            if qty is None:
+                raise ValueError('Missing broker position quantity')
+            side = str(getattr(getattr(position, 'side', None), 'value', getattr(position, 'side', ''))).lower()
+            if side in ('long', 'short'):
+                qty = abs(qty) * (1 if side == 'long' else -1)
+            signed_qty_by_symbol[position.symbol] = qty
+        return signed_qty_by_symbol
+
+    def _block_on_exposure_mismatch(self, broker_positions):
+        expected = {symbol: pos['remaining_shares'] * (1 if pos['direction'] == 'LONG' else -1)
+                    for symbol, pos in self.open_positions.items()}
+        if broker_positions != expected:
+            self.blocked = f'Broker/DB exposure mismatch: expected={expected}, actual={broker_positions}'
+
+    def _block_on_unsettled_orders(self, orders):
+        if any(o['state'] not in TERMINAL_ORDER_STATES and not (self._is_bracket_leg(o) and
+                o['state'] in ('new', 'accepted', 'held', 'partially_filled')) for o in orders):
+            self.blocked = self.blocked or 'Order execution pending reconciliation'
+
+    def _block_on_incomplete_bracket_protection(self, orders):
+        by_id = {o['id']: o for o in orders}
+        legs_by_trade = {}
+        for row in orders:
+            if self._is_bracket_leg(row):
+                legs_by_trade.setdefault(row['trade_id'], []).append(row)
+        for pos in self.open_positions.values():
+            parent = by_id.get(pos['entry_order_id'])
+            if parent and _is_bracket(parent):
+                legs = [o for o in legs_by_trade.get(pos['db_id'], []) if o['state'] not in TERMINAL_ORDER_STATES]
+                quantities_match = all(_payload(o).get('broker_qty', -1) -
+                                       o['applied_qty'] == pos['remaining_shares'] for o in legs)
+                if len(legs) != 2 or parent['state'] != 'filled' or not quantities_match:
+                    self.blocked = self.blocked or 'Bracket protection incomplete; reconcile explicitly'
+
+    def _fetch_account_equity(self):
+        return _float_or_default(self._client.get_account().equity, self.capital)
 
     def alpaca_open_symbols(self):
         return {p.symbol for p in self._client.get_all_positions()}
