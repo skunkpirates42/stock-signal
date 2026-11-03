@@ -305,6 +305,10 @@ class AlpacaBroker:
         except Exception as exc:
             self.safe_to_flatten = False
             self.blocked = f'Reconciliation unavailable: {exc}'
+        self._record_broker_observation(observed, observation_at)
+        return self.blocked is None
+
+    def _record_broker_observation(self, observed_positions, observed_at):
         # Observational metadata only. Never expose broker exceptions in dashboard data.
         try:
             with _connect(self.db_path) as conn:
@@ -314,14 +318,13 @@ class AlpacaBroker:
                     'reconciled_at=COALESCE(excluded.reconciled_at,broker_observations.reconciled_at), '
                     'status=excluded.status, '
                     'positions_json=COALESCE(excluded.positions_json,broker_observations.positions_json)',
-                    (self.account, now(), observation_at, now() if not self.blocked else None,
+                    (self.account, now(), observed_at, now() if not self.blocked else None,
                      'ok' if not self.blocked else 'unconfirmed',
-                     json.dumps(observed) if observed is not None else None))
+                     json.dumps(observed_positions) if observed_positions is not None else None))
         except sqlite3.Error:
             # Telemetry failure must not interrupt execution or change its result.
             # Persisted evidence retains its original timestamp and expires normally.
             pass
-        return self.blocked is None
 
     @staticmethod
     def _count_known_legs_by_parent(orders):
