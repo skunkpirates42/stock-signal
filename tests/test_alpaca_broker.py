@@ -1,9 +1,10 @@
 """Fault injection against durable orders; no external orders or credentials."""
+import json
 from types import SimpleNamespace as NS
 from datetime import datetime, timezone
 import pytest
 from trades.alpaca_broker import AlpacaBroker
-from db.logger import _connect
+from db.logger import _connect, _insert
 
 LONG = {'ticker':'NVDA','direction':'LONG','entry':100.,'stop':98.,'target':104.}
 
@@ -199,3 +200,87 @@ def test_worker_failure_clears_only_after_reconciliation_and_new_batch(tmp_path)
     t.process_batch({'NVDA': dict(timestamp='2026-06-10T14:05Z', open=100, high=101,
                                 low=99, close=100, volume=10)})
     assert t.worker_error is None and t.worker_failure_count == 0
+
+
+def _order_row(state, bracket, applied_qty):
+    payload = {'execution_policy': 'bracket_v1'} if bracket else {}
+    return {'state': state, 'applied_qty': applied_qty, 'payload_json': json.dumps(payload)}
+
+
+@pytest.mark.parametrize('state,bracket,known_legs,applied_qty,expected', [
+    ('new', False, 0, 0, True),
+    ('unresolved', True, 2, 0, True),
+    ('filled', False, 0, 100, False),
+    ('filled', True, 2, 100, False),
+    ('filled', True, 0, 100, True),
+    ('filled', True, 1, 100, True),
+    ('canceled', True, 0, 0, False),
+])
+def test_terminal_orders_resync_only_for_filled_brackets_missing_legs(state, bracket, known_legs,
+                                                                      applied_qty, expected):
+    row = _order_row(state, bracket, applied_qty)
+    assert AlpacaBroker._needs_broker_sync(row, known_legs) is expected
+
+
+def test_exposure_mismatch_replaces_an_earlier_block_reason(tmp_path):
+    b = broker(tmp_path); b.blocked = 'earlier failure'
+    b._block_on_exposure_mismatch({'NVDA': 5.0})
+    assert b.blocked.startswith('Broker/DB exposure mismatch')
+
+
+def test_unsettled_orders_keep_an_earlier_block_reason(tmp_path):
+    b = broker(tmp_path)
+    unsettled = [{'state': 'unresolved', 'payload_json': '{}'}]
+    b.blocked = 'earlier failure'
+    b._block_on_unsettled_orders(unsettled)
+    assert b.blocked == 'earlier failure'
+    b.blocked = None
+    b._block_on_unsettled_orders(unsettled)
+    assert b.blocked == 'Order execution pending reconciliation'
+
+
+@pytest.mark.parametrize('filled_qty,price,state,message', [
+    ('150', None, 'filled', 'Inconsistent broker cumulative quantity'),
+    ('40.5', None, 'partially_filled', 'Inconsistent broker cumulative quantity'),
+    ('40', None, 'filled', 'Filled quantity without confirmed price'),
+    ('40', '100', 'filled', 'Filled status without complete quantity'),
+])
+def test_fill_validation_reports_the_first_failing_rule(tmp_path, filled_qty, price, state, message):
+    b = broker(tmp_path)
+    row = {'applied_qty': 0, 'requested_qty': 100, 'payload_json': '{}'}
+    order = NS(filled_qty=filled_qty, filled_avg_price=price)
+    with pytest.raises(ValueError, match=message):
+        b._validated_cumulative_fill(row, order, state)
+
+
+def _insert_stop_leg(db_path, account):
+    with _connect(db_path) as conn:
+        _insert(conn, 'orders', dict(id='leg-1', broker_id='leg-1', source='live', backend='alpaca',
+            account=account, ticker='NVDA', purpose='exit', state='new', requested_qty=100,
+            payload_json=json.dumps({'direction': 'LONG', 'parent_id': 'ss-parent', 'exit_reason': 'stop'}),
+            created_at='2026-06-10T14:00Z', updated_at='2026-06-10T14:00Z'))
+
+
+def test_bracket_leg_records_validated_broker_quantity(tmp_path):
+    b = broker(tmp_path); _insert_stop_leg(b.db_path, b.account)
+    b._apply_broker_order_state('leg-1', NS(id='leg-1', status='new', filled_qty='0',
+                                            filled_avg_price=None, filled_at=None, qty='100'))
+    with _connect(b.db_path) as conn:
+        stored = json.loads(conn.execute("SELECT payload_json FROM orders WHERE id='leg-1'").fetchone()[0])
+    assert stored['broker_qty'] == 100
+
+
+def test_bracket_leg_without_valid_broker_quantity_is_rejected(tmp_path):
+    b = broker(tmp_path); _insert_stop_leg(b.db_path, b.account)
+    with pytest.raises(ValueError, match='Invalid broker protective quantity'):
+        b._apply_broker_order_state('leg-1', NS(id='leg-1', status='new', filled_qty='0',
+                                                filled_avg_price=None, filled_at=None, qty=None))
+
+
+def test_open_event_fires_only_for_the_first_entry_fill(tmp_path):
+    c = FakeClient(); c.next_state = 'partially_filled'; c.partial_qty = 40
+    b = broker(tmp_path, c); b.open_position(LONG, 0)
+    c.fill(c.submitted[-1], 100, 100.5)
+    b.reconcile()
+    assert b.open_positions['NVDA']['shares'] == 100
+    assert [kind for kind, _ in b.events] == ['open']
