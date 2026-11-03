@@ -152,61 +152,23 @@ class AlpacaBroker:
             _update(conn, 'orders', order_id, {'state': 'unresolved', 'last_error': str(exc), 'updated_at': now()})
 
     def _apply_broker_order_state(self, order_id, order):
-        qty = _float_or_default(getattr(order, 'filled_qty', None), 0)
-        price = _float_or_default(getattr(order, 'filled_avg_price', None))
         state = _status(order)
         fill_at = str(getattr(order, 'filled_at', None) or now())
         event = None
         with _connect(self.db_path) as conn:
             row = dict(conn.execute('SELECT * FROM orders WHERE id=?', (order_id,)).fetchone())
-            if qty < row['applied_qty'] or qty > row['requested_qty'] or int(qty) != qty:
-                raise ValueError('Inconsistent broker cumulative quantity')
-            qty = int(qty)
-            if qty and (price is None or price <= 0):
-                raise ValueError('Filled quantity without confirmed price')
-            if state == 'filled' and qty != row['requested_qty'] and not self._is_bracket_leg(row):
-                raise ValueError('Filled status without complete quantity')
+            qty, price = self._validated_cumulative_fill(row, order, state)
             payload = _payload(row)
             if self._is_bracket_leg(row):
-                broker_qty = _float_or_default(getattr(order, 'qty', None))
-                if broker_qty is None or broker_qty < qty or int(broker_qty) != broker_qty:
-                    raise ValueError('Invalid broker protective quantity')
-                payload['broker_qty'] = int(broker_qty)
+                payload['broker_qty'] = self._validated_leg_quantity(order, qty)
             if qty > row['applied_qty']:
                 if row['purpose'] == 'entry':
-                    trade_id = row['trade_id']
-                    if trade_id is None:
-                        pos = {**payload, 'entry': price, 'shares': qty,
-                               'remaining_shares': qty, 'entry_at': fill_at,
-                               'backend': 'alpaca', 'account': self.account, 'entry_order_id': order_id}
-                        trade_id = _insert(conn, 'trades', trade_values(pos))
-                    else:
-                        _update(conn, 'trades', trade_id, {'entry': price, 'shares': qty, 'remaining_shares': qty})
-                    row['trade_id'] = trade_id
+                    row['trade_id'] = self._apply_entry_fill(conn, row, payload, qty, price, fill_at)
                     if row['applied_qty'] == 0:
-                        event = ('open', trade_id)
+                        event = ('open', row['trade_id'])
                 else:
-                    trade = dict(conn.execute('SELECT * FROM trades WHERE id=?', (row['trade_id'],)).fetchone())
-                    delta = qty - row['applied_qty']
-                    # Cumulative notional handles partial fills at different prices.
-                    notional = qty * price - row['applied_qty'] * (row['fill_price'] or 0)
-                    signed = 1 if trade['direction'] == 'LONG' else -1
-                    gross = (trade['gross_pnl'] or 0) + signed * (notional - delta * trade['entry'])
-                    remaining = trade['remaining_shares'] - delta
-                    if remaining < 0:
-                        raise ValueError('Exit quantity exceeds remaining exposure')
-                    values = {'remaining_shares': remaining, 'gross_pnl': round(gross, 2),
-                              'pnl': round(gross, 2), 'costs': 0,
-                              'exit_reason': payload.get('exit_reason'), 'exit_at': fill_at}
-                    if remaining == 0:
-                        total_exit = trade['entry'] + signed * gross / trade['shares']
-                        values.update(outcome=outcome(round(gross, 2)), exit_price=total_exit,
-                                      closed_at=now(), bars_held=trade['observed_bars'] or 0,
-                                      exit_bar=payload.get('exit_bar'),
-                                      elapsed_seconds=max(0, (datetime.fromisoformat(fill_at) -
-                                          datetime.fromisoformat(trade['entry_at'])).total_seconds()))
-                    _update(conn, 'trades', row['trade_id'], values)
-                    if remaining == 0:
+                    trade_closed = self._apply_exit_fill(conn, row, payload, qty, price, fill_at)
+                    if trade_closed:
                         event = ('close', row['trade_id'])
             _update(conn, 'orders', order_id, {'broker_id': str(order.id), 'state': state,
                 'filled_qty': qty, 'applied_qty': qty, 'fill_price': price,
@@ -216,6 +178,58 @@ class AlpacaBroker:
             with _connect(self.db_path) as conn:
                 payload = dict(conn.execute('SELECT * FROM trades WHERE id=?', (event[1],)).fetchone())
             self.events.append((event[0], payload))
+
+    def _validated_cumulative_fill(self, row, order, state):
+        qty = _float_or_default(getattr(order, 'filled_qty', None), 0)
+        price = _float_or_default(getattr(order, 'filled_avg_price', None))
+        if qty < row['applied_qty'] or qty > row['requested_qty'] or int(qty) != qty:
+            raise ValueError('Inconsistent broker cumulative quantity')
+        qty = int(qty)
+        if qty and (price is None or price <= 0):
+            raise ValueError('Filled quantity without confirmed price')
+        if state == 'filled' and qty != row['requested_qty'] and not self._is_bracket_leg(row):
+            raise ValueError('Filled status without complete quantity')
+        return qty, price
+
+    @staticmethod
+    def _validated_leg_quantity(order, filled_qty):
+        broker_qty = _float_or_default(getattr(order, 'qty', None))
+        if broker_qty is None or broker_qty < filled_qty or int(broker_qty) != broker_qty:
+            raise ValueError('Invalid broker protective quantity')
+        return int(broker_qty)
+
+    def _apply_entry_fill(self, conn, row, payload, qty, price, fill_at):
+        if row['trade_id'] is None:
+            position = {**payload, 'entry': price, 'shares': qty,
+                        'remaining_shares': qty, 'entry_at': fill_at,
+                        'backend': 'alpaca', 'account': self.account, 'entry_order_id': row['id']}
+            return _insert(conn, 'trades', trade_values(position))
+        _update(conn, 'trades', row['trade_id'], {'entry': price, 'shares': qty, 'remaining_shares': qty})
+        return row['trade_id']
+
+    @staticmethod
+    def _apply_exit_fill(conn, row, payload, qty, price, fill_at):
+        trade = dict(conn.execute('SELECT * FROM trades WHERE id=?', (row['trade_id'],)).fetchone())
+        delta = qty - row['applied_qty']
+        # Cumulative notional handles partial fills at different prices.
+        notional = qty * price - row['applied_qty'] * (row['fill_price'] or 0)
+        signed = 1 if trade['direction'] == 'LONG' else -1
+        gross = (trade['gross_pnl'] or 0) + signed * (notional - delta * trade['entry'])
+        remaining = trade['remaining_shares'] - delta
+        if remaining < 0:
+            raise ValueError('Exit quantity exceeds remaining exposure')
+        values = {'remaining_shares': remaining, 'gross_pnl': round(gross, 2),
+                  'pnl': round(gross, 2), 'costs': 0,
+                  'exit_reason': payload.get('exit_reason'), 'exit_at': fill_at}
+        if remaining == 0:
+            total_exit = trade['entry'] + signed * gross / trade['shares']
+            values.update(outcome=outcome(round(gross, 2)), exit_price=total_exit,
+                          closed_at=now(), bars_held=trade['observed_bars'] or 0,
+                          exit_bar=payload.get('exit_bar'),
+                          elapsed_seconds=max(0, (datetime.fromisoformat(fill_at) -
+                              datetime.fromisoformat(trade['entry_at'])).total_seconds()))
+        _update(conn, 'trades', row['trade_id'], values)
+        return remaining == 0
 
     def _discover_legs(self, order_id, order):
         """Persist broker-generated child identities before applying their fills."""
