@@ -84,7 +84,7 @@ Everything below runs offline, with no API keys.
 
 ```bash
 python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m pip install -r requirements.txt -c constraints.txt
 
 # Replay the bundled synthetic fixture into a local database
 .venv/bin/python backtest.py --dataset tests/fixtures/bars.json --db fixture.db --output fixture-report

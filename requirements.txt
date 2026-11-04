@@ -1,4 +1,7 @@
 # PoC dependencies.
+# Exact versions live in constraints.txt; install with
+#   pip install -r requirements.txt -c constraints.txt
+# and regenerate it with `pip freeze > constraints.txt` from a clean .venv.
 # NOTE: pandas-ta is intentionally NOT used. Its only PyPI releases now require
 # Python >=3.12 and the old 0.3.14b0 has been removed, so it won't install on the
 # Python 3.9.6 here. Indicators are computed directly in pandas/numpy in
