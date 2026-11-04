@@ -26,7 +26,9 @@ jobs:
           cache-dependency-path: |
             requirements.txt
             constraints.txt
-      - run: pip install -r requirements.txt pytest==8.4.2 -c constraints.txt
+      - run: pip install -r requirements.txt pytest==8.4.2 ruff==0.17.3 -c constraints.txt
+      - run: ruff check .
+      - run: ruff format --check .
       - run: python -m pytest tests/ -q
 
   web:
