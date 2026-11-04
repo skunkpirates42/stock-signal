@@ -49,3 +49,19 @@ def test_replay_connection_rolls_back_failed_session_and_resets_scope(tmp_path):
         conn.execute("INSERT INTO signals(ticker) VALUES ('normal_connection')")
     with _connect(db) as conn:
         assert conn.execute("SELECT count(*) FROM signals").fetchone()[0] == 2
+
+
+class JournalPath:
+    def __init__(self, path):
+        self.path = path
+
+    def __fspath__(self):
+        return self.path
+
+
+def test_replay_connection_is_shared_for_any_path_like(tmp_path):
+    db = str(tmp_path / "journal.db")
+    init_db(db)
+    with replay_connection(JournalPath(db)) as conn:
+        with _connect(JournalPath(db)) as inner:
+            assert inner is conn

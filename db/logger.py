@@ -9,7 +9,7 @@ from contextvars import ContextVar
 from datetime import datetime, timezone
 from decimal import Decimal
 from hashlib import sha256
-from os import PathLike
+from os import PathLike, fspath
 from typing import Any
 
 import config
@@ -73,7 +73,6 @@ TRADES = {
 # legacy trade P&L and manifests remain their original evidence, while a new scoped
 # posting journal supplies an auditable accounting overlay.
 ACCOUNTING_VERSION = 2
-DbPath = str | PathLike[str]
 ACCOUNTING_COMPONENTS = (
     "cash_delta",
     "receivable_delta",
@@ -93,10 +92,13 @@ _replay_connection: ContextVar[tuple[str, sqlite3.Connection] | None] = ContextV
 )
 
 
+DbPath = str | PathLike[str]
+
+
 @contextmanager
 def _connect(db_path: DbPath | None = None) -> Iterator[sqlite3.Connection]:
     shared = _replay_connection.get()
-    if shared is not None and str(db_path or config.DB_PATH) == shared[0]:
+    if shared is not None and fspath(db_path or config.DB_PATH) == shared[0]:
         yield shared[1]
         return
     conn = sqlite3.connect(db_path or config.DB_PATH, timeout=30)
@@ -113,7 +115,7 @@ def replay_connection(db_path: DbPath) -> Iterator[sqlite3.Connection]:
     """Offline replay only: reuse one connection; caller commits completed sessions."""
     conn = sqlite3.connect(db_path, timeout=30)
     conn.row_factory = sqlite3.Row
-    token = _replay_connection.set((str(db_path), conn))
+    token = _replay_connection.set((fspath(db_path), conn))
     try:
         with conn:
             yield conn
@@ -194,12 +196,15 @@ def init_db(db_path: DbPath | None = None) -> None:
         )
 
 
-def _insert(conn: sqlite3.Connection, table: str, values: Mapping[str, Any]) -> int | None:
+def _insert(conn: sqlite3.Connection, table: str, values: Mapping[str, Any]) -> int:
     keys = list(values)
-    return conn.execute(
+    row_id = conn.execute(
         f"INSERT INTO {table} ({','.join(keys)}) VALUES ({','.join('?' for _ in keys)})",
         [values[k] for k in keys],
     ).lastrowid
+    if row_id is None:
+        raise RuntimeError(f"INSERT into {table} returned no row id")
+    return row_id
 
 
 def _update(
@@ -233,7 +238,7 @@ def log_signal(
     bar_timestamp: object = None,
     db_path: DbPath | None = None,
     source: str = "live",
-) -> int | None:
+) -> int:
     values = {k: signal.get(k) for k in SIGNALS if k in signal}
     values.update(
         source=source,
@@ -257,7 +262,7 @@ def trade_values(position: Mapping[str, Any], source: str = "live") -> dict[str,
 
 def log_trade_open(
     position: Mapping[str, Any], db_path: DbPath | None = None, source: str = "live"
-) -> int | None:
+) -> int:
     with _connect(db_path) as conn:
         return _insert(conn, "trades", trade_values(position, source))
 
@@ -344,12 +349,8 @@ def _posting_scope(posting: Mapping[str, Any]) -> tuple[str, str, str, str]:
     missing = [key for key in required if not posting.get(key)]
     if missing:
         raise ValueError("accounting posting requires " + ", ".join(missing))
-    return (
-        str(posting["run_id"]),
-        str(posting["source"]),
-        str(posting["backend"]),
-        str(posting["account"]),
-    )
+    run_id, source, backend, account = (str(posting[key]) for key in required)
+    return run_id, source, backend, account
 
 
 def _canonical_posting(posting: Mapping[str, Any]) -> dict[str, Any]:
