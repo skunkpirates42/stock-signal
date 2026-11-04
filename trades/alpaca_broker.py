@@ -8,11 +8,14 @@ import json
 import math
 import sqlite3
 import uuid
+from collections.abc import Iterable, Mapping
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Any, overload
 
 import config
 from db.logger import (
+    DbPath,
     _connect,
     _insert,
     _update,
@@ -24,25 +27,30 @@ from db.logger import (
 )
 
 TERMINAL_ORDER_STATES = {"filled", "canceled", "rejected", "expired"}
+OrderRow = Mapping[str, Any] | sqlite3.Row
 
 
-def _status(order):
+def _status(order: Any) -> str:
     return str(getattr(order.status, "value", order.status)).lower()
 
 
-def _payload(order_row):
+def _payload(order_row: OrderRow) -> dict[str, Any]:
     return json.loads(order_row["payload_json"])
 
 
-def _is_bracket(order_row):
+def _is_bracket(order_row: OrderRow) -> bool:
     return _payload(order_row).get("execution_policy") == "bracket_v1"
 
 
-def _parent_order_id(order_row):
+def _parent_order_id(order_row: OrderRow) -> str | None:
     return _payload(order_row).get("parent_id")
 
 
-def _float_or_default(value, default=None):
+@overload
+def _float_or_default(value: Any) -> float | None: ...
+@overload
+def _float_or_default(value: Any, default: float) -> float: ...
+def _float_or_default(value: Any, default: float | None = None) -> float | None:
     try:
         result = float(value)
         return result if math.isfinite(result) else default
@@ -50,20 +58,20 @@ def _float_or_default(value, default=None):
         return default
 
 
-def outcome(pnl):
+def outcome(pnl: float) -> str:
     return "WIN" if pnl > 0 else "LOSS" if pnl < 0 else "BREAKEVEN"
 
 
 class AlpacaBroker:
     def __init__(
         self,
-        client=None,
-        position_pct=None,
-        fill_timeout=None,
-        poll_interval=None,
-        db_path=None,
-        account=None,
-    ):
+        client: Any = None,
+        position_pct: float | None = None,
+        fill_timeout: float | None = None,
+        poll_interval: float | None = None,
+        db_path: DbPath | None = None,
+        account: str | None = None,
+    ) -> None:
         self._client = client if client is not None else self._build_client()
         self.db_path = db_path or config.DB_PATH
         init_db(self.db_path)
@@ -73,19 +81,20 @@ class AlpacaBroker:
         if not identity:
             raise ValueError("A confirmed paper account identity is required")
         self.account = str(identity)
-        self.capital = _float_or_default(acct.equity)
-        if self.capital is None:
+        equity = _float_or_default(acct.equity)
+        if equity is None:
             raise ValueError("Missing account equity")
+        self.capital = equity
         self.position_pct = position_pct if position_pct is not None else config.POSITION_PCT
-        self.closed_trades = []
-        self.events = []
-        self.open_positions = {}
-        self.blocked = None
+        self.closed_trades: list[dict[str, Any]] = []
+        self.events: list[tuple[str, dict[str, Any]]] = []
+        self.open_positions: dict[str, dict[str, Any]] = {}
+        self.blocked: str | None = None
         self.safe_to_flatten = False
         self._reload_open_positions()
 
     @staticmethod
-    def _build_client():
+    def _build_client() -> Any:
         import os
 
         from alpaca.trading.client import TradingClient
@@ -95,7 +104,7 @@ class AlpacaBroker:
         class BoundedTradingClient(TradingClient):
             # alpaca-py's REST hook has no public timeout setting. Keep this override
             # isolated and covered by the installed-SDK contract test.
-            def _one_request(self, method, url, opts, retry):
+            def _one_request(self, method: str, url: str, opts: dict[str, Any], retry: int) -> Any:
                 return super()._one_request(method, url, {**opts, "timeout": (3, 10)}, 0)
 
         client = BoundedTradingClient(
@@ -104,7 +113,7 @@ class AlpacaBroker:
         client._retry = 0  # uncertain requests are reconciled explicitly, never blindly retried
         return client
 
-    def _reload_open_positions(self):
+    def _reload_open_positions(self) -> None:
         self.open_positions = {}
         for row in load_open_positions(self.db_path, "live", "alpaca", self.account):
             if row["ticker"] in self.open_positions:
@@ -124,7 +133,7 @@ class AlpacaBroker:
                     row["pending_exit"] = _payload(parent).get("pending_exit")
             self.open_positions[row["ticker"]] = row
 
-    def _orders(self, ticker=None):
+    def _orders(self, ticker: str | None = None) -> list[dict[str, Any]]:
         with _connect(self.db_path) as conn:
             sql = "SELECT * FROM orders WHERE backend='alpaca' AND account=?"
             params = [self.account]
@@ -133,12 +142,20 @@ class AlpacaBroker:
                 params.append(ticker)
             return [dict(r) for r in conn.execute(sql + " ORDER BY created_at,id", params)]
 
-    def has_open(self, ticker):
+    def has_open(self, ticker: str) -> bool:
         return ticker in self.open_positions or any(
             o["state"] not in TERMINAL_ORDER_STATES for o in self._orders(ticker)
         )
 
-    def _intent(self, ticker, purpose, qty, payload, signal_id=None, trade_id=None):
+    def _intent(
+        self,
+        ticker: str,
+        purpose: str,
+        qty: int,
+        payload: Mapping[str, Any],
+        signal_id: int | None = None,
+        trade_id: int | None = None,
+    ) -> str:
         existing = [o for o in self._orders(ticker) if o["state"] not in TERMINAL_ORDER_STATES]
         if existing:
             return existing[0]["id"]
@@ -165,7 +182,7 @@ class AlpacaBroker:
             )
         return order_id
 
-    def _submit(self, order_id):
+    def _submit(self, order_id: str) -> None:
         from alpaca.trading.enums import OrderClass, OrderSide, TimeInForce
         from alpaca.trading.requests import MarketOrderRequest, StopLossRequest, TakeProfitRequest
 
@@ -202,7 +219,7 @@ class AlpacaBroker:
         except Exception as exc:
             self._mark_unresolved(order_id, exc)
 
-    def _mark_unresolved(self, order_id, exc):
+    def _mark_unresolved(self, order_id: str, exc: Exception) -> None:
         self.blocked = str(exc)
         with _connect(self.db_path) as conn:
             _update(
@@ -212,10 +229,10 @@ class AlpacaBroker:
                 {"state": "unresolved", "last_error": str(exc), "updated_at": now()},
             )
 
-    def _apply_broker_order_state(self, order_id, order):
+    def _apply_broker_order_state(self, order_id: str, order: Any) -> None:
         state = _status(order)
         fill_at = str(getattr(order, "filled_at", None) or now())
-        event = None
+        event: tuple[str, int] | None = None
         with _connect(self.db_path) as conn:
             row = dict(conn.execute("SELECT * FROM orders WHERE id=?", (order_id,)).fetchone())
             qty, price = self._validated_cumulative_fill(row, order, state)
@@ -223,6 +240,8 @@ class AlpacaBroker:
             if self._is_bracket_leg(row):
                 payload["broker_qty"] = self._validated_leg_quantity(order, qty)
             if qty > row["applied_qty"]:
+                if price is None:
+                    raise ValueError("Filled quantity without confirmed price")
                 if row["purpose"] == "entry":
                     row["trade_id"] = self._apply_entry_fill(
                         conn, row, payload, qty, price, fill_at
@@ -257,12 +276,18 @@ class AlpacaBroker:
                 )
             self.events.append((event[0], payload))
 
-    def _validated_cumulative_fill(self, row, order, state):
-        qty = _float_or_default(getattr(order, "filled_qty", None), 0)
+    def _validated_cumulative_fill(
+        self, row: Mapping[str, Any], order: Any, state: str
+    ) -> tuple[int, float | None]:
+        reported_qty = _float_or_default(getattr(order, "filled_qty", None), 0)
         price = _float_or_default(getattr(order, "filled_avg_price", None))
-        if qty < row["applied_qty"] or qty > row["requested_qty"] or int(qty) != qty:
+        if (
+            reported_qty < row["applied_qty"]
+            or reported_qty > row["requested_qty"]
+            or int(reported_qty) != reported_qty
+        ):
             raise ValueError("Inconsistent broker cumulative quantity")
-        qty = int(qty)
+        qty = int(reported_qty)
         if qty and (price is None or price <= 0):
             raise ValueError("Filled quantity without confirmed price")
         if state == "filled" and qty != row["requested_qty"] and not self._is_bracket_leg(row):
@@ -270,13 +295,21 @@ class AlpacaBroker:
         return qty, price
 
     @staticmethod
-    def _validated_leg_quantity(order, filled_qty):
+    def _validated_leg_quantity(order: Any, filled_qty: int) -> int:
         broker_qty = _float_or_default(getattr(order, "qty", None))
         if broker_qty is None or broker_qty < filled_qty or int(broker_qty) != broker_qty:
             raise ValueError("Invalid broker protective quantity")
         return int(broker_qty)
 
-    def _apply_entry_fill(self, conn, row, payload, qty, price, fill_at):
+    def _apply_entry_fill(
+        self,
+        conn: sqlite3.Connection,
+        row: Mapping[str, Any],
+        payload: Mapping[str, Any],
+        qty: int,
+        price: float,
+        fill_at: str,
+    ) -> int | None:
         if row["trade_id"] is None:
             position = {
                 **payload,
@@ -298,7 +331,14 @@ class AlpacaBroker:
         return row["trade_id"]
 
     @staticmethod
-    def _apply_exit_fill(conn, row, payload, qty, price, fill_at):
+    def _apply_exit_fill(
+        conn: sqlite3.Connection,
+        row: Mapping[str, Any],
+        payload: Mapping[str, Any],
+        qty: int,
+        price: float,
+        fill_at: str,
+    ) -> bool:
         trade = dict(conn.execute("SELECT * FROM trades WHERE id=?", (row["trade_id"],)).fetchone())
         delta = qty - row["applied_qty"]
         # Cumulative notional handles partial fills at different prices.
@@ -334,7 +374,7 @@ class AlpacaBroker:
         _update(conn, "trades", row["trade_id"], values)
         return remaining == 0
 
-    def _discover_legs(self, order_id, order):
+    def _discover_legs(self, order_id: str, order: Any) -> None:
         """Persist broker-generated child identities before applying their fills."""
         with _connect(self.db_path) as conn:
             parent = dict(conn.execute("SELECT * FROM orders WHERE id=?", (order_id,)).fetchone())
@@ -380,10 +420,10 @@ class AlpacaBroker:
             self._apply_broker_order_state("leg-" + str(leg.id), leg)
 
     @staticmethod
-    def _is_bracket_leg(row):
+    def _is_bracket_leg(row: OrderRow) -> bool:
         return bool(_parent_order_id(row))
 
-    def has_bracket(self, ticker):
+    def has_bracket(self, ticker: str) -> bool:
         pos = self.open_positions.get(ticker)
         return bool(
             pos
@@ -393,7 +433,7 @@ class AlpacaBroker:
             )
         )
 
-    def request_session_flatten(self):
+    def request_session_flatten(self) -> None:
         """Persist cancellation intent even when an entry has no trade yet."""
         with _connect(self.db_path) as conn:
             rows = conn.execute(
@@ -415,7 +455,7 @@ class AlpacaBroker:
                         {"payload_json": json.dumps(payload), "updated_at": now()},
                     )
 
-    def _cancel_flatten_entries(self):
+    def _cancel_flatten_entries(self) -> None:
         orders = self._orders()
         flatten_ids = {
             o["id"] for o in orders if o["purpose"] == "entry" and _payload(o).get("pending_exit")
@@ -435,11 +475,11 @@ class AlpacaBroker:
                 self._mark_unresolved(row["id"], exc)
         # A DELETE is only an acknowledgement. Observe terminal states next tick.
 
-    def reconcile(self):
+    def reconcile(self) -> bool:
         self.blocked = None
         self.safe_to_flatten = False
-        observed = None
-        observation_at = None
+        observed: dict[str, float] | None = None
+        observation_at: str | None = None
         orders = self._orders()
         known_leg_counts = self._count_known_legs_by_parent(orders)
         # Parent first, then children, including fills received between bars.
@@ -461,7 +501,9 @@ class AlpacaBroker:
         self._record_broker_observation(observed, observation_at)
         return self.blocked is None
 
-    def _record_broker_observation(self, observed_positions, observed_at):
+    def _record_broker_observation(
+        self, observed_positions: dict[str, float] | None, observed_at: str | None
+    ) -> None:
         # Observational metadata only. Never expose broker exceptions in dashboard data.
         try:
             with _connect(self.db_path) as conn:
@@ -487,15 +529,15 @@ class AlpacaBroker:
             pass
 
     @staticmethod
-    def _count_known_legs_by_parent(orders):
-        counts = {}
+    def _count_known_legs_by_parent(orders: Iterable[Mapping[str, Any]]) -> dict[str, int]:
+        counts: dict[str, int] = {}
         for row in orders:
             parent_id = _parent_order_id(row)
             if parent_id:
                 counts[parent_id] = counts.get(parent_id, 0) + 1
         return counts
 
-    def _sync_order_with_broker(self, row, known_leg_count):
+    def _sync_order_with_broker(self, row: Mapping[str, Any], known_leg_count: int) -> None:
         if not self._needs_broker_sync(row, known_leg_count):
             return
         try:
@@ -510,12 +552,12 @@ class AlpacaBroker:
             self._mark_unresolved(row["id"], exc)
 
     @staticmethod
-    def _needs_broker_sync(row, known_leg_count):
+    def _needs_broker_sync(row: Mapping[str, Any], known_leg_count: int) -> bool:
         if row["state"] not in TERMINAL_ORDER_STATES:
             return True
         return _is_bracket(row) and known_leg_count != 2 and row["applied_qty"] > 0
 
-    def _resolve_pending_submission(self, row):
+    def _resolve_pending_submission(self, row: Mapping[str, Any]) -> None:
         if _is_bracket(row) and _payload(row).get("pending_exit"):
             # No request was sent: cancel the durable intent locally.
             with _connect(self.db_path) as conn:
@@ -523,7 +565,7 @@ class AlpacaBroker:
             return
         self._submit(row["id"])
 
-    def _fetch_broker_order(self, row):
+    def _fetch_broker_order(self, row: Mapping[str, Any]) -> Any:
         from alpaca.trading.requests import GetOrderByIdRequest
 
         if not row["broker_id"]:
@@ -534,8 +576,8 @@ class AlpacaBroker:
             )
         return self._client.get_order_by_id(row["broker_id"])
 
-    def _fetch_broker_positions(self):
-        signed_qty_by_symbol = {}
+    def _fetch_broker_positions(self) -> dict[str, float]:
+        signed_qty_by_symbol: dict[str, float] = {}
         for position in self._client.get_all_positions():
             qty = _float_or_default(position.qty)
             if qty is None:
@@ -548,7 +590,7 @@ class AlpacaBroker:
             signed_qty_by_symbol[position.symbol] = qty
         return signed_qty_by_symbol
 
-    def _block_on_exposure_mismatch(self, broker_positions):
+    def _block_on_exposure_mismatch(self, broker_positions: dict[str, float]) -> None:
         expected = {
             symbol: pos["remaining_shares"] * (1 if pos["direction"] == "LONG" else -1)
             for symbol, pos in self.open_positions.items()
@@ -558,7 +600,7 @@ class AlpacaBroker:
                 f"Broker/DB exposure mismatch: expected={expected}, actual={broker_positions}"
             )
 
-    def _block_on_unsettled_orders(self, orders):
+    def _block_on_unsettled_orders(self, orders: Iterable[Mapping[str, Any]]) -> None:
         if any(
             o["state"] not in TERMINAL_ORDER_STATES
             and not (
@@ -569,9 +611,9 @@ class AlpacaBroker:
         ):
             self.blocked = self.blocked or "Order execution pending reconciliation"
 
-    def _block_on_incomplete_bracket_protection(self, orders):
+    def _block_on_incomplete_bracket_protection(self, orders: list[dict[str, Any]]) -> None:
         by_id = {o["id"]: o for o in orders}
-        legs_by_trade = {}
+        legs_by_trade: dict[int, list[dict[str, Any]]] = {}
         for row in orders:
             if self._is_bracket_leg(row):
                 legs_by_trade.setdefault(row["trade_id"], []).append(row)
@@ -592,13 +634,15 @@ class AlpacaBroker:
                         self.blocked or "Bracket protection incomplete; reconcile explicitly"
                     )
 
-    def _fetch_account_equity(self):
+    def _fetch_account_equity(self) -> float:
         return _float_or_default(self._client.get_account().equity, self.capital)
 
-    def alpaca_open_symbols(self):
+    def alpaca_open_symbols(self) -> set[str]:
         return {p.symbol for p in self._client.get_all_positions()}
 
-    def open_position(self, signal, entry_bar, signal_id=None):
+    def open_position(
+        self, signal: Mapping[str, Any], entry_bar: int, signal_id: int | None = None
+    ) -> dict[str, Any] | None:
         if (
             signal["direction"] not in ("LONG", "SHORT")
             or self.has_open(signal["ticker"])
@@ -608,7 +652,7 @@ class AlpacaBroker:
         shares = math.floor(self.capital * self.position_pct / signal["entry"])
         if shares < 1:
             return None
-        levels = {}
+        levels: dict[str, float] = {}
         for name in ("stop", "target"):
             value = _float_or_default(signal.get(name))
             if value is None or value <= 0:
@@ -633,8 +677,14 @@ class AlpacaBroker:
         return self.open_positions.get(signal["ticker"])
 
     def close_position(
-        self, ticker, exit_price, outcome, exit_bar, bars_held=None, exit_reason=None
-    ):
+        self,
+        ticker: str,
+        exit_price: float,
+        outcome: str,
+        exit_bar: int,
+        bars_held: int | None = None,
+        exit_reason: str | None = None,
+    ) -> dict[str, Any] | None:
         if self.has_bracket(ticker):
             # OHLC is never an instruction to duplicate a resting protective leg.
             if (exit_reason or outcome.lower()) in ("stop", "target"):
@@ -674,22 +724,24 @@ class AlpacaBroker:
                 return None
             if not self.safe_to_flatten:
                 return None
-        pos = self.open_positions.get(ticker)
-        if pos is None:
+        position = self.open_positions.get(ticker)
+        if position is None:
             return None
         if any(o["state"] not in TERMINAL_ORDER_STATES for o in self._orders(ticker)):
             return None
         payload = {
-            "direction": pos["direction"],
+            "direction": position["direction"],
             "exit_reason": exit_reason or outcome.lower(),
             "exit_bar": exit_bar,
         }
         order_id = self._intent(
-            ticker, "exit", pos["remaining_shares"], payload, trade_id=pos["db_id"]
+            ticker, "exit", position["remaining_shares"], payload, trade_id=position["db_id"]
         )
         self._submit(order_id)
         with _connect(self.db_path) as conn:
-            row = dict(conn.execute("SELECT * FROM trades WHERE id=?", (pos["db_id"],)).fetchone())
+            row = dict(
+                conn.execute("SELECT * FROM trades WHERE id=?", (position["db_id"],)).fetchone()
+            )
         if row["outcome"] == "OPEN":
             return None
         row["status"] = "CLOSED"
