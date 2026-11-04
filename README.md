@@ -125,7 +125,11 @@ and the frontend at http://127.0.0.1:3000. It uses your existing `BROKER` settin
 (`local` by default; `alpaca` submits to the Alpaca paper account) and `DB_PATH`.
 `DASHBOARD_PORT` is read from configuration and passed to the frontend automatically.
 The engine idles outside market hours. Logs are saved per launch under `.live-logs/`;
-Ctrl-C or a service exit stops the whole stack. The optional replay worker for `/run`
+Ctrl-C or a service exit stops the whole stack. Each process also appends a rotating
+event log, `.live-logs/live.log` (and `dashboard.log`, `demo-worker.log`), with one
+`key=value` line per decision: signals, order submits and state changes, reconcile blocks,
+opens and closes. Grep a `signal_id=` or `order_id=` to follow one trade; warnings and
+errors also go to the console. The optional replay worker for `/run`
 still uses the separate command above.
 
 Tests and checks:

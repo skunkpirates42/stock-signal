@@ -5,6 +5,7 @@ are called by the live worker, not the websocket ingestion callback.
 """
 
 import json
+import logging
 import math
 import sqlite3
 import uuid
@@ -14,6 +15,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, overload
 
 import config
+from app_logging import log_event
 from db.logger import (
     DbPath,
     _connect,
@@ -26,7 +28,10 @@ from db.logger import (
     trade_values,
 )
 
+logger = logging.getLogger(__name__)
+
 TERMINAL_ORDER_STATES = {"filled", "canceled", "rejected", "expired"}
+FAILED_ORDER_STATES = ("rejected", "expired", "suspended")
 OrderRow = Mapping[str, Any] | sqlite3.Row
 
 
@@ -91,6 +96,7 @@ class AlpacaBroker:
         self.open_positions: dict[str, dict[str, Any]] = {}
         self.blocked: str | None = None
         self.safe_to_flatten = False
+        self._last_reconcile_outcome: tuple[str | None, bool] | None = None
         self._reload_open_positions()
 
     @staticmethod
@@ -180,6 +186,17 @@ class AlpacaBroker:
                     updated_at=now(),
                 ),
             )
+        log_event(
+            logger,
+            "order_intent",
+            order_id=order_id,
+            ticker=ticker,
+            purpose=purpose,
+            qty=qty,
+            signal_id=signal_id,
+            trade_id=trade_id,
+            account=self.account,
+        )
         return order_id
 
     def _submit(self, order_id: str) -> None:
@@ -213,6 +230,17 @@ class AlpacaBroker:
                     **legs,
                 )
             )
+            log_event(
+                logger,
+                "order_submitted",
+                order_id=order_id,
+                broker_id=getattr(order, "id", None),
+                ticker=row["ticker"],
+                purpose=row["purpose"],
+                side="buy" if buy else "sell",
+                qty=row["requested_qty"],
+                bracket=bracket,
+            )
             self._apply_broker_order_state(order_id, order)
             if bracket:
                 self._discover_legs(order_id, order)
@@ -220,6 +248,13 @@ class AlpacaBroker:
             self._mark_unresolved(order_id, exc)
 
     def _mark_unresolved(self, order_id: str, exc: Exception) -> None:
+        log_event(
+            logger,
+            "order_unresolved",
+            logging.WARNING,
+            order_id=order_id,
+            error=f"{type(exc).__name__}: {exc}"[:200],
+        )
         self.blocked = str(exc)
         with _connect(self.db_path) as conn:
             _update(
@@ -235,6 +270,7 @@ class AlpacaBroker:
         event: tuple[str, int] | None = None
         with _connect(self.db_path) as conn:
             row = dict(conn.execute("SELECT * FROM orders WHERE id=?", (order_id,)).fetchone())
+            previous_state, previous_qty = row["state"], row["applied_qty"]
             qty, price = self._validated_cumulative_fill(row, order, state)
             payload = _payload(row)
             if self._is_bracket_leg(row):
@@ -264,9 +300,22 @@ class AlpacaBroker:
                     "fill_price": price,
                     "trade_id": row["trade_id"],
                     "payload_json": json.dumps(payload),
-                    "last_error": state if state in ("rejected", "expired", "suspended") else None,
+                    "last_error": state if state in FAILED_ORDER_STATES else None,
                     "updated_at": now(),
                 },
+            )
+        if state != previous_state or qty != previous_qty:
+            log_event(
+                logger,
+                "order_state",
+                logging.WARNING if state in FAILED_ORDER_STATES else logging.INFO,
+                order_id=order_id,
+                ticker=row["ticker"],
+                from_state=previous_state,
+                to_state=state,
+                filled_qty=qty,
+                fill_price=price,
+                trade_id=row["trade_id"],
             )
         self._reload_open_positions()
         if event:
@@ -469,6 +518,14 @@ class AlpacaBroker:
             if not row["broker_id"]:
                 self.blocked = self.blocked or "Flatten entry identity awaiting reconciliation"
                 continue
+            log_event(
+                logger,
+                "cancel_requested",
+                order_id=row["id"],
+                broker_id=row["broker_id"],
+                ticker=row["ticker"],
+                reason="session_flatten",
+            )
             try:
                 self._client.cancel_order_by_id(row["broker_id"])
             except Exception as exc:
@@ -499,7 +556,22 @@ class AlpacaBroker:
             self.safe_to_flatten = False
             self.blocked = f"Reconciliation unavailable: {exc}"
         self._record_broker_observation(observed, observation_at)
+        self._log_reconcile_outcome_change()
         return self.blocked is None
+
+    def _log_reconcile_outcome_change(self) -> None:
+        outcome = (self.blocked, self.safe_to_flatten)
+        if outcome == self._last_reconcile_outcome:
+            return
+        self._last_reconcile_outcome = outcome
+        log_event(
+            logger,
+            "reconcile_blocked" if self.blocked else "reconcile_clear",
+            logging.WARNING if self.blocked else logging.INFO,
+            account=self.account,
+            safe_to_flatten=self.safe_to_flatten,
+            reason=self.blocked,
+        )
 
     def _record_broker_observation(
         self, observed_positions: dict[str, float] | None, observed_at: str | None
@@ -713,6 +785,14 @@ class AlpacaBroker:
             for row in active:
                 if not self._is_bracket_leg(row) and row["purpose"] == "exit":
                     return None
+                log_event(
+                    logger,
+                    "cancel_requested",
+                    order_id=row["id"],
+                    broker_id=row["broker_id"],
+                    ticker=ticker,
+                    reason=exit_reason or outcome.lower(),
+                )
                 try:
                     self._client.cancel_order_by_id(row["broker_id"])
                 except Exception as exc:
