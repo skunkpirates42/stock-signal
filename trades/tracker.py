@@ -8,8 +8,10 @@ intrabar order from OHLC alone), we conservatively assume the STOP filled first.
 avoids overstating win rate during validation.
 """
 
+from typing import Any
 
-def check_exit(position: dict, bar) -> dict | None:
+
+def check_exit(position: dict[str, Any], bar: Any) -> dict[str, Any] | None:
     """Return an exit dict {exit_price, outcome, reason} if the bar triggers stop/target,
     else None. `bar` must expose `high` and `low` (a pandas row or a dict)."""
     high = float(bar["high"])
