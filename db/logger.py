@@ -73,7 +73,6 @@ TRADES = {
 # legacy trade P&L and manifests remain their original evidence, while a new scoped
 # posting journal supplies an auditable accounting overlay.
 ACCOUNTING_VERSION = 2
-DbPath = str | PathLike[str]
 ACCOUNTING_COMPONENTS = (
     "cash_delta",
     "receivable_delta",
@@ -91,6 +90,9 @@ def now() -> str:
 _replay_connection: ContextVar[tuple[str, sqlite3.Connection] | None] = ContextVar(
     "replay_connection", default=None
 )
+
+
+DbPath = str | PathLike[str]
 
 
 @contextmanager
