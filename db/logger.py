@@ -194,12 +194,15 @@ def init_db(db_path: DbPath | None = None) -> None:
         )
 
 
-def _insert(conn: sqlite3.Connection, table: str, values: Mapping[str, Any]) -> int | None:
+def _insert(conn: sqlite3.Connection, table: str, values: Mapping[str, Any]) -> int:
     keys = list(values)
-    return conn.execute(
+    row_id = conn.execute(
         f"INSERT INTO {table} ({','.join(keys)}) VALUES ({','.join('?' for _ in keys)})",
         [values[k] for k in keys],
     ).lastrowid
+    if row_id is None:
+        raise RuntimeError(f"INSERT into {table} returned no row id")
+    return row_id
 
 
 def _update(
@@ -233,7 +236,7 @@ def log_signal(
     bar_timestamp: object = None,
     db_path: DbPath | None = None,
     source: str = "live",
-) -> int | None:
+) -> int:
     values = {k: signal.get(k) for k in SIGNALS if k in signal}
     values.update(
         source=source,
@@ -257,7 +260,7 @@ def trade_values(position: Mapping[str, Any], source: str = "live") -> dict[str,
 
 def log_trade_open(
     position: Mapping[str, Any], db_path: DbPath | None = None, source: str = "live"
-) -> int | None:
+) -> int:
     with _connect(db_path) as conn:
         return _insert(conn, "trades", trade_values(position, source))
 

@@ -356,7 +356,7 @@ class AlpacaBroker:
         qty: int,
         price: float,
         fill_at: str,
-    ) -> int | None:
+    ) -> int:
         if row["trade_id"] is None:
             position = {
                 **payload,
