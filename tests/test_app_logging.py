@@ -50,3 +50,14 @@ def test_unwritable_log_dir_falls_back_to_console(tmp_path, isolated_root_logger
     assert "log_file_unavailable" in capsys.readouterr().err
     log_event(logging.getLogger("t"), "still_runs", logging.WARNING)
     assert "still_runs" in capsys.readouterr().err
+
+
+def test_exc_info_attaches_the_active_traceback(caplog):
+    caplog.set_level(logging.INFO)
+    try:
+        raise ValueError("bad batch")
+    except ValueError:
+        log_event(logging.getLogger("t"), "worker_error", logging.ERROR, exc_info=True, scope="s")
+    record = caplog.records[-1]
+    assert record.getMessage() == "worker_error scope=s"
+    assert record.exc_info[0] is ValueError

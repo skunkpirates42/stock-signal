@@ -746,6 +746,7 @@ class AlpacaBroker:
             logger,
             "order_skipped",
             logging.INFO,
+            exc_info=False,
             ticker=signal.get("ticker"),
             signal_id=signal_id,
             reason=reason,

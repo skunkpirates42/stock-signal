@@ -45,7 +45,12 @@ def _format_value(value: object) -> str:
 
 
 def log_event(
-    logger: logging.Logger, event: str, level: int = logging.INFO, **fields: object
+    logger: logging.Logger,
+    event: str,
+    level: int = logging.INFO,
+    *,
+    exc_info: bool = False,
+    **fields: object,
 ) -> None:
     if not logger.isEnabledFor(level):
         return
@@ -55,4 +60,4 @@ def log_event(
         # Logging is observational; a field that cannot be rendered must not
         # interrupt trading.
         message = f"{event} fields_unrenderable=True"
-    logger.log(level, "%s", message)
+    logger.log(level, "%s", message, exc_info=exc_info)

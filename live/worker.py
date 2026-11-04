@@ -5,7 +5,7 @@ import time
 from queue import Empty, Queue
 from threading import Thread
 
-from app_logging import format_event
+from app_logging import log_event
 from db.logger import set_status
 
 logger = logging.getLogger(__name__)
@@ -39,12 +39,13 @@ class TradingWorker:
                     self.trader.tick()
                     next_tick = time.monotonic() + 5
             except Exception as exc:
-                logger.exception(
-                    "%s",
-                    format_event(
-                        "worker_error",
-                        {"scope": self.trader.scope, "action": "failed batch not retried"},
-                    ),
+                log_event(
+                    logger,
+                    "worker_error",
+                    logging.ERROR,
+                    exc_info=True,
+                    scope=self.trader.scope,
+                    action="failed batch not retried",
                 )
                 self.trader.record_worker_error(exc)
                 try:
@@ -55,9 +56,12 @@ class TradingWorker:
                         db_path=self.trader.db_path,
                     )
                 except Exception:
-                    logger.exception(
-                        "%s",
-                        format_event("worker_status_unpersisted", {"scope": self.trader.scope}),
+                    log_event(
+                        logger,
+                        "worker_status_unpersisted",
+                        logging.ERROR,
+                        exc_info=True,
+                        scope=self.trader.scope,
                     )
             finally:
                 if args:
