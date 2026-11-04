@@ -133,6 +133,7 @@ Tests and checks:
 ```bash
 .venv/bin/python -m pytest tests/ -q          # backend
 .venv/bin/ruff check . && .venv/bin/ruff format --check .  # backend lint
+.venv/bin/mypy                                  # types: trades/ and db/ (mypy.ini)
 cd web && pnpm test && pnpm lint && pnpm build  # frontend
 ```
 

@@ -286,6 +286,13 @@ class BorrowSettlement:
             object.__setattr__(self, "amount", amount)
 
 
+def _signed_settlement_amount(settlement: Settlement | BorrowSettlement) -> Decimal:
+    # Callers reject settlements with a missing amount before summing.
+    if settlement.amount is None:
+        raise ValueError(f"settlement {settlement.payment_id} has no amount")
+    return settlement.amount if settlement.kind == "payment" else -settlement.amount
+
+
 def _dedupe_settlements(
     settlements: Iterable[Settlement],
 ) -> Tuple[Tuple[Settlement, ...], Tuple[str, ...]]:
@@ -558,10 +565,7 @@ def _distribution_for_side(
             side, action.action_id, quantity, ("settlement_currency_mismatch",), action.revision_id
         )
     net_settlement = sum(
-        (
-            settlement.amount if settlement.kind == "payment" else -settlement.amount
-            for settlement in deduped
-        ),
+        (_signed_settlement_amount(settlement) for settlement in deduped),
         ZERO,
     )
     prior_settled = ZERO
@@ -571,12 +575,9 @@ def _distribution_for_side(
     # ``target`` is the new target delta for this action.  Opening balances carry
     # prior accruals and corrections across the continuation boundary.
     prior_target_key = (action.action_id, side)
-    has_prior_target = (
-        window is not None and prior_target_key in window.opening_targets and not in_window
-    )
-    target_delta = (
-        target - decimal(window.opening_targets[prior_target_key]) if has_prior_target else target
-    )
+    target_delta = target
+    if window is not None and prior_target_key in window.opening_targets and not in_window:
+        target_delta = target - decimal(window.opening_targets[prior_target_key])
     if side == "LONG":
         cash_delta = net_settlement
         net_balance = opening_receivable - opening_repayment + target_delta - net_settlement
@@ -844,10 +845,7 @@ def calculate_borrow(
             unknown_reasons=("settlement_currency_mismatch",),
         )
     current_settlement = sum(
-        (
-            settlement.amount if settlement.kind == "payment" else -settlement.amount
-            for settlement in deduped
-        ),
+        (_signed_settlement_amount(settlement) for settlement in deduped),
         ZERO,
     )
     net_settlement = decimal(prior_settled) + current_settlement

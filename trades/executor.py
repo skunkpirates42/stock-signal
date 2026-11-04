@@ -1,7 +1,10 @@
 """Local fills at an explicit executable event, with adverse costs and exposure limits."""
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Self
 
 import config
 
@@ -13,23 +16,28 @@ class FillPolicy:
     fee_per_share: float = 0
 
     @classmethod
-    def configured(cls):
+    def configured(cls) -> Self:
         return cls(config.SPREAD_BPS, config.SLIPPAGE_BPS, config.FEE_PER_SHARE)
 
-    def cost(self, reference, shares):
+    def cost(self, reference: float, shares: float) -> float:
         return shares * (
             reference * (self.spread_bps / 2 + self.slippage_bps) / 10000 + self.fee_per_share
         )
 
 
 class PaperBroker:
-    def __init__(self, starting_capital=None, position_pct=None, policy=None):
+    def __init__(
+        self,
+        starting_capital: float | None = None,
+        position_pct: float | None = None,
+        policy: FillPolicy | None = None,
+    ) -> None:
         self.capital = starting_capital if starting_capital is not None else config.STARTING_CAPITAL
         self.position_pct = position_pct if position_pct is not None else config.POSITION_PCT
         self.policy = policy or FillPolicy.configured()
-        self.open_positions = {}
-        self.closed_trades = []
-        self.blocked = None
+        self.open_positions: dict[str, dict[str, Any]] = {}
+        self.closed_trades: list[dict[str, Any]] = []
+        self.blocked: str | None = None
         self.account = config.ACCOUNT_NAMESPACE
         # This is a local accounting overlay, deliberately separate from ``capital``.
         # ``capital`` remains the legacy closed-trade P&L basis so old journals and
@@ -42,24 +50,24 @@ class PaperBroker:
         self.repayment_liabilities = 0.0
         self.accounting_unavailable = 0
 
-    def has_open(self, ticker):
+    def has_open(self, ticker: str) -> bool:
         return ticker in self.open_positions
 
     @property
-    def available(self):
+    def available(self) -> float:
         if self.accounting_unavailable:
             return 0
         return max(0, self.sizing_capital - self.reserved)
 
     @property
-    def reserved(self):
+    def reserved(self) -> float:
         """Existing gross-notional reservation; short proceeds never fund new entries."""
         return sum(
             p["entry"] * p["shares"] + p.get("entry_cost", 0) for p in self.open_positions.values()
         )
 
     @property
-    def sizing_capital(self):
+    def sizing_capital(self) -> float:
         """Causal local capital policy from the accounting contract.
 
         Settled accounting cash can fund the portfolio.  Long/refund receivables are
@@ -75,7 +83,7 @@ class PaperBroker:
             - self.repayment_liabilities
         )
 
-    def apply_accounting_posting(self, posting):
+    def apply_accounting_posting(self, posting: Mapping[str, Any]) -> None:
         """Apply one already-deduplicated ledger posting to the local capital overlay."""
         if posting.get("unavailable_reason"):
             self.accounting_unavailable += 1
@@ -100,7 +108,7 @@ class PaperBroker:
                 raise ValueError(f"accounting posting would make {target} negative")
             setattr(self, target, value if target == "accounting_cash" else max(0.0, value))
 
-    def accounting_state(self):
+    def accounting_state(self) -> dict[str, float]:
         """Expose the local overlay without relabeling it as broker cash or profitability."""
         return {
             "cash": self.accounting_cash,
@@ -114,7 +122,7 @@ class PaperBroker:
             "capital_unavailable_count": self.accounting_unavailable,
         }
 
-    def restore_accounting_state(self, summary):
+    def restore_accounting_state(self, summary: Mapping[str, Any]) -> None:
         """Rebuild the local overlay from a scoped durable ledger summary.
 
         ``capital`` remains the separately restored legacy trade-capital basis.  The
@@ -151,7 +159,7 @@ class PaperBroker:
                 self.blocked or "Accounting inputs unavailable; new allocations are frozen"
             )
 
-    def mark_accounting_unavailable(self, count=1):
+    def mark_accounting_unavailable(self, count: int = 1) -> None:
         """Freeze new allocations when a scoped accounting coverage gap is material."""
         self.accounting_unavailable += max(0, int(count))
         if self.accounting_unavailable:
@@ -159,7 +167,9 @@ class PaperBroker:
                 self.blocked or "Accounting inputs unavailable; new allocations are frozen"
             )
 
-    def open_position(self, signal, entry_bar, signal_id=None):
+    def open_position(
+        self, signal: Mapping[str, Any], entry_bar: int, signal_id: int | None = None
+    ) -> dict[str, Any] | None:
         ticker = signal["ticker"]
         if self.blocked or signal["direction"] not in ("LONG", "SHORT") or self.has_open(ticker):
             return None
@@ -195,8 +205,15 @@ class PaperBroker:
         return pos
 
     def close_position(
-        self, ticker, exit_price, outcome, exit_bar, bars_held=None, exit_reason=None, exit_at=None
-    ):
+        self,
+        ticker: str,
+        exit_price: float,
+        outcome: str,
+        exit_bar: int,
+        bars_held: int | None = None,
+        exit_reason: str | None = None,
+        exit_at: datetime | str | None = None,
+    ) -> dict[str, Any]:
         position = self.open_positions[ticker]
         if not math.isfinite(exit_price) or exit_price <= 0:
             raise ValueError("Exit requires a valid observed price")
