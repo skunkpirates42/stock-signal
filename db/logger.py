@@ -9,7 +9,7 @@ from contextvars import ContextVar
 from datetime import datetime, timezone
 from decimal import Decimal
 from hashlib import sha256
-from os import PathLike
+from os import PathLike, fspath
 from typing import Any
 
 import config
@@ -98,7 +98,7 @@ DbPath = str | PathLike[str]
 @contextmanager
 def _connect(db_path: DbPath | None = None) -> Iterator[sqlite3.Connection]:
     shared = _replay_connection.get()
-    if shared is not None and str(db_path or config.DB_PATH) == shared[0]:
+    if shared is not None and fspath(db_path or config.DB_PATH) == shared[0]:
         yield shared[1]
         return
     conn = sqlite3.connect(db_path or config.DB_PATH, timeout=30)
@@ -115,7 +115,7 @@ def replay_connection(db_path: DbPath) -> Iterator[sqlite3.Connection]:
     """Offline replay only: reuse one connection; caller commits completed sessions."""
     conn = sqlite3.connect(db_path, timeout=30)
     conn.row_factory = sqlite3.Row
-    token = _replay_connection.set((str(db_path), conn))
+    token = _replay_connection.set((fspath(db_path), conn))
     try:
         with conn:
             yield conn
