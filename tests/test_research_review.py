@@ -4,7 +4,6 @@ import pytest
 
 import config
 from analytics.research_review import (
-    UNCERTAINTY,
     _decision,
     marked_metrics,
     paired_interval,

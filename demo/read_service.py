@@ -12,7 +12,7 @@ import sqlite3
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Optional
 
 from .artifacts import ArtifactImportError, ArtifactIndex, ImportedArtifact
 from .availability import available, unavailable

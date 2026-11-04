@@ -8,7 +8,7 @@ uses when Alpaca credentials are absent; the live path is `data.alpaca_rest`.
 """
 
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import numpy as np
 import pandas as pd

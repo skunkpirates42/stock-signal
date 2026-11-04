@@ -3,7 +3,6 @@
 No data fetch / no network — positions and bars are hand-built.
 """
 
-import config
 from trades.executor import PaperBroker
 from trades.tracker import check_exit
 

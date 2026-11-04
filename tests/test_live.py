@@ -38,7 +38,7 @@ def test_aggregation_builds_correct_5min_bar(tmp_path):
     trader, _ = _trader(tmp_path)
     base = RTH
     # Five 1-min bars in the 14:30 bucket; the bucket closes when 14:35 arrives.
-    for i, (o, h, l, c, v) in enumerate(
+    for i, (o, h, low, c, v) in enumerate(
         [
             (10, 11, 9.5, 10.5, 100),
             (10.5, 12, 10.4, 11, 120),
@@ -47,7 +47,7 @@ def test_aggregation_builds_correct_5min_bar(tmp_path):
             (10.6, 13, 10.5, 12.5, 130),
         ]
     ):
-        assert trader.on_minute_bar("AAA", base.replace(minute=30 + i), o, h, l, c, v) is None
+        assert trader.on_minute_bar("AAA", base.replace(minute=30 + i), o, h, low, c, v) is None
     # First bar of next bucket finalizes the previous one.
     bar5 = trader.on_minute_bar("AAA", base.replace(minute=35), 12.5, 12.6, 12.4, 12.5, 50)
     assert bar5["open"] == 10  # first bar's open

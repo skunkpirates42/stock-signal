@@ -164,7 +164,7 @@ def load_closed_trades(
           LEFT JOIN signals s ON t.signal_id = s.id
         """
     params = []
-    from db.logger import init_db, scope_sql
+    from db.logger import scope_sql
 
     clauses, params = scope_sql(source, backend, account, "t.")
     close_day = "substr(COALESCE(t.exit_at,t.closed_at),1,10)"

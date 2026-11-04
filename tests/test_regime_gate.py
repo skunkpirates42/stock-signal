@@ -5,7 +5,6 @@ import json
 import pandas as pd
 import pytest
 
-from data.sessions import utc
 from research import REGIME_VARIANTS, run_comparison
 from signals.indicators import compute_indicators
 from signals.quality import ResearchGate

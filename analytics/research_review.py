@@ -15,7 +15,7 @@ import pandas as pd
 
 from analytics.metrics import CLOSED
 from data.sessions import utc
-from db.logger import ACCOUNTING_VERSION, cashflow_summary, load_cashflow_postings
+from db.logger import cashflow_summary
 
 ACCOUNTING_COMPONENTS = (
     "cash_delta",
