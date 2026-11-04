@@ -12,7 +12,6 @@ arrive *after* a signal, so realized R:R will start to diverge from the theoreti
 
 import sys
 
-
 import config
 from alerts.desktop import notify_event
 from data.alpaca_stream import BarStream, market_clock

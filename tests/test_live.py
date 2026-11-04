@@ -8,9 +8,9 @@ from collections import deque
 from datetime import datetime, timedelta, timezone
 
 import config
-from signals import llm_synthesis
-from db.logger import init_db, log_signal, log_trade_open, close_trade
+from db.logger import close_trade, init_db, log_signal, log_trade_open
 from live.trader import LiveTrader, floor_5min, in_regular_hours
+from signals import llm_synthesis
 
 # A weekday during US regular hours, expressed in UTC (14:30 UTC = 10:30 ET, EDT).
 RTH = datetime(2026, 6, 10, 14, 30, tzinfo=timezone.utc)
@@ -184,8 +184,9 @@ def test_live_bar_after_rest_seed_produces_a_signal(tmp_path, monkeypatch):
     Mixing the two in one window made the timestamp column object dtype and
     _session_vwap raised, so the live loop never logged a signal (issue #94).
     """
-    from pydantic_core import TzInfo
     import pandas as pd
+    from pydantic_core import TzInfo
+
     import live.trader as trader_module
 
     rest_utc = TzInfo(0)

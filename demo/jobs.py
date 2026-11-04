@@ -29,7 +29,6 @@ from .read_service import (
 )
 from .replay_catalog import build_replay_request, request_fingerprint, validated_request_fields
 
-
 ACTIVE_STATES = ("running", "cancel_requested")
 PHASES = ("validating", "replaying", "exporting", "verifying")
 # Summaries are fixed per code so no worker text (paths, tracebacks, credentials) can

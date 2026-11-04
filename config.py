@@ -4,8 +4,9 @@ Everything tunable lives here so the engine, data adapter, and logger stay free 
 magic numbers. Values mirror the spec in CLAUDE.md.
 """
 
-import os
 import math
+import os
+
 from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=False)

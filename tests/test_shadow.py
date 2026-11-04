@@ -10,7 +10,6 @@ from data.sessions import calendar, session_bounds
 from research.shadow import ShadowRunner, replay_shadow
 from trades.executor import PaperBroker
 
-
 REGISTRATION = {
     "operator": "fixture-operator",
     "prospective_start": "2026-06-10T13:30Z",

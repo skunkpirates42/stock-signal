@@ -18,7 +18,6 @@ from trades.cashflows import (
     round_cents,
 )
 
-
 UTC = timezone.utc
 
 

@@ -13,10 +13,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from data.sessions import utc
 from analytics.metrics import CLOSED
+from data.sessions import utc
 from db.logger import ACCOUNTING_VERSION, cashflow_summary, load_cashflow_postings
-
 
 ACCOUNTING_COMPONENTS = (
     "cash_delta",

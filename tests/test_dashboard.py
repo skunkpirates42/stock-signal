@@ -7,8 +7,8 @@ import sqlite3
 
 import config
 from dashboard.app import create_app
-from signals import llm_synthesis
 from db.logger import close_trade, init_db, log_signal, log_trade_open
+from signals import llm_synthesis
 
 
 def _seed(db):

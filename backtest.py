@@ -5,12 +5,16 @@ import hashlib
 import json
 import subprocess
 from pathlib import Path
+
 import pandas as pd
+
 import config
-from data.source import get_bars, active_source_name
-from data.sessions import utc, in_regular_hours
+from analytics.metrics import compute_metrics, equity_curve, format_report
+from data.sessions import in_regular_hours, utc
+from data.source import active_source_name, get_bars
 from db.logger import (
     ACCOUNTING_VERSION,
+    _connect,
     cashflow_summary,
     init_db,
     load_cashflow_postings,
@@ -18,11 +22,9 @@ from db.logger import (
     record_cashflow_posting,
     replay_connection,
     start_run,
-    _connect,
 )
 from live.trader import LiveTrader
 from trades.executor import PaperBroker
-from analytics.metrics import compute_metrics, equity_curve, format_report
 
 
 def normalize_bars(df):

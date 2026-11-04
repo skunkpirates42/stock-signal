@@ -10,20 +10,22 @@ asynchronously at confirmed market fills.
 import json
 from collections import deque
 from datetime import datetime, timezone
+
 import pandas as pd
+
 import config
-from data.sessions import utc, in_regular_hours, flatten_due, session_bounds
+from data.sessions import flatten_due, in_regular_hours, session_bounds, utc
 from data.source import get_bars
 from db.logger import (
+    _connect,
+    close_trade,
     init_db,
     load_open_positions,
-    realized_pnl,
     log_signal,
     log_trade_open,
-    close_trade,
+    realized_pnl,
     save_position,
     set_status,
-    _connect,
 )
 from signals.engine import generate_signal
 from signals.indicators import compute_indicators

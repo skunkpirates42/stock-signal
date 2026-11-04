@@ -4,11 +4,11 @@ Factories return fresh DB-API connections to the authoritative database. No
 embedded replicas, engine imports, automatic retries or production provisioning.
 """
 
-from contextlib import contextmanager
-from dataclasses import dataclass
 import hashlib
 import json
 import uuid
+from contextlib import contextmanager
+from dataclasses import dataclass
 
 
 class BoundaryDenied(Exception):

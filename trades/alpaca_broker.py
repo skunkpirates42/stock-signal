@@ -9,17 +9,18 @@ import math
 import sqlite3
 import uuid
 from datetime import datetime
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
+
 import config
 from db.logger import (
     _connect,
     _insert,
     _update,
     init_db,
-    now,
-    trade_values,
     load_open_positions,
+    now,
     save_position,
+    trade_values,
 )
 
 TERMINAL_ORDER_STATES = {"filled", "canceled", "rejected", "expired"}
@@ -86,6 +87,7 @@ class AlpacaBroker:
     @staticmethod
     def _build_client():
         import os
+
         from alpaca.trading.client import TradingClient
 
         config.validate_live()
@@ -164,7 +166,7 @@ class AlpacaBroker:
         return order_id
 
     def _submit(self, order_id):
-        from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass
+        from alpaca.trading.enums import OrderClass, OrderSide, TimeInForce
         from alpaca.trading.requests import MarketOrderRequest, StopLossRequest, TakeProfitRequest
 
         with _connect(self.db_path) as conn:

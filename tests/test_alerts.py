@@ -5,7 +5,6 @@ from unittest import mock
 from alerts.desktop import format_event, notify, notify_event
 from alerts.feed import build_alert_events
 
-
 # --- feed ------------------------------------------------------------------
 
 

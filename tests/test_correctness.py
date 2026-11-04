@@ -2,17 +2,19 @@ import json
 import os
 import subprocess
 import sys
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
+
 import pandas as pd
 import pytest
+
 import config
-from backtest import run_portfolio, normalize_bars
+from backtest import normalize_bars, run_portfolio
 from dashboard.app import create_app
-from db.logger import init_db, log_trade_open, _connect, load_open_positions
-from live.trader import LiveTrader
 from data.sessions import in_regular_hours, session_bounds, utc
-from trades.executor import PaperBroker, FillPolicy
+from db.logger import _connect, init_db, load_open_positions, log_trade_open
+from live.trader import LiveTrader
+from trades.executor import FillPolicy, PaperBroker
 
 
 def bar(ts, close=100, high=None, low=None):
@@ -248,8 +250,9 @@ def test_rvol_excludes_current_session_and_requires_prior_history():
 
 
 def test_market_ingestion_does_not_wait_on_broker_io(tmp_path):
-    from live.worker import TradingWorker
     from threading import Event
+
+    from live.worker import TradingWorker
 
     entered, release = Event(), Event()
     t = LiveTrader(["AAA"], str(tmp_path / "worker.db"))

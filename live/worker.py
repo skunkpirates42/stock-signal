@@ -1,9 +1,10 @@
 """One serialized state owner; websocket callbacks enqueue without broker I/O."""
 
-from queue import Queue, Empty
-from threading import Thread
-import time
 import logging
+import time
+from queue import Empty, Queue
+from threading import Thread
+
 from db.logger import set_status
 
 

@@ -13,7 +13,6 @@ import pytest
 from demo import artifacts
 from demo.artifacts import ArtifactImportError, ArtifactIndex
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 

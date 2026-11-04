@@ -20,8 +20,9 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import config
 from dotenv import dotenv_values
+
+import config
 
 from .artifacts import RUN_ARTIFACTS, ArtifactIndex
 from .availability import available, unavailable

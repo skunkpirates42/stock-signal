@@ -11,9 +11,9 @@ from dashboard.app import create_app
 from demo.replay_catalog import (
     COST_PROFILES,
     DATASETS,
+    TEMPLATE_VERSION,
     TRADER_WINDOW_BARS,
     ReplayRequestRejected,
-    TEMPLATE_VERSION,
     build_replay_request,
     dataset_is_available,
     request_fingerprint,

@@ -1,10 +1,12 @@
 """Broker-confirmed bracket lifecycle; all requests stay inside the fake client."""
 
 from types import SimpleNamespace as NS
+
 import pytest
-from tests.test_alpaca_broker import FakeClient, LONG
-from trades.alpaca_broker import AlpacaBroker
+
 from db.logger import _connect
+from tests.test_alpaca_broker import LONG, FakeClient
+from trades.alpaca_broker import AlpacaBroker
 
 
 class BracketClient(FakeClient):

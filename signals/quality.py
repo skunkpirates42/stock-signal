@@ -2,10 +2,12 @@
 
 import math
 import statistics
+
 import pandas as pd
+
+from data.sessions import calendar, session_bounds, utc
 from signals.indicators import compute_indicators
 from signals.regime import UNKNOWN, classify_context, regime_eligibility
-from data.sessions import calendar, session_bounds, utc
 
 POLICY = {
     "version": "quality_v2",

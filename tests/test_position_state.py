@@ -2,10 +2,12 @@
 
 import json
 from datetime import datetime, timedelta, timezone
+
 import pytest
-from db.logger import _connect, _insert, init_db, log_trade_open, now
-from dashboard.position_state import position_state
+
 from dashboard.app import create_app
+from dashboard.position_state import position_state
+from db.logger import _connect, _insert, init_db, log_trade_open, now
 
 
 @pytest.fixture

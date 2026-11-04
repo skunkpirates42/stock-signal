@@ -1,8 +1,9 @@
 """XNYS session boundaries, including holidays, DST and early closes."""
 
 from functools import lru_cache
-import pandas as pd
+
 import exchange_calendars as xcals
+import pandas as pd
 
 
 def utc(ts):

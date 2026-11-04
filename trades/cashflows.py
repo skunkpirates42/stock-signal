@@ -11,9 +11,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP
+from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
-
 
 CENT = Decimal("0.01")
 ZERO = Decimal("0")

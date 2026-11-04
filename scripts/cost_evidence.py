@@ -12,7 +12,6 @@ import json
 from collections import Counter
 from pathlib import Path
 
-
 QUOTE_MARKERS = ("quote", "nbbo", "book", "level1")
 FILL_MARKERS = ("fill", "execution")
 

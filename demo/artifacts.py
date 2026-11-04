@@ -21,7 +21,6 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List, Optional, Tuple
 
-
 ROOT_ARTIFACTS = {
     "protocol.json": ("protocol", "application/json"),
     "comparison.json": ("comparison", "application/json"),

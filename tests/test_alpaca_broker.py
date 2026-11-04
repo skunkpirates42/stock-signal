@@ -1,11 +1,13 @@
 """Fault injection against durable orders; no external orders or credentials."""
 
 import json
-from types import SimpleNamespace as NS
 from datetime import datetime, timezone
+from types import SimpleNamespace as NS
+
 import pytest
-from trades.alpaca_broker import AlpacaBroker
+
 from db.logger import _connect, _insert
+from trades.alpaca_broker import AlpacaBroker
 
 LONG = {"ticker": "NVDA", "direction": "LONG", "entry": 100.0, "stop": 98.0, "target": 104.0}
 

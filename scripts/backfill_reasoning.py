@@ -20,12 +20,10 @@ import sqlite3
 import sys
 import time
 
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
 from signals.llm_synthesis import _prompt_for, _template_reasoning, signal_from_row
-
 
 _COLUMNS = "id, ticker, direction, confidence, entry, stop, target, rr, indicators_json"
 

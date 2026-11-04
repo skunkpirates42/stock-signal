@@ -17,7 +17,6 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 from .artifacts import ArtifactImportError, ArtifactIndex, ImportedArtifact
 from .availability import available, unavailable
 
-
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 50
 MAX_JSON_RECORD_BYTES = 128 * 1024

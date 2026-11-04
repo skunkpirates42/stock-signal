@@ -1,6 +1,6 @@
-import pytest
 from unittest.mock import Mock
 
+import pytest
 import requests
 
 from dashboard.prices import PositionPrices

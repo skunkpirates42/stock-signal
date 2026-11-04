@@ -6,14 +6,14 @@ creates a broker/LLM client: both variants use isolated ``PaperBroker`` instance
 
 from __future__ import annotations
 
-from collections import deque
 import copy
-from hashlib import sha256
 import json
 import math
-from pathlib import Path
 import sqlite3
 import uuid
+from collections import deque
+from hashlib import sha256
+from pathlib import Path
 
 import pandas as pd
 

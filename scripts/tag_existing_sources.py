@@ -12,8 +12,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from db.logger import init_db
 import config
+from db.logger import init_db
 
 
 def tag(db_path, mapping, dry_run=True):

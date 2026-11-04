@@ -8,7 +8,6 @@ from pathlib import Path
 from dashboard.app import create_app
 from demo.artifacts import ArtifactIndex
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 

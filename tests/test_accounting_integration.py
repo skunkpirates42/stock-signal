@@ -1,15 +1,14 @@
 """Offline integration checks for the additive v2 accounting overlay."""
 
-from pathlib import Path
 from datetime import datetime, timezone
 from decimal import Decimal
+from pathlib import Path
 
 import pandas as pd
 
 from analytics.research_review import marked_metrics
 from backtest import distribution_result_posting, replay_historical_corrections, run_portfolio
 from db.logger import cashflow_summary, init_db, load_cashflow_postings, record_cashflow_posting
-from trades.executor import FillPolicy, PaperBroker
 from trades.cashflows import (
     DistributionAction,
     Holding,
@@ -17,6 +16,7 @@ from trades.cashflows import (
     calculate_distribution,
     calculate_distributions,
 )
+from trades.executor import FillPolicy, PaperBroker
 
 
 def _posting(**changes):

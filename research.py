@@ -1,19 +1,20 @@
 """Fixed gate comparisons on predeclared chronological windows; no threshold search."""
 
 import argparse
-from collections import Counter
 import hashlib
 import json
+from collections import Counter
 from pathlib import Path
 
 import pandas as pd
+
 import config
-from backtest import normalize_bars, run_portfolio, export_result
-from db.logger import _connect
-from signals.quality import ResearchGate, POLICY
-from data.sessions import calendar, session_bounds, utc
 from analytics.metrics import CLOSED, compute_metrics
 from analytics.research_review import review
+from backtest import export_result, normalize_bars, run_portfolio
+from data.sessions import calendar, session_bounds, utc
+from db.logger import _connect
+from signals.quality import POLICY, ResearchGate
 
 # Preserve the historical module API while exposing the bounded shadow submodule.
 __path__ = [str(Path(__file__).with_name("research"))]

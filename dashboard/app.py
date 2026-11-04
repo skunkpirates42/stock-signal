@@ -16,11 +16,11 @@ from pathlib import Path
 from flask import Flask, Response, abort, jsonify, render_template, request
 
 import config
-from dashboard.prices import MarketStatus, PositionPrices
-from dashboard.position_state import position_state
 from alerts.feed import build_alert_events
 from analytics.metrics import compute_metrics, equity_curve, load_closed_trades
-from db.logger import load_open_positions, init_db, scope_sql, _connect
+from dashboard.position_state import position_state
+from dashboard.prices import MarketStatus, PositionPrices
+from db.logger import _connect, init_db, load_open_positions, scope_sql
 from demo.jobs import IdempotencyConflict, InvalidPageRequest, JobStore
 from demo.read_service import (
     MAX_JSON_RESPONSE_BYTES,
@@ -30,7 +30,6 @@ from demo.read_service import (
 )
 from demo.replay_catalog import ReplayRequestRejected, replay_catalog
 from signals.llm_synthesis import signal_from_row, synthesize
-
 
 MAX_RUN_REQUEST_BYTES = 4096
 
