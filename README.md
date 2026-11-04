@@ -129,7 +129,8 @@ Ctrl-C or a service exit stops the whole stack. Each process also appends a rota
 event log, `.live-logs/live.log` (and `dashboard.log`, `demo-worker.log`), with one
 `key=value` line per decision: signals, order submits and state changes, reconcile blocks,
 opens and closes. Grep a `signal_id=` or `order_id=` to follow one trade; warnings and
-errors also go to the console. The optional replay worker for `/run`
+errors also go to the console. The event log is per process name, so run one engine at a
+time: two `run_live.py` processes would share `live.log` and its rotation. The optional replay worker for `/run`
 still uses the separate command above.
 
 Tests and checks:
