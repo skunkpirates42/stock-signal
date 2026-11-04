@@ -3,7 +3,6 @@
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any, Self
 
 import config
@@ -212,7 +211,7 @@ class PaperBroker:
         exit_bar: int,
         bars_held: int | None = None,
         exit_reason: str | None = None,
-        exit_at: datetime | str | None = None,
+        exit_at: str | None = None,
     ) -> dict[str, Any]:
         position = self.open_positions[ticker]
         if not math.isfinite(exit_price) or exit_price <= 0:
