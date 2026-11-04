@@ -60,7 +60,8 @@ def test_alpaca_order_events_share_one_order_id(tmp_path, caplog):
     assert "signal_id=7" in intent
     for name in ("order_submitted", "order_state"):
         assert f"order_id={order_id}" in events(caplog, name)[0].getMessage()
-    assert "to_state=filled" in events(caplog, "order_state")[0].getMessage()
+    order_state = events(caplog, "order_state")[0].getMessage()
+    assert "state=filled" in order_state and "unresolved" not in order_state
 
 
 def test_broker_error_is_a_warning_with_its_reason(tmp_path, caplog):
