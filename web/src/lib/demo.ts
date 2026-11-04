@@ -1,4 +1,12 @@
 import { API_BASE } from "@/lib/api";
+import {
+  readArrayOf,
+  readFields,
+  readLiteral,
+  readNullable,
+  readString,
+  type Read,
+} from "@/lib/parse";
 
 export type AvailabilityReason =
   | "not_recorded"
@@ -125,7 +133,7 @@ export interface SavedDiagnostics {
   candidate_gate_checks: Record<string, number>;
 }
 
-interface Envelope<T> {
+export interface Envelope<T> {
   schema_version: 1;
   data: T;
   warnings: string[];
@@ -141,22 +149,75 @@ export function isOpaqueDemoId(value: string): boolean {
   return OPAQUE_ID.test(value);
 }
 
-export async function demoGet<T>(path: string): Promise<Envelope<T>> {
+function readEnvelope<T>(readData: Read<T>): Read<Envelope<T>> {
+  return (value, path) => {
+    const field = readFields(value, path);
+    return {
+      schema_version: field("schema_version", readLiteral(1)),
+      data: field("data", readData),
+      warnings: field("warnings", readArrayOf(readString)),
+    };
+  };
+}
+
+// The backend validates every saved record against docs/engine-demo/v1.schema.json before
+// serving it, so nested demo records are identified here rather than re-validated in full.
+export function readContractRecord<T>(recordType: string): Read<T> {
+  return (value, path) => {
+    readFields(value, path)("record_type", readLiteral(recordType));
+    return value as T;
+  };
+}
+
+export const readNextCursor = readNullable(readString);
+
+export async function demoGet<T>(path: string, readData: Read<T>): Promise<Envelope<T>> {
   const response = await fetch(`${API_BASE}/api/demo/v1${path}`, {
     cache: "no-store",
     redirect: "manual",
   });
   if (response.status === 404) throw new DemoNotFound("Demo record was not found");
   if (!response.ok) throw new Error(`${path} responded ${response.status}`);
-  return response.json() as Promise<Envelope<T>>;
+  return readEnvelope(readData)(await response.json(), path);
 }
+
+export const readResult = readContractRecord<Result>("result");
+export const readArtifact = readContractRecord<Artifact>("artifact");
+export const readNormalizedRun = readContractRecord<NormalizedRun>("normalized_run");
+
+const readResearchPage: Read<{ results: Result[]; next_cursor: string | null }> = (value, path) => {
+  const field = readFields(value, path);
+  return {
+    results: field("results", readArrayOf(readResult)),
+    next_cursor: field("next_cursor", readNextCursor),
+  };
+};
+
+const readSavedResultStatus: Read<SavedResultDetail["status"]> = (value, path) => {
+  const field = readFields(value, path);
+  return {
+    origin: field("origin", readLiteral("saved_artifact", "job")),
+    state: field("state", readString),
+    run_id: field("run_id", readString),
+  };
+};
+
+const readSavedResultDetail: Read<SavedResultDetail> = (value, path) => {
+  const field = readFields(value, path);
+  return {
+    result: field("result", readResult),
+    run: field("run", readNormalizedRun),
+    artifacts: field("artifacts", readArrayOf(readArtifact)),
+    status: field("status", readSavedResultStatus),
+  };
+};
 
 export async function getResearchResults(cursor?: string) {
   if (cursor !== undefined && !isOpaqueDemoId(cursor))
     throw new DemoNotFound("Saved demo cursor was not found");
   const params = new URLSearchParams({ limit: "50" });
   if (cursor) params.set("cursor", cursor);
-  return demoGet<{ results: Result[]; next_cursor: string | null }>(`/research?${params}`);
+  return demoGet(`/research?${params}`, readResearchPage);
 }
 
 /**
@@ -165,7 +226,7 @@ export async function getResearchResults(cursor?: string) {
  */
 export async function getSavedResult(resultId: string) {
   if (!isOpaqueDemoId(resultId)) throw new DemoNotFound("Saved demo result was not found");
-  return demoGet<SavedResultDetail>(`/results/${encodeURIComponent(resultId)}`);
+  return demoGet(`/results/${encodeURIComponent(resultId)}`, readSavedResultDetail);
 }
 
 export async function savedResultExists(resultId: string): Promise<boolean> {
