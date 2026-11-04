@@ -425,6 +425,7 @@ class LiveTrader:
                     conn.execute(
                         "DELETE FROM local_pending WHERE scope=? AND ticker=?", (self.scope, s)
                     )
+            opened = False
             if pending and executable and not self.broker.has_open(s) and not self.broker.blocked:
                 same_session = utc(pending["decision_at"]).date() == ts.date()
                 if (
@@ -442,6 +443,20 @@ class LiveTrader:
                     if pos:
                         pos["db_id"] = log_trade_open(pos, self.db_path, self.source)
                         self._emit("open", pos)
+                        opened = True
+            if pending and not opened:
+                log_event(
+                    logger,
+                    "entry_dropped",
+                    scope=self.scope,
+                    ticker=s,
+                    signal_id=pending.get("signal_id"),
+                    decision_at=pending.get("decision_at"),
+                    bar_at=ts.isoformat(),
+                    executable=executable,
+                    position_or_order_open=self.broker.has_open(s),
+                    blocked=self.broker.blocked,
+                )
         # Resolve local protective exits on the touching bar before close-time flatten/allocation.
         for s, bar in sorted(bars.items()):
             pos = self.broker.open_positions.get(s)

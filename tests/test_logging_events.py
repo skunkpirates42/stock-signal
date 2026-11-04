@@ -107,3 +107,32 @@ def test_block_restored_by_trader_after_reconcile_is_logged_as_blocked(tmp_path,
     [blocked] = events(caplog, "execution_blocked")
     assert "Legacy open positions" in blocked.getMessage()
     assert not events(caplog, "execution_running")
+
+
+def test_local_entry_dropped_while_blocked_is_logged_with_its_signal(tmp_path, monkeypatch, caplog):
+    caplog.set_level(logging.INFO)
+    monkeypatch.setattr(config, "WARMUP_BARS", 1)
+    monkeypatch.setattr(
+        "live.trader.compute_indicators", lambda df: {"close": float(df.close.iloc[-1])}
+    )
+    monkeypatch.setattr("live.trader.generate_signal", candidate)
+    trader = LiveTrader(["AAA"], str(tmp_path / "live.db"))
+    trader.process_batch({"AAA": bar("2026-06-10T14:00Z")})
+    signal_id = re.search(r"signal_id=(\d+)", events(caplog, "entry_pending")[0].getMessage())[1]
+    trader.broker.blocked = "operator hold"
+    trader.process_batch({"AAA": bar("2026-06-10T14:05Z", 101)})
+    [dropped] = events(caplog, "entry_dropped")
+    assert f"signal_id={signal_id} " in dropped.getMessage()
+    assert 'blocked="operator hold"' in dropped.getMessage()
+    assert not events(caplog, "position_opened")
+
+
+def test_alpaca_entry_too_small_for_one_share_is_logged(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    client = FakeClient()
+    assert broker(tmp_path, client).open_position({**LONG, "entry": 1e9}, 0, 7) is None
+    [skipped] = events(caplog, "order_skipped")
+    assert (
+        "signal_id=7" in skipped.getMessage() and "reason=under_one_share" in skipped.getMessage()
+    )
+    assert not client.submitted

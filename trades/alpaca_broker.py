@@ -698,19 +698,26 @@ class AlpacaBroker:
     def open_position(
         self, signal: Mapping[str, Any], entry_bar: int, signal_id: int | None = None
     ) -> dict[str, Any] | None:
-        if (
-            signal["direction"] not in ("LONG", "SHORT")
-            or self.has_open(signal["ticker"])
-            or self.blocked
-        ):
+        if signal["direction"] not in ("LONG", "SHORT"):
+            self._skip_entry(signal, signal_id, "not_a_trade_direction")
+            return None
+        if self.has_open(signal["ticker"]):
+            self._skip_entry(signal, signal_id, "position_or_order_open")
+            return None
+        if self.blocked:
+            self._skip_entry(signal, signal_id, "blocked", blocked=self.blocked)
             return None
         shares = math.floor(self.capital * self.position_pct / signal["entry"])
         if shares < 1:
+            self._skip_entry(
+                signal, signal_id, "under_one_share", capital=self.capital, entry=signal["entry"]
+            )
             return None
         levels: dict[str, float] = {}
         for name in ("stop", "target"):
             value = _float_or_default(signal.get(name))
             if value is None or value <= 0:
+                self._skip_entry(signal, signal_id, f"invalid_{name}", value=value)
                 return None
             tick = Decimal("0.01") if value >= 1 else Decimal("0.0001")
             levels[name] = float(Decimal(str(value)).quantize(tick, rounding=ROUND_HALF_UP))
@@ -719,6 +726,7 @@ class AlpacaBroker:
             if signal["direction"] == "LONG"
             else levels["target"] < signal["entry"] < levels["stop"]
         ):
+            self._skip_entry(signal, signal_id, "levels_out_of_order", **levels)
             return None
         payload = {
             **signal,
@@ -730,6 +738,19 @@ class AlpacaBroker:
         order_id = self._intent(signal["ticker"], "entry", shares, payload, signal_id)
         self._submit(order_id)
         return self.open_positions.get(signal["ticker"])
+
+    def _skip_entry(
+        self, signal: Mapping[str, Any], signal_id: int | None, reason: str, **fields: object
+    ) -> None:
+        log_event(
+            logger,
+            "order_skipped",
+            logging.INFO,
+            ticker=signal.get("ticker"),
+            signal_id=signal_id,
+            reason=reason,
+            **fields,
+        )
 
     def close_position(
         self,
