@@ -127,6 +127,28 @@ def test_local_entry_dropped_while_blocked_is_logged_with_its_signal(tmp_path, m
     assert not events(caplog, "position_opened")
 
 
+def test_broker_and_reconcile_events_never_contain_alpaca_credentials(
+    tmp_path, monkeypatch, caplog
+):
+    key, secret = "sentinel-key-PK0123456789", "sentinel-secret-0123456789"
+    monkeypatch.setenv("ALPACA_API_KEY", key)
+    monkeypatch.setenv("ALPACA_SECRET_KEY", secret)
+    caplog.set_level(logging.DEBUG)
+    client = FakeClient()
+    trader = alpaca_trader(tmp_path, client)
+    trader.tick(MARKET_OPEN)
+    trader.broker.open_position(LONG, 0, 7)
+    trader.broker.close_position("NVDA", 104, "WIN", 3, exit_reason="target")
+    client.fail = "before"
+    trader.broker.open_position(LONG, 0, 8)
+    client.fail = "positions"
+    trader.tick(MARKET_OPEN)
+
+    assert events(caplog, "order_submitted") and events(caplog, "order_unresolved")
+    assert events(caplog, "execution_blocked")
+    assert key not in caplog.text and secret not in caplog.text
+
+
 def test_alpaca_entry_too_small_for_one_share_is_logged(tmp_path, caplog):
     caplog.set_level(logging.INFO)
     client = FakeClient()
