@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { startVisiblePolling } from "@/lib/polling";
-import type { PositionPrices } from "@/lib/prices";
+import { usePolledResource } from "@/hooks/usePolledResource";
+import { readPositionPrices } from "@/lib/prices";
 import type { Trade } from "@/lib/types";
 import { isStale } from "@/lib/positions";
 import PositionCard from "@/components/PositionCard";
@@ -13,42 +12,12 @@ export interface OpenPositionsProps {
 }
 
 export default function OpenPositions({ positions, now }: OpenPositionsProps) {
-  const [prices, setPrices] = useState<PositionPrices | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [checkedAt, setCheckedAt] = useState(now);
   const hasLive = positions.some((position) => position.source === "live");
-  useEffect(() => {
-    if (!hasLive) return;
-    let active = true;
-    const controller = new AbortController();
-    const stop = startVisiblePolling(
-      async () => {
-        try {
-          const response = await fetch("/api/position-prices", {
-            cache: "no-store",
-            signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]),
-          });
-          if (!response.ok) throw new Error("Prices unavailable");
-          const data: PositionPrices = await response.json();
-          if (active) {
-            setPrices(data);
-            setFailed(false);
-          }
-        } catch {
-          if (active) setFailed(true);
-        } finally {
-          if (active) setCheckedAt(new Date());
-        }
-      },
-      document,
-      5000,
-    );
-    return () => {
-      active = false;
-      controller.abort();
-      stop();
-    };
-  }, [hasLive]);
+  const {
+    data: prices,
+    failed,
+    checkedAt,
+  } = usePolledResource(hasLive ? "/api/position-prices" : null, readPositionPrices, 5000);
   return (
     <section className="open-positions stack">
       <h2 className="micro">Open positions</h2>
@@ -71,7 +40,7 @@ export default function OpenPositions({ positions, now }: OpenPositionsProps) {
               key={position.id}
               position={position}
               mark={position.source === "live" ? prices?.prices[position.ticker] : undefined}
-              now={checkedAt}
+              now={checkedAt ?? now}
               priceFailed={failed}
               stale={isStale(position.entry_at ?? position.created_at, now)}
             />

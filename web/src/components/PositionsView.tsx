@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { startVisiblePolling } from "@/lib/polling";
-import { observationFresh, type PositionState } from "@/lib/execution";
+import { useState } from "react";
+import { usePolledResource } from "@/hooks/usePolledResource";
+import { useVisibleClock } from "@/hooks/useVisibleClock";
+import { newerOf } from "@/lib/polledResource";
+import { observationFresh, readPositionState } from "@/lib/execution";
 import { formatPrice, formatTimestamp } from "@/lib/format";
 import OpenPositions from "./OpenPositions";
 import FillsTable from "./FillsTable";
@@ -10,51 +12,14 @@ import PositionExecution from "./PositionExecution";
 import Disclosure from "./Disclosure";
 
 export default function PositionsView() {
-  const [data, setData] = useState<PositionState | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [now, setNow] = useState(() => new Date());
+  const { data, failed, checkedAt } = usePolledResource(
+    "/api/position-state",
+    readPositionState,
+    5000,
+  );
+  // A response can land between one-second clock ticks; judge freshness from whichever is later.
+  const now = newerOf(useVisibleClock(1000), checkedAt);
   const [account, setAccount] = useState("");
-  useEffect(() => {
-    let active = true;
-    const controller = new AbortController();
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    const stop = startVisiblePolling(
-      async () => {
-        try {
-          const response = await fetch("/api/position-state", {
-            cache: "no-store",
-            signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]),
-          });
-          if (!response.ok) throw new Error("Unavailable");
-          const next: PositionState = await response.json();
-          if (
-            !Array.isArray(next.positions) ||
-            !Array.isArray(next.accounts) ||
-            !Array.isArray(next.pending_entries) ||
-            !Array.isArray(next.exit_fills) ||
-            !Array.isArray(next.closed_trades)
-          )
-            throw new Error("Invalid response");
-          if (active) {
-            // The response can be newer than the last one-second clock tick.
-            setNow(new Date());
-            setData(next);
-            setFailed(false);
-          }
-        } catch {
-          if (active) setFailed(true);
-        }
-      },
-      document,
-      5000,
-    );
-    return () => {
-      active = false;
-      controller.abort();
-      stop();
-      clearInterval(timer);
-    };
-  }, []);
   if (!data)
     return (
       <p role="status">

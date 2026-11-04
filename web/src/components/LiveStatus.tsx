@@ -1,11 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { usePolledResource } from "@/hooks/usePolledResource";
+import { useVisibleClock } from "@/hooks/useVisibleClock";
 import { getOperationalStatus } from "@/lib/actions";
 import {
   describeStatus,
   marketStatusLabel,
-  type MarketStatus,
+  readMarketStatus,
   type OperationalStatus,
 } from "@/lib/health";
 import { startVisiblePolling } from "@/lib/polling";
@@ -13,44 +15,9 @@ import StatusLine from "@/components/StatusLine";
 
 export default function LiveStatus() {
   const router = useRouter();
-  const [market, setMarket] = useState<MarketStatus | null>(null);
-  const [marketChecked, setMarketChecked] = useState(0);
-  useEffect(() => {
-    let active = true;
-    const controller = new AbortController();
-    const refreshAge = () => {
-      if (document.visibilityState === "visible") setMarketChecked(Date.now());
-    };
-    const timer = setInterval(refreshAge, 1000);
-    document.addEventListener("visibilitychange", refreshAge);
-    const stop = startVisiblePolling(
-      async () => {
-        refreshAge();
-        try {
-          const response = await fetch("/api/market-status", {
-            cache: "no-store",
-            signal: AbortSignal.any([controller.signal, AbortSignal.timeout(6000)]),
-          });
-          if (!response.ok) throw new Error("Market status unavailable");
-          const result: MarketStatus = await response.json();
-          if (active) setMarket(result);
-        } catch {
-          if (active) setMarket(null);
-        } finally {
-          if (active) setMarketChecked(Date.now());
-        }
-      },
-      document,
-      15000,
-    );
-    return () => {
-      active = false;
-      controller.abort();
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", refreshAge);
-      stop();
-    };
-  }, []);
+  const marketPoll = usePolledResource("/api/market-status", readMarketStatus, 15000);
+  const market = marketPoll.failed ? null : marketPoll.data;
+  const marketCheckedAt = useVisibleClock(1000).getTime();
   const source = useSearchParams().get("source");
   const [status, setStatus] = useState<OperationalStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +46,7 @@ export default function LiveStatus() {
     <StatusLine
       summary={summary}
       error={error}
-      marketLabel={marketStatusLabel(market, marketChecked)}
+      marketLabel={marketStatusLabel(market, marketCheckedAt)}
       marketCheckedAt={market?.checked_at}
     />
   );
