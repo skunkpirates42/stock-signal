@@ -10,14 +10,18 @@ This is the honest forward-test: unlike the historical backtest, fills happen on
 arrive *after* a signal, so realized R:R will start to diverge from the theoretical 2:1.
 """
 
+import logging
 import sys
 
 import config
 from alerts.desktop import notify_event
+from app_logging import configure_logging, log_event
 from data.alpaca_stream import BarStream, market_clock
 from data.source import using_alpaca
 from live.trader import LiveTrader
 from live.worker import TradingWorker
+
+logger = logging.getLogger("run_live")
 
 
 def on_event(kind: str, payload) -> None:
@@ -50,6 +54,7 @@ def on_event(kind: str, payload) -> None:
 
 
 def main() -> None:
+    configure_logging("live")
     if not using_alpaca():
         sys.exit("No Alpaca credentials in .env — set ALPACA_API_KEY / ALPACA_SECRET_KEY.")
 
@@ -72,6 +77,18 @@ def main() -> None:
     trader = LiveTrader(config.WATCHLIST)
     trader.on_event = on_event
     open_n = len(trader.broker.open_positions)
+    log_event(
+        logger,
+        "startup",
+        broker=config.BROKER,
+        scope=trader.scope,
+        account=trader.broker.account,
+        db_path=trader.db_path,
+        session_policy=config.SESSION_POLICY,
+        tickers=",".join(trader.symbols),
+        open_positions=open_n,
+        blocked=trader.broker.blocked,
+    )
     print(
         f"Account capital: {trader.broker.capital:,.2f} "
         f"(reconstructed; {open_n} open position(s) from DB)."
@@ -90,6 +107,7 @@ def main() -> None:
         print("\nStopping. Open positions remain OPEN in the DB; run report.py for metrics.")
     finally:
         worker.stop()
+        log_event(logger, "shutdown", scope=trader.scope)
 
 
 if __name__ == "__main__":
