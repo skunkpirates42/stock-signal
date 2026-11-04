@@ -77,6 +77,7 @@ class LiveTrader:
         self.worker_error = None
         self.worker_failure_count = 0
         self._worker_recovery_required = False
+        self._last_logged_execution_state = None
         self.on_event = None
         init_db(self.db_path)
         self.broker = broker or self._rebuild_broker()
@@ -312,6 +313,9 @@ class LiveTrader:
             if p.get("pending_exit")
         )
         if waiting and not self.broker.blocked and not self.worker_failure_count:
+            self._log_execution_state_change(
+                "unresolved", "Session flatten awaiting an observed executable price"
+            )
             set_status(
                 self.scope,
                 "unresolved",
@@ -320,11 +324,31 @@ class LiveTrader:
             )
             return
         detail = self.worker_error_detail or self.broker.blocked
+        self._log_execution_state_change("blocked" if detail else "running", detail)
         set_status(
             self.scope,
             "blocked" if detail else "running",
             detail or "Worker heartbeat; data freshness is separate",
             db_path=self.db_path,
+        )
+
+    def _log_execution_state_change(self, status, detail):
+        # Reasons embed exception text (object addresses, counts) that changes every
+        # attempt; the text before the first colon is the stable category.
+        category = detail.split(":", 1)[0] if detail else None
+        safe_to_flatten = getattr(self.broker, "safe_to_flatten", None)
+        state = (status, category, safe_to_flatten)
+        if state == self._last_logged_execution_state:
+            return
+        self._last_logged_execution_state = state
+        blocked = status == "blocked"
+        log_event(
+            logger,
+            "execution_blocked" if blocked else f"execution_{status}",
+            logging.WARNING if blocked else logging.INFO,
+            scope=self.scope,
+            safe_to_flatten=safe_to_flatten,
+            reason=detail,
         )
 
     def _broker_events(self):
@@ -543,6 +567,7 @@ class LiveTrader:
         detail = (
             self.worker_error_detail if self._worker_recovery_required else None
         ) or self.broker.blocked
+        self._log_execution_state_change("blocked" if detail else "running", detail)
         set_status(
             self.scope, "blocked" if detail else "running", detail or "", decision_at, self.db_path
         )

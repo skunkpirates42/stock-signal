@@ -5,10 +5,12 @@ import pytest
 
 import config
 from app_logging import configure_logging
+from data.sessions import utc
 from live.trader import LiveTrader
 from tests.test_alpaca_broker import LONG, FakeClient, broker
 from tests.test_correctness import bar, candidate
 
+MARKET_OPEN = utc("2026-06-10T15:00Z")
 SECRET = "sentinel-secret-value-123"
 
 
@@ -72,20 +74,39 @@ def test_broker_error_is_a_warning_with_its_reason(tmp_path, caplog):
     assert 'error="TimeoutError: request uncertain"' in record.getMessage()
 
 
-def test_reconcile_block_is_logged_once_with_reason_then_cleared(tmp_path, caplog):
+def alpaca_trader(tmp_path, client):
+    return LiveTrader(["NVDA"], str(tmp_path / "orders.db"), broker=broker(tmp_path, client))
+
+
+def test_reconcile_outage_logs_one_block_despite_changing_error_text(tmp_path, caplog):
     caplog.set_level(logging.INFO)
     client = FakeClient()
-    b = broker(tmp_path, client)
-    client.fail = "positions"
-    b.reconcile()
-    b.reconcile()
-    [blocked] = events(caplog, "reconcile_blocked")
+    trader = alpaca_trader(tmp_path, client)
+    attempts = iter(range(100))
+
+    def unreachable():
+        raise ConnectionError(f"connection object at 0x{next(attempts):x} refused")
+
+    client.get_all_positions = unreachable
+    trader.tick(MARKET_OPEN)
+    trader.tick(MARKET_OPEN)
+    [blocked] = events(caplog, "execution_blocked")
     assert blocked.levelno == logging.WARNING
-    assert "positions unavailable" in blocked.getMessage()
-    client.fail = None
-    b.reconcile()
-    [cleared] = events(caplog, "reconcile_clear")
-    assert "safe_to_flatten=True" in cleared.getMessage()
+    assert "Reconciliation unavailable" in blocked.getMessage()
+    del client.get_all_positions
+    trader.tick(MARKET_OPEN)
+    [running] = events(caplog, "execution_running")
+    assert "safe_to_flatten=True" in running.getMessage()
+
+
+def test_block_restored_by_trader_after_reconcile_is_logged_as_blocked(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    trader = alpaca_trader(tmp_path, FakeClient())
+    trader.legacy_blocked = "Legacy open positions have unknown execution scope"
+    trader.tick(MARKET_OPEN)
+    [blocked] = events(caplog, "execution_blocked")
+    assert "Legacy open positions" in blocked.getMessage()
+    assert not events(caplog, "execution_running")
 
 
 def test_logged_events_carry_no_credentials(tmp_path, monkeypatch, caplog):

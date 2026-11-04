@@ -96,7 +96,6 @@ class AlpacaBroker:
         self.open_positions: dict[str, dict[str, Any]] = {}
         self.blocked: str | None = None
         self.safe_to_flatten = False
-        self._last_reconcile_outcome: tuple[str | None, bool] | None = None
         self._reload_open_positions()
 
     @staticmethod
@@ -556,22 +555,7 @@ class AlpacaBroker:
             self.safe_to_flatten = False
             self.blocked = f"Reconciliation unavailable: {exc}"
         self._record_broker_observation(observed, observation_at)
-        self._log_reconcile_outcome_change()
         return self.blocked is None
-
-    def _log_reconcile_outcome_change(self) -> None:
-        outcome = (self.blocked, self.safe_to_flatten)
-        if outcome == self._last_reconcile_outcome:
-            return
-        self._last_reconcile_outcome = outcome
-        log_event(
-            logger,
-            "reconcile_blocked" if self.blocked else "reconcile_clear",
-            logging.WARNING if self.blocked else logging.INFO,
-            account=self.account,
-            safe_to_flatten=self.safe_to_flatten,
-            reason=self.blocked,
-        )
 
     def _record_broker_observation(
         self, observed_positions: dict[str, float] | None, observed_at: str | None
