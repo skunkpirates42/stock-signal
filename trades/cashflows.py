@@ -287,7 +287,6 @@ class BorrowSettlement:
 
 
 def _signed_settlement_amount(settlement: Settlement | BorrowSettlement) -> Decimal:
-    # Callers reject settlements with a missing amount before summing.
     if settlement.amount is None:
         raise ValueError(f"settlement {settlement.payment_id} has no amount")
     return settlement.amount if settlement.kind == "payment" else -settlement.amount
