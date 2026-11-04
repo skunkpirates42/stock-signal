@@ -3,11 +3,14 @@
 import json
 import sqlite3
 import uuid
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from decimal import Decimal
 from hashlib import sha256
+from os import PathLike
+from typing import Any
 
 import config
 
@@ -70,6 +73,7 @@ TRADES = {
 # legacy trade P&L and manifests remain their original evidence, while a new scoped
 # posting journal supplies an auditable accounting overlay.
 ACCOUNTING_VERSION = 2
+DbPath = str | PathLike[str]
 ACCOUNTING_COMPONENTS = (
     "cash_delta",
     "receivable_delta",
@@ -80,15 +84,17 @@ ACCOUNTING_COMPONENTS = (
 )
 
 
-def now():
+def now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-_replay_connection = ContextVar("replay_connection", default=None)
+_replay_connection: ContextVar[tuple[str, sqlite3.Connection] | None] = ContextVar(
+    "replay_connection", default=None
+)
 
 
 @contextmanager
-def _connect(db_path=None):
+def _connect(db_path: DbPath | None = None) -> Iterator[sqlite3.Connection]:
     shared = _replay_connection.get()
     if shared is not None and str(db_path or config.DB_PATH) == shared[0]:
         yield shared[1]
@@ -103,7 +109,7 @@ def _connect(db_path=None):
 
 
 @contextmanager
-def replay_connection(db_path):
+def replay_connection(db_path: DbPath) -> Iterator[sqlite3.Connection]:
     """Offline replay only: reuse one connection; caller commits completed sessions."""
     conn = sqlite3.connect(db_path, timeout=30)
     conn.row_factory = sqlite3.Row
@@ -116,7 +122,7 @@ def replay_connection(db_path):
         conn.close()
 
 
-def init_db(db_path=None):
+def init_db(db_path: DbPath | None = None) -> None:
     with _connect(db_path) as conn:
         conn.execute(
             "CREATE TABLE IF NOT EXISTS schema_versions (version INTEGER PRIMARY KEY, applied_at TEXT)"
@@ -188,7 +194,7 @@ def init_db(db_path=None):
         )
 
 
-def _insert(conn, table, values):
+def _insert(conn: sqlite3.Connection, table: str, values: Mapping[str, Any]) -> int | None:
     keys = list(values)
     return conn.execute(
         f"INSERT INTO {table} ({','.join(keys)}) VALUES ({','.join('?' for _ in keys)})",
@@ -196,14 +202,14 @@ def _insert(conn, table, values):
     ).lastrowid
 
 
-def _update(conn, table, row_id, values):
+def _update(conn: sqlite3.Connection, table: str, row_id: int, values: Mapping[str, Any]) -> None:
     conn.execute(
         f"UPDATE {table} SET {','.join(k + '=?' for k in values)} WHERE id=?",
         list(values.values()) + [row_id],
     )
 
 
-def start_run(manifest, db_path=None):
+def start_run(manifest: Mapping[str, Any], db_path: DbPath | None = None) -> str:
     run_id = uuid.uuid4().hex
     with _connect(db_path) as conn:
         conn.execute(
@@ -220,7 +226,12 @@ def start_run(manifest, db_path=None):
     return run_id
 
 
-def log_signal(signal, bar_timestamp=None, db_path=None, source="live"):
+def log_signal(
+    signal: Mapping[str, Any],
+    bar_timestamp: object = None,
+    db_path: DbPath | None = None,
+    source: str = "live",
+) -> int | None:
     values = {k: signal.get(k) for k in SIGNALS if k in signal}
     values.update(
         source=source,
@@ -231,7 +242,7 @@ def log_signal(signal, bar_timestamp=None, db_path=None, source="live"):
         return _insert(conn, "signals", values)
 
 
-def trade_values(position, source="live"):
+def trade_values(position: Mapping[str, Any], source: str = "live") -> dict[str, Any]:
     values = {k: position[k] for k in TRADES if k in position}
     values.update(source=source, outcome="OPEN", created_at=now())
     # New explicit writes are scoped; migration leaves historical unknowns untouched.
@@ -242,12 +253,14 @@ def trade_values(position, source="live"):
     return values
 
 
-def log_trade_open(position, db_path=None, source="live"):
+def log_trade_open(
+    position: Mapping[str, Any], db_path: DbPath | None = None, source: str = "live"
+) -> int | None:
     with _connect(db_path) as conn:
         return _insert(conn, "trades", trade_values(position, source))
 
 
-def close_values(trade):
+def close_values(trade: Mapping[str, Any]) -> dict[str, Any]:
     keys = (
         "exit_price",
         "outcome",
@@ -266,12 +279,12 @@ def close_values(trade):
     return values
 
 
-def close_trade(trade_id, trade, db_path=None):
+def close_trade(trade_id: int, trade: Mapping[str, Any], db_path: DbPath | None = None) -> None:
     with _connect(db_path) as conn:
         _update(conn, "trades", trade_id, close_values(trade))
 
 
-def _decimal_text(value):
+def _decimal_text(value: object) -> str:
     """Canonical decimal storage for accounting amounts (never SQLite floats)."""
     if isinstance(value, Decimal):
         amount = value
@@ -289,15 +302,15 @@ def _decimal_text(value):
 
 
 def stable_cashflow_key(
-    event_kind,
+    event_kind: str,
     *,
-    action_key=None,
-    revision_key=None,
-    allocation_key=None,
-    payment_id=None,
-    charge_key=None,
-    accrual_key=None,
-):
+    action_key: object = None,
+    revision_key: object = None,
+    allocation_key: object = None,
+    payment_id: object = None,
+    charge_key: object = None,
+    accrual_key: object = None,
+) -> str:
     """Return a portable logical identity for one economic accounting posting.
 
     The caller supplies the immutable action/charge, accepted revision, allocation and
@@ -324,15 +337,20 @@ def stable_cashflow_key(
     return f"{event_kind}:{sha256(encoded.encode()).hexdigest()}"
 
 
-def _posting_scope(posting):
+def _posting_scope(posting: Mapping[str, Any]) -> tuple[str, str, str, str]:
     required = ("run_id", "source", "backend", "account")
     missing = [key for key in required if not posting.get(key)]
     if missing:
         raise ValueError("accounting posting requires " + ", ".join(missing))
-    return tuple(str(posting[key]) for key in required)
+    return (
+        str(posting["run_id"]),
+        str(posting["source"]),
+        str(posting["backend"]),
+        str(posting["account"]),
+    )
 
 
-def _canonical_posting(posting):
+def _canonical_posting(posting: Mapping[str, Any]) -> dict[str, Any]:
     """Validate and canonicalize an immutable cash-flow posting input."""
     run_id, source, backend, account = _posting_scope(posting)
     event_kind = str(posting.get("event_kind") or "")
@@ -351,7 +369,7 @@ def _canonical_posting(posting):
         accrual_key=posting.get("accrual_key")
         or (posting.get("occurred_at") if str(event_kind).endswith("accrual") else None),
     )
-    values = {
+    values: dict[str, Any] = {
         "run_id": run_id,
         "source": source,
         "backend": backend,
@@ -378,7 +396,9 @@ def _canonical_posting(posting):
     return values
 
 
-def record_cashflow_posting(posting, db_path=None):
+def record_cashflow_posting(
+    posting: Mapping[str, Any], db_path: DbPath | None = None
+) -> dict[str, Any]:
     """Append one posting once, or quarantine a conflicting duplicate payload.
 
     A repeated read/replay of the same logical event returns ``duplicate`` and changes
@@ -390,7 +410,7 @@ def record_cashflow_posting(posting, db_path=None):
         values[key] for key in ("run_id", "source", "backend", "account", "accounting_version")
     )
 
-    def payment_matches(existing):
+    def payment_matches(existing: sqlite3.Row) -> bool:
         """Revision metadata may differ; a payment's cash/balance evidence may not."""
         prior = json.loads(existing["payload_json"])
         fields = (
@@ -458,7 +478,7 @@ def record_cashflow_posting(posting, db_path=None):
         return {"status": "inserted", "id": cursor.lastrowid, "posting": values}
 
 
-def record_accounting_coverage(coverage, db_path=None):
+def record_accounting_coverage(coverage: Mapping[str, Any], db_path: DbPath | None = None) -> None:
     """Persist an explicit coverage/unavailability statement once per scoped key."""
     run_id, source, backend, account = _posting_scope(coverage)
     key = str(coverage.get("coverage_key") or coverage.get("unavailable_reason") or "")
@@ -489,13 +509,13 @@ def record_accounting_coverage(coverage, db_path=None):
 
 
 def cashflow_summary(
-    run_id,
-    db_path=None,
-    source="backtest",
-    backend="local",
-    account=None,
-    accounting_version=ACCOUNTING_VERSION,
-):
+    run_id: str,
+    db_path: DbPath | None = None,
+    source: str = "backtest",
+    backend: str = "local",
+    account: str | None = None,
+    accounting_version: int = ACCOUNTING_VERSION,
+) -> dict[str, Any]:
     """Return exact ledger balances and explicit incompleteness counts for one scope."""
     account = account or config.ACCOUNT_NAMESPACE
     params = (run_id, source, backend, account, accounting_version)
@@ -539,13 +559,13 @@ def cashflow_summary(
 
 
 def load_cashflow_postings(
-    run_id,
-    db_path=None,
-    source="backtest",
-    backend="local",
-    account=None,
-    accounting_version=ACCOUNTING_VERSION,
-):
+    run_id: str,
+    db_path: DbPath | None = None,
+    source: str = "backtest",
+    backend: str = "local",
+    account: str | None = None,
+    accounting_version: int = ACCOUNTING_VERSION,
+) -> list[dict[str, Any]]:
     """Load immutable posting evidence for artifact export and marked review."""
     account = account or config.ACCOUNT_NAMESPACE
     with _connect(db_path) as conn:
@@ -559,8 +579,14 @@ def load_cashflow_postings(
         ]
 
 
-def scope_sql(source=None, backend=None, account=None, prefix=""):
-    clauses, params = [], []
+def scope_sql(
+    source: str | None = None,
+    backend: str | None = None,
+    account: str | None = None,
+    prefix: str = "",
+) -> tuple[list[str], list[str]]:
+    clauses: list[str] = []
+    params: list[str] = []
     for key, value in [("source", source), ("backend", backend), ("account", account)]:
         if value == "unknown":
             clauses.append(f"{prefix}{key} IS NULL")
@@ -570,7 +596,12 @@ def scope_sql(source=None, backend=None, account=None, prefix=""):
     return clauses, params
 
 
-def load_open_positions(db_path=None, source=None, backend=None, account=None):
+def load_open_positions(
+    db_path: DbPath | None = None,
+    source: str | None = None,
+    backend: str | None = None,
+    account: str | None = None,
+) -> list[dict[str, Any]]:
     clauses, params = scope_sql(source, backend, account)
     clauses.insert(0, "outcome='OPEN'")
     with _connect(db_path) as conn:
@@ -580,7 +611,12 @@ def load_open_positions(db_path=None, source=None, backend=None, account=None):
         ]
 
 
-def realized_pnl(db_path=None, source=None, backend=None, account=None):
+def realized_pnl(
+    db_path: DbPath | None = None,
+    source: str | None = None,
+    backend: str | None = None,
+    account: str | None = None,
+) -> float:
     clauses, params = scope_sql(source, backend, account)
     # Partial confirmed exits also contribute to realized capital.
     with _connect(db_path) as conn:
@@ -593,7 +629,7 @@ def realized_pnl(db_path=None, source=None, backend=None, account=None):
         )
 
 
-def save_position(position, db_path=None):
+def save_position(position: Mapping[str, Any], db_path: DbPath | None = None) -> None:
     if not position.get("db_id"):
         return
     with _connect(db_path) as conn:
@@ -608,7 +644,13 @@ def save_position(position, db_path=None):
         )
 
 
-def set_status(scope, status, detail="", data_at=None, db_path=None):
+def set_status(
+    scope: str,
+    status: str,
+    detail: str = "",
+    data_at: object = None,
+    db_path: DbPath | None = None,
+) -> None:
     with _connect(db_path) as conn:
         conn.execute(
             "INSERT INTO runtime_status VALUES (?,?,?,?,?) ON CONFLICT(scope) DO UPDATE SET "
