@@ -9,7 +9,7 @@ avoids overstating win rate during validation.
 """
 
 
-def check_exit(position: dict, bar) -> dict:
+def check_exit(position: dict, bar) -> dict | None:
     """Return an exit dict {exit_price, outcome, reason} if the bar triggers stop/target,
     else None. `bar` must expose `high` and `low` (a pandas row or a dict)."""
     high = float(bar["high"])
