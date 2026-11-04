@@ -23,14 +23,19 @@ def artifact_tree(tmp_path):
     source = tmp_path / "synthetic-result"
     protocol = dict(fixture["protocol"])
     digest = "a" * 64
-    protocol.update(synthetic=True, dataset_file_sha256=digest,
-                    unprojected_protocol_field={"internal": True})
+    protocol.update(
+        synthetic=True, dataset_file_sha256=digest, unprojected_protocol_field={"internal": True}
+    )
     protocol["dataset_metadata"] = dict(protocol["dataset_metadata"], dataset_file_sha256=digest)
     row = dict(fixture["comparison"][0])
     manifest = dict(fixture["manifest"])
-    manifest.update(window=row["window"], gate=row["variant"], input_dataset_sha256=digest,
-                    dataset_metadata={"dataset_file_sha256": digest},
-                    settings={"SPREAD_BPS": 2.0, "SLIPPAGE_BPS": 1.0, "FEE_PER_SHARE": 0.0})
+    manifest.update(
+        window=row["window"],
+        gate=row["variant"],
+        input_dataset_sha256=digest,
+        dataset_metadata={"dataset_file_sha256": digest},
+        settings={"SPREAD_BPS": 2.0, "SLIPPAGE_BPS": 1.0, "FEE_PER_SHARE": 0.0},
+    )
     _write_json(source / "protocol.json", protocol)
     _write_json(source / "comparison.json", [row])
     _write_json(source / "fixture/baseline/manifest.json", manifest)
@@ -43,8 +48,9 @@ def _client_with_saved_result(tmp_path, *, owner="owner-a"):
     source = artifact_tree(tmp_path)
     demo_db = tmp_path / "demo-artifacts.db"
     report = ArtifactIndex(demo_db).import_directory(source, owner_id=owner, synthetic=True)
-    client = create_app(db_path=str(tmp_path / "operational.db"), demo_db_path=str(demo_db),
-                        demo_owner_id=owner).test_client()
+    client = create_app(
+        db_path=str(tmp_path / "operational.db"), demo_db_path=str(demo_db), demo_owner_id=owner
+    ).test_client()
     return client, demo_db, source, report.result_ids[0]
 
 
@@ -87,20 +93,34 @@ def test_owner_scope_and_path_like_ids_are_not_disclosed(tmp_path):
     protocol = json.loads((source_b / "protocol.json").read_text())
     protocol["label"] = "separate-owner-source"
     (source_b / "protocol.json").write_text(json.dumps(protocol))
-    other_result = ArtifactIndex(demo_db).import_directory(source_b, owner_id="owner-b", synthetic=True).result_ids[0]
-    artifact_id = _assert_envelope(client.get("/api/demo/v1/results/%s" % result_id))["data"]["artifacts"][0]["id"]
+    other_result = (
+        ArtifactIndex(demo_db)
+        .import_directory(source_b, owner_id="owner-b", synthetic=True)
+        .result_ids[0]
+    )
+    artifact_id = _assert_envelope(client.get("/api/demo/v1/results/%s" % result_id))["data"][
+        "artifacts"
+    ][0]["id"]
 
     assert client.get("/api/demo/v1/results/%s" % other_result).status_code == 404
     assert client.get("/api/demo/v1/results/not-a-uuid").status_code == 404
     assert client.get("/api/demo/v1/results/..%2Fetc%2Fpasswd").status_code == 404
-    assert client.get("/api/demo/v1/results/%s/artifacts/%s" % (uuid.uuid4(), artifact_id)).status_code == 404
-    assert client.get("/api/demo/v1/results/%s/artifacts/..%%2Fmetrics.json" % result_id).status_code == 404
+    assert (
+        client.get("/api/demo/v1/results/%s/artifacts/%s" % (uuid.uuid4(), artifact_id)).status_code
+        == 404
+    )
+    assert (
+        client.get("/api/demo/v1/results/%s/artifacts/..%%2Fmetrics.json" % result_id).status_code
+        == 404
+    )
 
 
 def test_artifact_is_result_scoped_reverified_and_bounded(tmp_path):
     client, _, source, result_id = _client_with_saved_result(tmp_path)
     detail = _assert_envelope(client.get("/api/demo/v1/results/%s" % result_id))
-    artifact_id = next(item["id"] for item in detail["data"]["artifacts"] if item["kind"] == "metrics")
+    artifact_id = next(
+        item["id"] for item in detail["data"]["artifacts"] if item["kind"] == "metrics"
+    )
     path = source / "fixture/baseline/metrics.json"
 
     response = client.get("/api/demo/v1/results/%s/artifacts/%s" % (result_id, artifact_id))
@@ -108,7 +128,10 @@ def test_artifact_is_result_scoped_reverified_and_bounded(tmp_path):
     assert response.data == path.read_bytes()
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     path.unlink()
-    assert client.get("/api/demo/v1/results/%s/artifacts/%s" % (result_id, artifact_id)).status_code == 404
+    assert (
+        client.get("/api/demo/v1/results/%s/artifacts/%s" % (result_id, artifact_id)).status_code
+        == 404
+    )
 
 
 def test_artifact_and_json_response_limits_are_enforced(tmp_path):
@@ -116,14 +139,20 @@ def test_artifact_and_json_response_limits_are_enforced(tmp_path):
     (source / "comparison.md").write_bytes(b"x" * (1024 * 1024 + 1))
     demo_db = tmp_path / "demo-artifacts.db"
     result_id = ArtifactIndex(demo_db).import_directory(source, synthetic=True).result_ids[0]
-    client = create_app(db_path=str(tmp_path / "operational.db"), demo_db_path=str(demo_db)).test_client()
+    client = create_app(
+        db_path=str(tmp_path / "operational.db"), demo_db_path=str(demo_db)
+    ).test_client()
     detail = _assert_envelope(client.get("/api/demo/v1/results/%s" % result_id))
     large_id = next(item["id"] for item in detail["data"]["artifacts"] if item["kind"] == "report")
-    assert client.get("/api/demo/v1/results/%s/artifacts/%s" % (result_id, large_id)).status_code == 413
+    assert (
+        client.get("/api/demo/v1/results/%s/artifacts/%s" % (result_id, large_id)).status_code
+        == 413
+    )
 
     with sqlite3.connect(demo_db) as conn:
         original = conn.execute(
-            "SELECT import_id, owner_id, result_json FROM demo_artifact_results WHERE id=?", (result_id,)
+            "SELECT import_id, owner_id, result_json FROM demo_artifact_results WHERE id=?",
+            (result_id,),
         ).fetchone()
         result = json.loads(original[2])
         # This fits the old UTF-8 approximation (<512KiB across two records) but
@@ -136,8 +165,16 @@ def test_artifact_and_json_response_limits_are_enforced(tmp_path):
                 """INSERT INTO demo_artifact_results
                    (id, import_id, owner_id, run_id, window_name, variant, result_json, run_json)
                    VALUES (?,?,?,?,?,?,?,?)""",
-                (copied_id, original[0], original[1], copied_run_id, "fixture-copy-%d" % index,
-                 "baseline", json.dumps(copied, ensure_ascii=False), '{"record_type":"normalized_run"}'),
+                (
+                    copied_id,
+                    original[0],
+                    original[1],
+                    copied_run_id,
+                    "fixture-copy-%d" % index,
+                    "baseline",
+                    json.dumps(copied, ensure_ascii=False),
+                    '{"record_type":"normalized_run"}',
+                ),
             )
     assert client.get("/api/demo/v1/research").status_code == 413
 
@@ -145,10 +182,16 @@ def test_artifact_and_json_response_limits_are_enforced(tmp_path):
 def test_missing_run_fields_produce_safe_dataset_unavailability(tmp_path):
     client, demo_db, _, result_id = _client_with_saved_result(tmp_path)
     with sqlite3.connect(demo_db) as conn:
-        run = json.loads(conn.execute("SELECT run_json FROM demo_artifact_results WHERE id=?", (result_id,)).fetchone()[0])
+        run = json.loads(
+            conn.execute(
+                "SELECT run_json FROM demo_artifact_results WHERE id=?", (result_id,)
+            ).fetchone()[0]
+        )
         run.pop("feed")
         run.pop("dataset_sha256")
-        conn.execute("UPDATE demo_artifact_results SET run_json=? WHERE id=?", (json.dumps(run), result_id))
+        conn.execute(
+            "UPDATE demo_artifact_results SET run_json=? WHERE id=?", (json.dumps(run), result_id)
+        )
 
     body = _assert_envelope(client.get("/api/demo/v1/datasets"))
     dataset = body["data"]["datasets"][0]
@@ -160,9 +203,15 @@ def test_missing_run_fields_produce_safe_dataset_unavailability(tmp_path):
 def test_missing_dataset_provenance_is_not_defaulted_to_non_synthetic(tmp_path):
     client, demo_db, _, result_id = _client_with_saved_result(tmp_path)
     with sqlite3.connect(demo_db) as conn:
-        run = json.loads(conn.execute("SELECT run_json FROM demo_artifact_results WHERE id=?", (result_id,)).fetchone()[0])
+        run = json.loads(
+            conn.execute(
+                "SELECT run_json FROM demo_artifact_results WHERE id=?", (result_id,)
+            ).fetchone()[0]
+        )
         run.pop("provenance")
-        conn.execute("UPDATE demo_artifact_results SET run_json=? WHERE id=?", (json.dumps(run), result_id))
+        conn.execute(
+            "UPDATE demo_artifact_results SET run_json=? WHERE id=?", (json.dumps(run), result_id)
+        )
 
     body = _assert_envelope(client.get("/api/demo/v1/datasets"))
     assert body["data"]["datasets"] == []

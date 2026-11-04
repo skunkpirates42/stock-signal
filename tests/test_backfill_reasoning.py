@@ -12,9 +12,7 @@ from scripts import backfill_reasoning
 
 def test_unsupported_default_provider_exits_with_error(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(config, "LLM_PROVIDER", "template")
-    monkeypatch.setattr(
-        "sys.argv", ["backfill_reasoning.py", "--db", str(tmp_path / "d.db")]
-    )
+    monkeypatch.setattr("sys.argv", ["backfill_reasoning.py", "--db", str(tmp_path / "d.db")])
 
     with pytest.raises(SystemExit) as exc_info:
         backfill_reasoning.main()

@@ -1,4 +1,5 @@
 """A1 availability objects: a value with its evidence state, never a bare null or 0."""
+
 from __future__ import annotations
 
 from typing import Any, Dict, Optional

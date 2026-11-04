@@ -39,9 +39,7 @@ class BarStream:
         self._cb = on_minute_bar
 
         async def _handler(bar):
-            self._cb(
-                bar.symbol, bar.timestamp, bar.open, bar.high, bar.low, bar.close, bar.volume
-            )
+            self._cb(bar.symbol, bar.timestamp, bar.open, bar.high, bar.low, bar.close, bar.volume)
 
         self._stream.subscribe_bars(_handler, *symbols)
 

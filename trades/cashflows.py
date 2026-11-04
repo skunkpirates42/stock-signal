@@ -287,7 +287,9 @@ class BorrowSettlement:
             object.__setattr__(self, "amount", amount)
 
 
-def _dedupe_settlements(settlements: Iterable[Settlement]) -> Tuple[Tuple[Settlement, ...], Tuple[str, ...]]:
+def _dedupe_settlements(
+    settlements: Iterable[Settlement],
+) -> Tuple[Tuple[Settlement, ...], Tuple[str, ...]]:
     by_id: Dict[str, Settlement] = {}
     conflicts: List[str] = []
     for settlement in settlements:
@@ -313,7 +315,9 @@ def _dedupe_borrow_settlements(
     return tuple(by_id.values()), tuple(sorted(set(conflicts)))
 
 
-def _accepted_actions(actions: Iterable[DistributionAction]) -> Tuple[Tuple[DistributionAction, ...], Tuple[str, ...]]:
+def _accepted_actions(
+    actions: Iterable[DistributionAction],
+) -> Tuple[Tuple[DistributionAction, ...], Tuple[str, ...]]:
     grouped: Dict[str, List[DistributionAction]] = {}
     for action in actions:
         grouped.setdefault(action.action_id, []).append(action)
@@ -344,7 +348,9 @@ def _accepted_actions(actions: Iterable[DistributionAction]) -> Tuple[Tuple[Dist
         remaining = dict(by_revision)
         del remaining[current.revision_id]
         while remaining:
-            children = [r for r in remaining.values() if r.supersedes_revision == current.revision_id]
+            children = [
+                r for r in remaining.values() if r.supersedes_revision == current.revision_id
+            ]
             if len(children) != 1:
                 conflicts.append(action_id)
                 break
@@ -372,14 +378,18 @@ def _qualified(holding: Holding, action: DistributionAction) -> bool:
     )
 
 
-def allocate_cents(exact_by_lot: Mapping[str, Decimal], rounded_total: Optional[Decimal] = None) -> Dict[str, Decimal]:
+def allocate_cents(
+    exact_by_lot: Mapping[str, Decimal], rounded_total: Optional[Decimal] = None
+) -> Dict[str, Decimal]:
     """Allocate one rounded aggregate target to lots by largest remainder.
 
     Inputs are non-negative exact magnitudes.  Stable lot IDs break equal remainder
     ties, making replay and restart results identical.
     """
 
-    exact = {lot_id: decimal(value) for lot_id, value in exact_by_lot.items() if decimal(value) > ZERO}
+    exact = {
+        lot_id: decimal(value) for lot_id, value in exact_by_lot.items() if decimal(value) > ZERO
+    }
     if not exact:
         return {}
     aggregate = sum(exact.values(), ZERO)
@@ -401,7 +411,13 @@ def allocate_cents(exact_by_lot: Mapping[str, Decimal], rounded_total: Optional[
     return result
 
 
-def _unknown_result(side: str, action_id: str, quantity: Decimal, reasons: Sequence[str], revision: Optional[str] = None) -> DistributionResult:
+def _unknown_result(
+    side: str,
+    action_id: str,
+    quantity: Decimal,
+    reasons: Sequence[str],
+    revision: Optional[str] = None,
+) -> DistributionResult:
     return DistributionResult(
         status="unknown",
         side=side,
@@ -428,14 +444,32 @@ def _distribution_for_side(
     settlements: Sequence[Settlement],
     window: Optional[TimeWindow],
 ) -> DistributionResult:
-    qualified = [holding for holding in holdings if holding.side == side and _qualified(holding, action)]
-    exact_by_lot = {holding.lot_id: holding.quantity * action.per_share for holding in qualified} if action.per_share is not None else {}
+    qualified = [
+        holding for holding in holdings if holding.side == side and _qualified(holding, action)
+    ]
+    exact_by_lot = (
+        {holding.lot_id: holding.quantity * action.per_share for holding in qualified}
+        if action.per_share is not None
+        else {}
+    )
     quantity = sum((holding.quantity for holding in qualified), ZERO)
     opening_key = (action.action_id, side)
-    opening_receivable = ZERO if window is None else decimal(window.opening_receivables.get(opening_key, ZERO))
-    opening_payable = ZERO if window is None else decimal(window.opening_payables.get(opening_key, ZERO))
-    opening_refund = ZERO if window is None else decimal(window.opening_refund_receivables.get(opening_key, ZERO))
-    opening_repayment = ZERO if window is None else decimal(window.opening_repayment_liabilities.get(opening_key, ZERO))
+    opening_receivable = (
+        ZERO if window is None else decimal(window.opening_receivables.get(opening_key, ZERO))
+    )
+    opening_payable = (
+        ZERO if window is None else decimal(window.opening_payables.get(opening_key, ZERO))
+    )
+    opening_refund = (
+        ZERO
+        if window is None
+        else decimal(window.opening_refund_receivables.get(opening_key, ZERO))
+    )
+    opening_repayment = (
+        ZERO
+        if window is None
+        else decimal(window.opening_repayment_liabilities.get(opening_key, ZERO))
+    )
     inherited = any((opening_receivable, opening_payable, opening_refund, opening_repayment))
     in_window = window is None or window.contains(action.ex_at)
     future = window is not None and action.ex_at > window.end
@@ -468,41 +502,67 @@ def _distribution_for_side(
         exact_target = ZERO
         target = ZERO
     elif action.per_share is None:
-        return _unknown_result(side, action.action_id, quantity, ("missing_distribution_rate",), action.revision_id)
+        return _unknown_result(
+            side, action.action_id, quantity, ("missing_distribution_rate",), action.revision_id
+        )
     elif not action.currency:
-        return _unknown_result(side, action.action_id, quantity, ("missing_currency",), action.revision_id)
+        return _unknown_result(
+            side, action.action_id, quantity, ("missing_currency",), action.revision_id
+        )
     else:
         exact_target = sum(exact_by_lot.values(), ZERO)
         target = round_cents(exact_target)
 
     relevant = [
-        settlement for settlement in settlements
+        settlement
+        for settlement in settlements
         if settlement.action_id == action.action_id
         and (settlement.side == side or settlement.side is None)
     ]
     ambiguous_unscoped = [
-        settlement for settlement in relevant
+        settlement
+        for settlement in relevant
         if settlement.side is None
-        and any(
-            holding.side != side and _qualified(holding, action)
-            for holding in holdings
-        )
+        and any(holding.side != side and _qualified(holding, action) for holding in holdings)
     ]
     if ambiguous_unscoped:
-        return _unknown_result(side, action.action_id, quantity, ("unscoped_settlement_with_multiple_sides",), action.revision_id)
+        return _unknown_result(
+            side,
+            action.action_id,
+            quantity,
+            ("unscoped_settlement_with_multiple_sides",),
+            action.revision_id,
+        )
     if window is not None:
-        relevant = [settlement for settlement in relevant if window.contains(settlement.occurred_at)]
+        relevant = [
+            settlement for settlement in relevant if window.contains(settlement.occurred_at)
+        ]
     deduped, settlement_conflicts = _dedupe_settlements(relevant)
     if settlement_conflicts:
-        return _unknown_result(side, action.action_id, quantity, ("conflicting_settlement:" + settlement_conflicts[0],), action.revision_id)
+        return _unknown_result(
+            side,
+            action.action_id,
+            quantity,
+            ("conflicting_settlement:" + settlement_conflicts[0],),
+            action.revision_id,
+        )
     if any(settlement.amount is None for settlement in deduped):
-        return _unknown_result(side, action.action_id, quantity, ("missing_settlement_amount",), action.revision_id)
+        return _unknown_result(
+            side, action.action_id, quantity, ("missing_settlement_amount",), action.revision_id
+        )
     if any(settlement.currency is None for settlement in deduped):
-        return _unknown_result(side, action.action_id, quantity, ("missing_settlement_currency",), action.revision_id)
+        return _unknown_result(
+            side, action.action_id, quantity, ("missing_settlement_currency",), action.revision_id
+        )
     if any(settlement.currency != action.currency for settlement in deduped):
-        return _unknown_result(side, action.action_id, quantity, ("settlement_currency_mismatch",), action.revision_id)
+        return _unknown_result(
+            side, action.action_id, quantity, ("settlement_currency_mismatch",), action.revision_id
+        )
     net_settlement = sum(
-        (settlement.amount if settlement.kind == "payment" else -settlement.amount for settlement in deduped),
+        (
+            settlement.amount if settlement.kind == "payment" else -settlement.amount
+            for settlement in deduped
+        ),
         ZERO,
     )
     prior_settled = ZERO
@@ -512,19 +572,30 @@ def _distribution_for_side(
     # ``target`` is the new target delta for this action.  Opening balances carry
     # prior accruals and corrections across the continuation boundary.
     prior_target_key = (action.action_id, side)
-    has_prior_target = window is not None and prior_target_key in window.opening_targets and not in_window
-    target_delta = target - decimal(window.opening_targets[prior_target_key]) if has_prior_target else target
+    has_prior_target = (
+        window is not None and prior_target_key in window.opening_targets and not in_window
+    )
+    target_delta = (
+        target - decimal(window.opening_targets[prior_target_key]) if has_prior_target else target
+    )
     if side == "LONG":
         cash_delta = net_settlement
         net_balance = opening_receivable - opening_repayment + target_delta - net_settlement
         receivable = max(net_balance, ZERO)
         repayment = max(-net_balance, ZERO)
         return DistributionResult(
-            status="known", side=side, action_id=action.action_id,
-            qualified_quantity=quantity, exact_target=exact_target, target=target,
-            settled=settled_total, cash_delta=cash_delta,
+            status="known",
+            side=side,
+            action_id=action.action_id,
+            qualified_quantity=quantity,
+            exact_target=exact_target,
+            target=target,
+            settled=settled_total,
+            cash_delta=cash_delta,
             economic_income=target if in_window else ZERO,
-            receivable=receivable, payable=ZERO, refund_receivable=ZERO,
+            receivable=receivable,
+            payable=ZERO,
+            refund_receivable=ZERO,
             repayment_liability=repayment,
             lot_allocations=allocate_cents(exact_by_lot, target),
             included_settlements=tuple(sorted(settlement.payment_id for settlement in deduped)),
@@ -535,11 +606,18 @@ def _distribution_for_side(
     payable = max(net_balance, ZERO)
     refund = max(-net_balance, ZERO)
     return DistributionResult(
-        status="known", side=side, action_id=action.action_id,
-        qualified_quantity=quantity, exact_target=exact_target, target=target,
-        settled=settled_total, cash_delta=cash_delta,
+        status="known",
+        side=side,
+        action_id=action.action_id,
+        qualified_quantity=quantity,
+        exact_target=exact_target,
+        target=target,
+        settled=settled_total,
+        cash_delta=cash_delta,
         economic_income=-target if in_window else ZERO,
-        receivable=ZERO, payable=payable, refund_receivable=refund,
+        receivable=ZERO,
+        payable=payable,
+        refund_receivable=refund,
         repayment_liability=ZERO,
         lot_allocations=allocate_cents(exact_by_lot, target),
         included_settlements=tuple(sorted(settlement.payment_id for settlement in deduped)),
@@ -579,13 +657,13 @@ def calculate_distributions(
     hidden_ids.extend(
         action.action_id
         for action in all_actions
-        if action.action_id not in visible_ids
-        and not _known_by(action.knowledge_at, decision_time)
+        if action.action_id not in visible_ids and not _known_by(action.knowledge_at, decision_time)
     )
     results: Dict[Tuple[str, str], DistributionResult] = {}
     holding_tuple = tuple(holdings)
     settlement_tuple = tuple(
-        settlement for settlement in settlements
+        settlement
+        for settlement in settlements
         if _known_by(settlement.knowledge_at, decision_time)
     )
     for action in visible:
@@ -595,7 +673,9 @@ def calculate_distributions(
             )
     for action_id in conflicts:
         for side in ("LONG", "SHORT"):
-            results[(action_id, side)] = _unknown_result(side, action_id, ZERO, ("conflicting_action_revision",))
+            results[(action_id, side)] = _unknown_result(
+                side, action_id, ZERO, ("conflicting_action_revision",)
+            )
     return DistributionBook(
         results=results,
         visible_action_ids=tuple(sorted(action.action_id for action in visible)),
@@ -640,17 +720,57 @@ def calculate_borrow(
     notional_days = interval.quantity * interval.base_price * Decimal(days)
     if interval.quantity == ZERO or days == 0:
         return BorrowResult(
-            "known", interval.interval_id, days, notional_days, ZERO, ZERO, ZERO,
-            tuple(ZERO for _ in range(days)), tuple(ZERO for _ in range(days)),
-            settled=ZERO, cash_delta=ZERO, economic_expense=ZERO,
-            payable=ZERO, refund_receivable=ZERO,
+            "known",
+            interval.interval_id,
+            days,
+            notional_days,
+            ZERO,
+            ZERO,
+            ZERO,
+            tuple(ZERO for _ in range(days)),
+            tuple(ZERO for _ in range(days)),
+            settled=ZERO,
+            cash_delta=ZERO,
+            economic_expense=ZERO,
+            payable=ZERO,
+            refund_receivable=ZERO,
         )
     if decision_time is not None and not _known_by(interval.knowledge_at, decision_time):
-        return BorrowResult("unknown", interval.interval_id, days, notional_days, None, None, None, missing_rate_days=days, unknown_reasons=("rate_not_known_at_decision",))
+        return BorrowResult(
+            "unknown",
+            interval.interval_id,
+            days,
+            notional_days,
+            None,
+            None,
+            None,
+            missing_rate_days=days,
+            unknown_reasons=("rate_not_known_at_decision",),
+        )
     if interval.annual_rate is None:
-        return BorrowResult("unknown", interval.interval_id, days, notional_days, None, None, None, missing_rate_days=days, unknown_reasons=("missing_borrow_rate",))
+        return BorrowResult(
+            "unknown",
+            interval.interval_id,
+            days,
+            notional_days,
+            None,
+            None,
+            None,
+            missing_rate_days=days,
+            unknown_reasons=("missing_borrow_rate",),
+        )
     if not interval.currency:
-        return BorrowResult("unknown", interval.interval_id, days, notional_days, None, None, None, missing_rate_days=days, unknown_reasons=("missing_currency",))
+        return BorrowResult(
+            "unknown",
+            interval.interval_id,
+            days,
+            notional_days,
+            None,
+            None,
+            None,
+            missing_rate_days=days,
+            unknown_reasons=("missing_currency",),
+        )
     daily = interval.quantity * interval.base_price * interval.annual_rate / interval.denominator
     daily_exact = tuple(daily for _ in range(days))
     exact_fee = sum(daily_exact, ZERO)
@@ -665,42 +785,83 @@ def calculate_borrow(
         postings.append(target - prior_target)
         prior_target = target
     rounded_target = round_cents(prior_exact + exact_fee)
-    relevant = [settlement for settlement in settlements if settlement.charge_id == interval.interval_id]
+    relevant = [
+        settlement for settlement in settlements if settlement.charge_id == interval.interval_id
+    ]
     if decision_time is not None:
         relevant = [
-            settlement for settlement in relevant
+            settlement
+            for settlement in relevant
             if _known_by(settlement.knowledge_at, decision_time)
         ]
     if window is not None:
-        relevant = [settlement for settlement in relevant if window.contains(settlement.occurred_at)]
+        relevant = [
+            settlement for settlement in relevant if window.contains(settlement.occurred_at)
+        ]
     deduped, settlement_conflicts = _dedupe_borrow_settlements(relevant)
     if settlement_conflicts:
         return BorrowResult(
-            "unknown", interval.interval_id, days, notional_days, None, None, None,
-            missing_rate_days=0, unknown_reasons=("conflicting_borrow_settlement",),
+            "unknown",
+            interval.interval_id,
+            days,
+            notional_days,
+            None,
+            None,
+            None,
+            missing_rate_days=0,
+            unknown_reasons=("conflicting_borrow_settlement",),
         )
     if any(settlement.amount is None for settlement in deduped):
         return BorrowResult(
-            "unknown", interval.interval_id, days, notional_days, None, None, None,
+            "unknown",
+            interval.interval_id,
+            days,
+            notional_days,
+            None,
+            None,
+            None,
             unknown_reasons=("missing_borrow_settlement_amount",),
         )
     if any(settlement.currency is None for settlement in deduped):
         return BorrowResult(
-            "unknown", interval.interval_id, days, notional_days, None, None, None,
+            "unknown",
+            interval.interval_id,
+            days,
+            notional_days,
+            None,
+            None,
+            None,
             unknown_reasons=("missing_borrow_settlement_currency",),
         )
     if any(settlement.currency != interval.currency for settlement in deduped):
         return BorrowResult(
-            "unknown", interval.interval_id, days, notional_days, None, None, None,
+            "unknown",
+            interval.interval_id,
+            days,
+            notional_days,
+            None,
+            None,
+            None,
             unknown_reasons=("settlement_currency_mismatch",),
         )
     current_settlement = sum(
-        (settlement.amount if settlement.kind == "payment" else -settlement.amount for settlement in deduped),
+        (
+            settlement.amount if settlement.kind == "payment" else -settlement.amount
+            for settlement in deduped
+        ),
         ZERO,
     )
     net_settlement = decimal(prior_settled) + current_settlement
-    opening_borrow = ZERO if window is None else decimal(window.opening_borrow_payables.get(interval.interval_id, ZERO))
-    opening_refund = ZERO if window is None else decimal(window.opening_refund_receivables.get((interval.interval_id, "SHORT"), ZERO))
+    opening_borrow = (
+        ZERO
+        if window is None
+        else decimal(window.opening_borrow_payables.get(interval.interval_id, ZERO))
+    )
+    opening_refund = (
+        ZERO
+        if window is None
+        else decimal(window.opening_refund_receivables.get((interval.interval_id, "SHORT"), ZERO))
+    )
     previous_target = round_cents(previous_rounded_target)
     target_delta = rounded_target - previous_target
     if window is None:
@@ -712,12 +873,19 @@ def calculate_borrow(
         payable = max(net_balance, ZERO)
         refund = max(-net_balance, ZERO)
     return BorrowResult(
-        status="known", interval_id=interval.interval_id, calendar_days=days,
-        notional_days=notional_days, exact_fee=exact_fee,
-        rounded_target=rounded_target, posted_fee=sum(postings, ZERO),
-        daily_exact=daily_exact, cumulative_postings=tuple(postings),
-        settled=net_settlement, cash_delta=-current_settlement,
-        economic_expense=target_delta, payable=payable,
+        status="known",
+        interval_id=interval.interval_id,
+        calendar_days=days,
+        notional_days=notional_days,
+        exact_fee=exact_fee,
+        rounded_target=rounded_target,
+        posted_fee=sum(postings, ZERO),
+        daily_exact=daily_exact,
+        cumulative_postings=tuple(postings),
+        settled=net_settlement,
+        cash_delta=-current_settlement,
+        economic_expense=target_delta,
+        payable=payable,
         refund_receivable=refund,
         included_settlements=tuple(sorted(settlement.payment_id for settlement in deduped)),
     )

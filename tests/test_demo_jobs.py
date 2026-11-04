@@ -12,13 +12,22 @@ from pathlib import Path
 import pytest
 
 from dashboard.app import create_app
-from demo.jobs import (FAILURE_SUMMARIES, IdempotencyConflict, JobStore, LeaseLost, PublishedArtifact, PublishedResult,
-                       requester_id_for)
+from demo.jobs import (
+    FAILURE_SUMMARIES,
+    IdempotencyConflict,
+    JobStore,
+    LeaseLost,
+    PublishedArtifact,
+    PublishedResult,
+    requester_id_for,
+)
 from demo.read_service import DemoNotFound
 from demo.replay_catalog import ReplayRequestRejected
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location("engine_demo_contract", ROOT / "docs/engine-demo/validate.py")
+SPEC = importlib.util.spec_from_file_location(
+    "engine_demo_contract", ROOT / "docs/engine-demo/validate.py"
+)
 contract = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(contract)
 
@@ -38,8 +47,14 @@ class FakeClock:
 
 
 def run_request(**overrides):
-    return {"strategy_id": "stock-signal", "dataset_id": FIXTURE_ID, "window_id": "fixture-day-2",
-            "cost_profile_id": "base-v2", "idempotency_key": "click-0001", **overrides}
+    return {
+        "strategy_id": "stock-signal",
+        "dataset_id": FIXTURE_ID,
+        "window_id": "fixture-day-2",
+        "cost_profile_id": "base-v2",
+        "idempotency_key": "click-0001",
+        **overrides,
+    }
 
 
 @pytest.fixture
@@ -59,10 +74,22 @@ def published(job_id, directory, files=None):
     artifacts = []
     for name, content in (files or {}).items():
         (directory / name).write_bytes(content)
-        artifacts.append(PublishedArtifact(str(uuid.uuid4()), "report", name, hashlib.sha256(content).hexdigest(),
-                                           "text/plain", len(content)))
-    record = {"record_type": "result", "id": result_id, "run_id": job_id,
-              "artifact_ids": [artifact.id for artifact in artifacts]}
+        artifacts.append(
+            PublishedArtifact(
+                str(uuid.uuid4()),
+                "report",
+                name,
+                hashlib.sha256(content).hexdigest(),
+                "text/plain",
+                len(content),
+            )
+        )
+    record = {
+        "record_type": "result",
+        "id": result_id,
+        "run_id": job_id,
+        "artifact_ids": [artifact.id for artifact in artifacts],
+    }
     return PublishedResult(result_id, str(directory), record, tuple(artifacts))
 
 
@@ -127,7 +154,9 @@ def test_concurrent_duplicate_submits_create_one_job(tmp_path, clock):
     def click():
         try:
             barrier.wait()
-            results.append(JobStore(tmp_path / "jobs.db", clock=clock).submit("local", run_request()))
+            results.append(
+                JobStore(tmp_path / "jobs.db", clock=clock).submit("local", run_request())
+            )
         except Exception as exc:
             errors.append(exc)
 
@@ -189,7 +218,11 @@ def test_claim_returns_the_stored_request_for_the_worker(store):
 
 def test_other_owner_and_malformed_ids_are_not_found(store):
     job_id, _ = store.submit("local", run_request())
-    for owner, run_id in (("someone-else", job_id), ("local", "../jobs.db"), ("local", job_id.upper())):
+    for owner, run_id in (
+        ("someone-else", job_id),
+        ("local", "../jobs.db"),
+        ("local", job_id.upper()),
+    ):
         with pytest.raises(DemoNotFound):
             store.job_detail(owner, run_id)
         with pytest.raises(DemoNotFound):
@@ -212,7 +245,10 @@ def test_cancelling_a_running_job_waits_for_the_worker(store):
     claimed = store.claim_next(lease_seconds=LEASE)
     assert store.request_cancel("local", job_id)["data"]["status"]["state"] == "cancel_requested"
     assert status_of(store, job_id)["ended_at"]["availability"] == "unavailable"
-    assert store.heartbeat(job_id, claimed.lease_token, lease_seconds=LEASE, phase="replaying") == "cancel_requested"
+    assert (
+        store.heartbeat(job_id, claimed.lease_token, lease_seconds=LEASE, phase="replaying")
+        == "cancel_requested"
+    )
     store.confirm_cancelled(job_id, claimed.lease_token)
     assert status_of(store, job_id)["state"] == "cancelled"
     assert store.request_cancel("local", job_id)["data"]["status"]["state"] == "cancelled"
@@ -227,7 +263,10 @@ def test_completion_published_before_cancel_wins(store, tmp_path):
     store.complete(job_id, claimed.lease_token, engine_run_id="engine-run-1", result=result)
     status = status_of(store, job_id)
     assert (status["state"], status["result_id"]["value"], status["engine_run_id"]["value"]) == (
-        "completed", result_id, "engine-run-1")
+        "completed",
+        result_id,
+        "engine-run-1",
+    )
 
 
 def test_terminal_jobs_stay_terminal(store, tmp_path):
@@ -239,7 +278,12 @@ def test_terminal_jobs_stay_terminal(store, tmp_path):
     assert failed["failure"]["summary"] == FAILURE_SUMMARIES["execution_failed"]
     assert store.request_cancel("local", job_id)["data"]["status"] == failed
     with pytest.raises(LeaseLost):
-        store.complete(job_id, claimed.lease_token, engine_run_id="late", result=published(job_id, tmp_path / "late"))
+        store.complete(
+            job_id,
+            claimed.lease_token,
+            engine_run_id="late",
+            result=published(job_id, tmp_path / "late"),
+        )
     with pytest.raises(LeaseLost):
         store.confirm_cancelled(job_id, claimed.lease_token)
 
@@ -298,7 +342,10 @@ def test_heartbeat_keeps_the_lease_alive(store, clock):
     clock.advance(LEASE - 1)
     assert store.recover_expired_leases() == {}
     status = status_of(store, job_id)
-    assert (status["phase"]["value"], status["heartbeat_at"]["value"]) == ("exporting", heartbeat_at)
+    assert (status["phase"]["value"], status["heartbeat_at"]["value"]) == (
+        "exporting",
+        heartbeat_at,
+    )
 
 
 def test_expired_lease_is_refused_before_recovery_runs(store, clock, tmp_path):
@@ -311,7 +358,12 @@ def test_expired_lease_is_refused_before_recovery_runs(store, clock, tmp_path):
         store.fail(job_id, claimed.lease_token, code="execution_failed")
     assert store.recover_expired_leases() == {job_id: "queued"}
     with pytest.raises(LeaseLost):
-        store.complete(job_id, claimed.lease_token, engine_run_id="late", result=published(job_id, tmp_path / "late"))
+        store.complete(
+            job_id,
+            claimed.lease_token,
+            engine_run_id="late",
+            result=published(job_id, tmp_path / "late"),
+        )
 
 
 def test_result_published_after_expiry_completes_before_recovery(store, clock, tmp_path):
@@ -339,7 +391,11 @@ def test_completed_job_detail_carries_its_result_and_verified_artifacts(store, t
     assert data["artifacts"] == [result.artifacts[0].as_record(result.id)]
     artifact_id = result.artifacts[0].id
     assert store.artifact_content("local", job_id, artifact_id).content == b"report"
-    for owner, artifact in (("someone-else", artifact_id), ("local", str(uuid.uuid4())), ("local", "../report.txt")):
+    for owner, artifact in (
+        ("someone-else", artifact_id),
+        ("local", str(uuid.uuid4())),
+        ("local", "../report.txt"),
+    ):
         with pytest.raises(DemoNotFound):
             store.artifact_content(owner, job_id, artifact)
     (tmp_path / "result" / "report.txt").write_bytes(b"tampered")
@@ -355,7 +411,12 @@ def test_result_rows_only_exist_for_a_completed_job(store, tmp_path):
         store.complete(job_id, claimed.lease_token, engine_run_id="engine-run-1", result=mismatched)
     store.fail(job_id, claimed.lease_token, code="execution_failed")
     with pytest.raises(LeaseLost):
-        store.complete(job_id, claimed.lease_token, engine_run_id="late", result=published(job_id, tmp_path / "late"))
+        store.complete(
+            job_id,
+            claimed.lease_token,
+            engine_run_id="late",
+            result=published(job_id, tmp_path / "late"),
+        )
     with sqlite3.connect(str(tmp_path / "jobs.db")) as conn:
         assert conn.execute("SELECT COUNT(*) FROM demo_job_results").fetchone()[0] == 0
         assert conn.execute("SELECT COUNT(*) FROM demo_job_artifacts").fetchone()[0] == 0
@@ -397,8 +458,11 @@ def test_list_is_newest_first_with_a_scoped_cursor(store, clock):
 
 @pytest.fixture
 def client(tmp_path):
-    app = create_app(str(tmp_path / "journal.db"), demo_db_path=str(tmp_path / "demo-artifacts.db"),
-                     demo_job_db_path=str(tmp_path / "demo-jobs.db"))
+    app = create_app(
+        str(tmp_path / "journal.db"),
+        demo_db_path=str(tmp_path / "demo-artifacts.db"),
+        demo_job_db_path=str(tmp_path / "demo-jobs.db"),
+    )
     return app.test_client()
 
 
@@ -410,40 +474,61 @@ def test_api_submit_is_idempotent_and_reports_conflicts(client):
     repeat = client.post("/api/demo/v1/runs", json=run_request())
     assert (repeat.status_code, repeat.get_json()["data"]["status"]["run_id"]) == (202, job_id)
     conflict = client.post("/api/demo/v1/runs", json=run_request(cost_profile_id="adverse-v2"))
-    assert (conflict.status_code, conflict.get_json()["error"]["code"]) == (409, "idempotency_conflict")
+    assert (conflict.status_code, conflict.get_json()["error"]["code"]) == (
+        409,
+        "idempotency_conflict",
+    )
 
 
 def test_api_rejects_unapproved_or_non_json_requests(client):
     forbidden = client.post("/api/demo/v1/runs", json=run_request(spread_bps=0))
-    assert (forbidden.status_code, forbidden.get_json()["error"]["code"]) == (400, "unexpected_field")
+    assert (forbidden.status_code, forbidden.get_json()["error"]["code"]) == (
+        400,
+        "unexpected_field",
+    )
     form = client.post("/api/demo/v1/runs", data=run_request())
     assert form.status_code == 415
     oversized = client.post("/api/demo/v1/runs", json=run_request(padding="x" * 5000))
     assert oversized.status_code == 413
-    chunked = client.post("/api/demo/v1/runs", input_stream=io.BytesIO(json.dumps(run_request()).encode()),
-                          content_type="application/json", headers={"Transfer-Encoding": "chunked"})
+    chunked = client.post(
+        "/api/demo/v1/runs",
+        input_stream=io.BytesIO(json.dumps(run_request()).encode()),
+        content_type="application/json",
+        headers={"Transfer-Encoding": "chunked"},
+    )
     assert (chunked.status_code, chunked.get_json()["error"]["code"]) == (411, "length_required")
     assert client.get("/api/demo/v1/runs").get_json()["data"]["runs"] == []
 
 
 def test_api_rejects_an_unencodable_catalog_id_as_json(client):
-    body = ('{"strategy_id":"\\ud800","dataset_id":"x","window_id":"x",'
-            '"cost_profile_id":"x","idempotency_key":"click-0002"}')
+    body = (
+        '{"strategy_id":"\\ud800","dataset_id":"x","window_id":"x",'
+        '"cost_profile_id":"x","idempotency_key":"click-0002"}'
+    )
     response = client.post("/api/demo/v1/runs", data=body, content_type="application/json")
     assert (response.status_code, response.get_json()["error"]["code"]) == (400, "unknown_strategy")
 
 
 def test_api_list_detail_cancel_and_scope(client):
-    job_id = client.post("/api/demo/v1/runs", json=run_request()).get_json()["data"]["status"]["run_id"]
+    job_id = client.post("/api/demo/v1/runs", json=run_request()).get_json()["data"]["status"][
+        "run_id"
+    ]
     listed = client.get("/api/demo/v1/runs").get_json()
     assert [item["run_id"] for item in listed["data"]["runs"]] == [job_id]
-    assert client.get("/api/demo/v1/runs/" + job_id).get_json()["data"]["status"]["state"] == "queued"
+    assert (
+        client.get("/api/demo/v1/runs/" + job_id).get_json()["data"]["status"]["state"] == "queued"
+    )
     cancelled = client.post("/api/demo/v1/runs/%s/cancel" % job_id, json={})
-    assert (cancelled.status_code, cancelled.get_json()["data"]["status"]["state"]) == (200, "cancelled")
+    assert (cancelled.status_code, cancelled.get_json()["data"]["status"]["state"]) == (
+        200,
+        "cancelled",
+    )
 
 
 def test_api_run_errors_are_json_with_a_code(client):
-    job_id = client.post("/api/demo/v1/runs", json=run_request()).get_json()["data"]["status"]["run_id"]
+    job_id = client.post("/api/demo/v1/runs", json=run_request()).get_json()["data"]["status"][
+        "run_id"
+    ]
     for response, expected in (
         (client.get("/api/demo/v1/runs/" + str(uuid.uuid4())), (404, "not_found")),
         (client.get("/api/demo/v1/runs/not-a-uuid"), (404, "not_found")),
@@ -453,7 +538,9 @@ def test_api_run_errors_are_json_with_a_code(client):
         (client.post("/api/demo/v1/runs/%s/cancel" % job_id), (415, "unsupported_media_type")),
     ):
         assert (response.status_code, response.get_json()["error"]["code"]) == expected
-    assert client.get("/api/demo/v1/runs/" + job_id).get_json()["data"]["status"]["state"] == "queued"
+    assert (
+        client.get("/api/demo/v1/runs/" + job_id).get_json()["data"]["status"]["state"] == "queued"
+    )
 
 
 def test_api_status_read_failure_after_enqueue_is_json(client, monkeypatch):
@@ -477,7 +564,9 @@ def test_api_store_faults_other_than_a_lock_are_not_reported_as_busy(client, mon
 
 
 def test_api_corrupt_stored_run_is_a_server_error_without_parser_text(client, monkeypatch):
-    job_id = client.post("/api/demo/v1/runs", json=run_request()).get_json()["data"]["status"]["run_id"]
+    job_id = client.post("/api/demo/v1/runs", json=run_request()).get_json()["data"]["status"][
+        "run_id"
+    ]
 
     def corrupt(*_args, **_kwargs):
         json.loads("{bad")
@@ -493,12 +582,16 @@ def test_api_jobs_leave_the_engine_journal_untouched(client, tmp_path):
     with sqlite3.connect(tmp_path / "journal.db") as conn:
         assert conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0] == 0
     with sqlite3.connect(tmp_path / "demo-jobs.db") as conn:
-        tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        tables = {
+            row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
     assert "runs" not in tables and "demo_jobs" in tables
 
 
 def test_api_serves_a_completed_job_artifact_by_opaque_id_only(client, tmp_path):
-    job_id = client.post("/api/demo/v1/runs", json=run_request()).get_json()["data"]["status"]["run_id"]
+    job_id = client.post("/api/demo/v1/runs", json=run_request()).get_json()["data"]["status"][
+        "run_id"
+    ]
     store = JobStore(tmp_path / "demo-jobs.db")
     claimed = store.claim_next(lease_seconds=LEASE)
     result = published(job_id, tmp_path / "result", {"report.txt": b"report"})
@@ -509,8 +602,10 @@ def test_api_serves_a_completed_job_artifact_by_opaque_id_only(client, tmp_path)
     served = client.get("/api/demo/v1/runs/%s/artifacts/%s" % (job_id, artifact_id))
     assert (served.status_code, served.data, served.mimetype) == (200, b"report", "text/plain")
     assert served.headers["X-Content-Type-Options"] == "nosniff"
-    for path in ("/api/demo/v1/runs/%s/artifacts/report.txt" % job_id,
-                 "/api/demo/v1/runs/%s/artifacts/%s" % (uuid.uuid4(), artifact_id)):
+    for path in (
+        "/api/demo/v1/runs/%s/artifacts/report.txt" % job_id,
+        "/api/demo/v1/runs/%s/artifacts/%s" % (uuid.uuid4(), artifact_id),
+    ):
         assert client.get(path).status_code == 404
 
 
@@ -527,6 +622,9 @@ def test_completed_job_without_a_result_row_has_no_result(store, tmp_path):
     job_id, _ = store.submit("local", run_request())
     store.claim_next(lease_seconds=LEASE)
     with sqlite3.connect(str(tmp_path / "jobs.db")) as conn:
-        conn.execute("UPDATE demo_jobs SET state='completed', result_id=? WHERE id=?", (str(uuid.uuid4()), job_id))
+        conn.execute(
+            "UPDATE demo_jobs SET state='completed', result_id=? WHERE id=?",
+            (str(uuid.uuid4()), job_id),
+        )
     data = store.job_detail("local", job_id)["data"]
     assert (data["result"], data["artifacts"]) == (None, [])

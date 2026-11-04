@@ -4,6 +4,7 @@ Run with ``python -m experiments.turso.probe`` (temporary local databases) or
 ``python -m experiments.turso.probe --remote`` (explicit disposable databases).
 Remote mode never provisions/deletes databases or prints exceptions.
 """
+
 import argparse
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
@@ -16,7 +17,16 @@ import traceback
 import uuid
 from urllib.parse import urlsplit
 
-from .store import BoundaryDenied, IdempotencyConflict, LeaseLost, Router, Scope, Store, migrate, transaction
+from .store import (
+    BoundaryDenied,
+    IdempotencyConflict,
+    LeaseLost,
+    Router,
+    Scope,
+    Store,
+    migrate,
+    transaction,
+)
 
 
 def uid():
@@ -49,10 +59,13 @@ def parallel(connect, workspace, operation, *args, count=4, **kwargs):
     # spawned processes model deployed workers without Python-thread lock starvation.
     context = multiprocessing.get_context("spawn")
     barrier = context.Barrier(count)
-    with ProcessPoolExecutor(max_workers=count, mp_context=context,
-                             initializer=_initialize_worker, initargs=(barrier,)) as pool:
-        futures = [pool.submit(_worker_operation, connect, workspace, operation, args, kwargs)
-                   for _ in range(count)]
+    with ProcessPoolExecutor(
+        max_workers=count, mp_context=context, initializer=_initialize_worker, initargs=(barrier,)
+    ) as pool:
+        futures = [
+            pool.submit(_worker_operation, connect, workspace, operation, args, kwargs)
+            for _ in range(count)
+        ]
         return [future.result() for future in futures]
 
 
@@ -71,8 +84,11 @@ def exercise(connect_a, connect_b, workspace_a, workspace_b, *, resume=False):
         migrate(connect, workspace)
 
     a, b = Store(connect_a, workspace_a), Store(connect_b, workspace_b)
-    sessions = {"a": Scope(uid(), workspace_a, "owner"), "b": Scope(uid(), workspace_b, "owner"),
-                "viewer": Scope(uid(), workspace_a, "viewer")}
+    sessions = {
+        "a": Scope(uid(), workspace_a, "owner"),
+        "b": Scope(uid(), workspace_b, "owner"),
+        "viewer": Scope(uid(), workspace_a, "viewer"),
+    }
 
     def resolve(session):
         if session not in sessions:
@@ -102,7 +118,9 @@ def exercise(connect_a, connect_b, workspace_a, workspace_b, *, resume=False):
     del sessions["viewer"]
     expect_error(BoundaryDenied, lambda: router.call("viewer", "get", run))
 
-    claims = [item for item in parallel(connect_a, workspace_a, "claim", run_id=run) if item is not None]
+    claims = [
+        item for item in parallel(connect_a, workspace_a, "claim", run_id=run) if item is not None
+    ]
     assert len(claims) == 1
     assert claims[0][0] == run
     old_token = claims[0][1]
@@ -127,9 +145,18 @@ def exercise(connect_a, connect_b, workspace_a, workspace_b, *, resume=False):
         expire(connect_b, other)
         b.recover(run_id=other)
     assert b.get(other)[0] == "failed" and b.claim(run_id=other) is None
-    return {"workspaces": 2, "schema_version": 2, "concurrent_clients": 4,
-            "client_model": "spawned-processes", "isolation": "passed", "idempotency": "passed", "claims": "passed",
-            "lease_recovery": "passed", "publication": "passed", "migrations": "passed"}
+    return {
+        "workspaces": 2,
+        "schema_version": 2,
+        "concurrent_clients": 4,
+        "client_model": "spawned-processes",
+        "isolation": "passed",
+        "idempotency": "passed",
+        "claims": "passed",
+        "lease_recovery": "passed",
+        "publication": "passed",
+        "migrations": "passed",
+    }
 
 
 @dataclass(frozen=True)
@@ -147,27 +174,43 @@ class RemoteConnection:
 
     def __call__(self):
         import libsql
+
         return libsql.connect(database=self.url, auth_token=self.token, isolation_level=None)
 
 
 def remote_factory(url, token):
     parsed = urlsplit(url)
-    if (parsed.scheme not in {"libsql", "https"} or not parsed.hostname or
-            not parsed.hostname.endswith(".turso.io") or parsed.username or parsed.password or
-            parsed.query or parsed.fragment or parsed.path not in {"", "/"} or not token):
+    if (
+        parsed.scheme not in {"libsql", "https"}
+        or not parsed.hostname
+        or not parsed.hostname.endswith(".turso.io")
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+        or parsed.path not in {"", "/"}
+        or not token
+    ):
         raise ValueError("Expected a Turso libSQL database URL and token")
     return RemoteConnection(url, token)
 
 
 def require_empty(connect):
     with transaction(connect) as conn:
-        if conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchall():
+        if conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        ).fetchall():
             raise ValueError("Remote proof requires empty disposable databases")
 
 
 def existing_workspace(connect):
     with transaction(connect) as conn:
-        tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchall()}
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            ).fetchall()
+        }
         if tables != {"proof_migrations", "proof_workspace", "proof_jobs"}:
             raise ValueError("Resume requires proof-only databases")
         row = conn.execute("SELECT id FROM proof_workspace WHERE singleton=1").fetchone()
@@ -179,19 +222,32 @@ def existing_workspace(connect):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--remote", action="store_true")
-    parser.add_argument("--env-file", help="Explicit credential file; never loaded by offline tests")
-    parser.add_argument("--resume", action="store_true", help="Preserve existing proof-only databases and add a fresh scenario")
+    parser.add_argument(
+        "--env-file", help="Explicit credential file; never loaded by offline tests"
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Preserve existing proof-only databases and add a fresh scenario",
+    )
     args = parser.parse_args()
     try:
         if args.remote:
-            names = ["TURSO_PROOF_" + side + suffix for side in ("A", "B") for suffix in ("_URL", "_TOKEN")]
+            names = [
+                "TURSO_PROOF_" + side + suffix
+                for side in ("A", "B")
+                for suffix in ("_URL", "_TOKEN")
+            ]
             credentials = {name: os.environ.get(name) for name in names}
             if args.env_file:
                 from dotenv import dotenv_values
+
                 values = dotenv_values(args.env_file, interpolate=False)
                 credentials = {name: values.get(name) for name in names}
             if not all(credentials.values()):
-                print("Remote proof unavailable: configure TURSO_PROOF_A/B_URL and TURSO_PROOF_A/B_TOKEN.")
+                print(
+                    "Remote proof unavailable: configure TURSO_PROOF_A/B_URL and TURSO_PROOF_A/B_TOKEN."
+                )
                 return 2
             first, second = (credentials[name] for name in (names[0], names[2]))
             if urlsplit(first).hostname == urlsplit(second).hostname:
@@ -209,17 +265,33 @@ def main():
             report = exercise(a, b, workspace_a, workspace_b, resume=args.resume)
         else:
             with tempfile.TemporaryDirectory(prefix="turso-proof-") as root:
-                report = exercise(local_factory(Path(root) / "a.db"), local_factory(Path(root) / "b.db"), uid(), uid())
+                report = exercise(
+                    local_factory(Path(root) / "a.db"),
+                    local_factory(Path(root) / "b.db"),
+                    uid(),
+                    uid(),
+                )
         print({"backend": "remote-libsql" if args.remote else "local-sqlite", **report})
         return 0
     except Exception as error:
         # Driver exceptions can include URLs/headers. Never serialize them.
         frames = traceback.extract_tb(error.__traceback__)
-        location = next((frame for frame in reversed(frames)
-                         if Path(frame.filename).parent == Path(__file__).parent), None)
-        print({"status": "failed", "error_type": type(error).__name__,
-               "proof_function": location.name if location else "driver",
-               "proof_line": location.lineno if location else None})
+        location = next(
+            (
+                frame
+                for frame in reversed(frames)
+                if Path(frame.filename).parent == Path(__file__).parent
+            ),
+            None,
+        )
+        print(
+            {
+                "status": "failed",
+                "error_type": type(error).__name__,
+                "proof_function": location.name if location else "driver",
+                "proof_line": location.lineno if location else None,
+            }
+        )
         print("No remote database was deleted. Exception text and locals are suppressed.")
         return 1
 

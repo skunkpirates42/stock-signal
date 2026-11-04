@@ -15,9 +15,11 @@ def main() -> None:
     metrics = compute_metrics(trades)
     print(format_report(metrics))
     if metrics["n_closed"]:
-        print("\nNOTE: backtest/paper results over a limited sample — not a basis for "
-              "conclusions about signal quality. Need 50+ closed trades accumulated forward "
-              "across mixed market regimes (see CLAUDE.md).")
+        print(
+            "\nNOTE: backtest/paper results over a limited sample — not a basis for "
+            "conclusions about signal quality. Need 50+ closed trades accumulated forward "
+            "across mixed market regimes (see CLAUDE.md)."
+        )
 
 
 if __name__ == "__main__":

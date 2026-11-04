@@ -38,21 +38,23 @@ def test_aggregation_builds_correct_5min_bar(tmp_path):
     trader, _ = _trader(tmp_path)
     base = RTH
     # Five 1-min bars in the 14:30 bucket; the bucket closes when 14:35 arrives.
-    for i, (o, h, l, c, v) in enumerate([
-        (10, 11, 9.5, 10.5, 100),
-        (10.5, 12, 10.4, 11, 120),
-        (11, 11.5, 10.0, 10.2, 90),
-        (10.2, 10.8, 9.8, 10.6, 110),
-        (10.6, 13, 10.5, 12.5, 130),
-    ]):
+    for i, (o, h, l, c, v) in enumerate(
+        [
+            (10, 11, 9.5, 10.5, 100),
+            (10.5, 12, 10.4, 11, 120),
+            (11, 11.5, 10.0, 10.2, 90),
+            (10.2, 10.8, 9.8, 10.6, 110),
+            (10.6, 13, 10.5, 12.5, 130),
+        ]
+    ):
         assert trader.on_minute_bar("AAA", base.replace(minute=30 + i), o, h, l, c, v) is None
     # First bar of next bucket finalizes the previous one.
     bar5 = trader.on_minute_bar("AAA", base.replace(minute=35), 12.5, 12.6, 12.4, 12.5, 50)
-    assert bar5["open"] == 10           # first bar's open
-    assert bar5["high"] == 13           # max high
-    assert bar5["low"] == 9.5           # min low
-    assert bar5["close"] == 12.5        # last bar's close
-    assert bar5["volume"] == 550        # summed volume
+    assert bar5["open"] == 10  # first bar's open
+    assert bar5["high"] == 13  # max high
+    assert bar5["low"] == 9.5  # min low
+    assert bar5["close"] == 12.5  # last bar's close
+    assert bar5["volume"] == 550  # summed volume
     assert bar5["timestamp"] == datetime(2026, 6, 10, 14, 30, tzinfo=timezone.utc)
 
 
@@ -68,17 +70,47 @@ def test_reconstructs_capital_and_open_positions(tmp_path):
     db = str(tmp_path / "r.db")
     init_db(db)
     # One closed winner (+250) and one still-open position.
-    sid = log_signal({"ticker": "AAA", "direction": "LONG", "confidence": 0.7, "entry": 100,
-                      "stop": 98, "target": 104, "rr": 2.0, "indicators_json": "{}",
-                      "reasoning": "x"}, db_path=db)
-    win = {"signal_id": sid, "ticker": "AAA", "direction": "LONG", "entry": 100, "stop": 98,
-           "target": 104, "shares": 10, "entry_bar": 1}
+    sid = log_signal(
+        {
+            "ticker": "AAA",
+            "direction": "LONG",
+            "confidence": 0.7,
+            "entry": 100,
+            "stop": 98,
+            "target": 104,
+            "rr": 2.0,
+            "indicators_json": "{}",
+            "reasoning": "x",
+        },
+        db_path=db,
+    )
+    win = {
+        "signal_id": sid,
+        "ticker": "AAA",
+        "direction": "LONG",
+        "entry": 100,
+        "stop": 98,
+        "target": 104,
+        "shares": 10,
+        "entry_bar": 1,
+    }
     tid = log_trade_open(win, db_path=db)
-    close_trade(tid, {**win, "exit_price": 104, "outcome": "WIN", "pnl": 250.0,
-                      "exit_bar": 6, "bars_held": 5}, db_path=db)
+    close_trade(
+        tid,
+        {**win, "exit_price": 104, "outcome": "WIN", "pnl": 250.0, "exit_bar": 6, "bars_held": 5},
+        db_path=db,
+    )
 
-    open_pos = {"signal_id": sid, "ticker": "BBB", "direction": "SHORT", "entry": 50, "stop": 51,
-                "target": 48, "shares": 20, "entry_bar": 2}
+    open_pos = {
+        "signal_id": sid,
+        "ticker": "BBB",
+        "direction": "SHORT",
+        "entry": 50,
+        "stop": 51,
+        "target": 48,
+        "shares": 20,
+        "entry_bar": 2,
+    }
     log_trade_open(open_pos, db_path=db)
 
     trader = LiveTrader(["AAA", "BBB"], db_path=db)
@@ -93,11 +125,16 @@ def _seed_window(trader, symbol, n=60):
     base = datetime(2026, 6, 10, 13, 0, tzinfo=timezone.utc)
     for i in range(n):
         close = 100 + (i % 7) - 3
-        trader.windows[symbol].append({
-            "timestamp": base + timedelta(minutes=5 * i),
-            "open": close - 0.5, "high": close + 1.0, "low": close - 1.0,
-            "close": close, "volume": 1000 + 10 * (i % 5),
-        })
+        trader.windows[symbol].append(
+            {
+                "timestamp": base + timedelta(minutes=5 * i),
+                "open": close - 0.5,
+                "high": close + 1.0,
+                "low": close - 1.0,
+                "close": close,
+                "volume": 1000 + 10 * (i % 5),
+            }
+        )
 
 
 def test_bar_close_never_calls_a_paid_llm_provider(tmp_path, monkeypatch):
@@ -106,6 +143,7 @@ def test_bar_close_never_calls_a_paid_llm_provider(tmp_path, monkeypatch):
     The distinction that matters is `synthesis_source == "template"` exactly — a fallback
     would read "template (fell back from groq: ...)" and would mean a request was attempted.
     """
+
     def boom(signal):
         raise AssertionError("live loop must not call a paid provider on bar close")
 
@@ -117,8 +155,14 @@ def test_bar_close_never_calls_a_paid_llm_provider(tmp_path, monkeypatch):
     trader.windows["AAA"] = deque(trader.windows["AAA"], maxlen=120)
     _seed_window(trader, "AAA")
 
-    bar = {"timestamp": RTH, "open": 100.0, "high": 101.0, "low": 99.0,
-           "close": 100.5, "volume": 1500}
+    bar = {
+        "timestamp": RTH,
+        "open": 100.0,
+        "high": 101.0,
+        "low": 99.0,
+        "close": 100.5,
+        "volume": 1500,
+    }
     signal = trader._on_bar_close("AAA", bar)
 
     assert signal is not None, "expected a signal once the window is warm"
@@ -149,9 +193,16 @@ def test_live_bar_after_rest_seed_produces_a_signal(tmp_path, monkeypatch):
     rows = []
     for i in range(60):
         close = 100 + (i % 7) - 3
-        rows.append({"timestamp": base + timedelta(minutes=5 * i), "open": close - 0.5,
-                     "high": close + 1.0, "low": close - 1.0, "close": close,
-                     "volume": 1000 + 10 * (i % 5)})
+        rows.append(
+            {
+                "timestamp": base + timedelta(minutes=5 * i),
+                "open": close - 0.5,
+                "high": close + 1.0,
+                "low": close - 1.0,
+                "close": close,
+                "volume": 1000 + 10 * (i % 5),
+            }
+        )
     monkeypatch.setattr(trader_module, "get_bars", lambda symbol, limit: pd.DataFrame(rows))
 
     db = str(tmp_path / "seeded.db")
@@ -160,8 +211,14 @@ def test_live_bar_after_rest_seed_produces_a_signal(tmp_path, monkeypatch):
     assert len(trader.windows["AAA"]) == 60
 
     live_ts = trader.last_closed["AAA"] + timedelta(minutes=5)
-    live_bar = {"timestamp": live_ts, "open": 100.0,
-                "high": 101.0, "low": 99.0, "close": 100.5, "volume": 1500}
+    live_bar = {
+        "timestamp": live_ts,
+        "open": 100.0,
+        "high": 101.0,
+        "low": 99.0,
+        "close": 100.5,
+        "volume": 1500,
+    }
     signals = trader.process_batch({"AAA": live_bar})
 
     assert "AAA" in signals

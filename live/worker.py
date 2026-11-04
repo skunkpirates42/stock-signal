@@ -1,4 +1,5 @@
 """One serialized state owner; websocket callbacks enqueue without broker I/O."""
+
 from queue import Queue, Empty
 from threading import Thread
 import time
@@ -11,7 +12,7 @@ class TradingWorker:
         self.trader = trader
         self.events = Queue()
         self.stopping = False
-        self.thread = Thread(target=self._run, name='trading-worker', daemon=True)
+        self.thread = Thread(target=self._run, name="trading-worker", daemon=True)
 
     def start(self):
         self.thread.start()
@@ -34,12 +35,17 @@ class TradingWorker:
                     self.trader.tick()
                     next_tick = time.monotonic() + 5
             except Exception as exc:
-                logging.exception('Trading worker failed; failed batch not retried')
+                logging.exception("Trading worker failed; failed batch not retried")
                 self.trader.record_worker_error(exc)
                 try:
-                    set_status(self.trader.scope, 'blocked', self.trader.worker_error_detail, db_path=self.trader.db_path)
+                    set_status(
+                        self.trader.scope,
+                        "blocked",
+                        self.trader.worker_error_detail,
+                        db_path=self.trader.db_path,
+                    )
                 except Exception:
-                    logging.exception('Could not persist worker failure status')
+                    logging.exception("Could not persist worker failure status")
             finally:
                 if args:
                     self.events.task_done()
@@ -47,5 +53,9 @@ class TradingWorker:
     def stop(self):
         self.stopping = True
         self.thread.join(timeout=15)
-        set_status(self.trader.scope, 'stopped' if not self.thread.is_alive() else 'unresolved',
-                   'Process stopping; confirmed positions retained', db_path=self.trader.db_path)
+        set_status(
+            self.trader.scope,
+            "stopped" if not self.thread.is_alive() else "unresolved",
+            "Process stopping; confirmed positions retained",
+            db_path=self.trader.db_path,
+        )

@@ -3,6 +3,7 @@
 The command only reads an existing research-output tree.  Replay trades are
 reported as modeled fills; they are never promoted to broker-observed fills.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -56,14 +57,29 @@ def inventory(root: Path) -> dict:
             manifest = json.loads(manifest_path.read_text())
         except (OSError, ValueError) as exc:
             manifest = {}
-            exclusions.append({"path": manifest_path.relative_to(root).as_posix(), "reason": f"unreadable_or_malformed_json:{type(exc).__name__}"})
+            exclusions.append(
+                {
+                    "path": manifest_path.relative_to(root).as_posix(),
+                    "reason": f"unreadable_or_malformed_json:{type(exc).__name__}",
+                }
+            )
         if not isinstance(manifest, dict):
-            exclusions.append({"path": manifest_path.relative_to(root).as_posix(), "reason": "invalid_schema:expected_json_object"})
+            exclusions.append(
+                {
+                    "path": manifest_path.relative_to(root).as_posix(),
+                    "reason": "invalid_schema:expected_json_object",
+                }
+            )
             manifest = {}
         # A trade export is replay evidence only when its sibling manifest says
         # it is a local backtest.  Unknown/live artifacts stay out of the count.
         if manifest.get("source") != "backtest" or manifest.get("backend") != "local":
-            exclusions.append({"path": path.relative_to(root).as_posix(), "reason": "excluded_unknown_or_non_replay_manifest"})
+            exclusions.append(
+                {
+                    "path": path.relative_to(root).as_posix(),
+                    "reason": "excluded_unknown_or_non_replay_manifest",
+                }
+            )
             continue
         rows, error = _json_count(path)
         if error:
@@ -83,15 +99,30 @@ def inventory(root: Path) -> dict:
         try:
             rows = json.loads(path.read_text())
         except (OSError, ValueError) as exc:
-            exclusions.append({"path": path.relative_to(root).as_posix(), "reason": f"unreadable_or_malformed_json:{type(exc).__name__}"})
+            exclusions.append(
+                {
+                    "path": path.relative_to(root).as_posix(),
+                    "reason": f"unreadable_or_malformed_json:{type(exc).__name__}",
+                }
+            )
             continue
         if not isinstance(rows, list):
-            exclusions.append({"path": path.relative_to(root).as_posix(), "reason": "invalid_schema:expected_json_array"})
+            exclusions.append(
+                {
+                    "path": path.relative_to(root).as_posix(),
+                    "reason": "invalid_schema:expected_json_array",
+                }
+            )
             continue
         activity_rows += len(rows)
         for row in rows:
             if not isinstance(row, dict):
-                exclusions.append({"path": path.relative_to(root).as_posix(), "reason": "invalid_schema:activity_row_not_object"})
+                exclusions.append(
+                    {
+                        "path": path.relative_to(root).as_posix(),
+                        "reason": "invalid_schema:activity_row_not_object",
+                    }
+                )
                 continue
             activity_type = str(row.get("activity_type", "unknown"))
             activity_types.update([activity_type])
@@ -106,7 +137,8 @@ def inventory(root: Path) -> dict:
             "records": 0,
             "files": [p.relative_to(root).as_posix() for p in quote_files],
             "excluded_reason": "No quote or NBBO observations are saved; spread and quote age cannot be measured."
-            if not quote_files else "Schema is not recognized by this inventory; exclude until fields are mapped.",
+            if not quote_files
+            else "Schema is not recognized by this inventory; exclude until fields are mapped.",
         },
         {
             "source": "broker_observed_fills",
@@ -114,7 +146,8 @@ def inventory(root: Path) -> dict:
             "records": fill_activity_rows,
             "files": [p.relative_to(root).as_posix() for p in fill_files],
             "excluded_reason": "FILL activities require schema mapping for timestamp, side, feed, quantity and price; excluded pending mapping."
-            if (fill_files or fill_activity_rows) else "No saved fill/execution feed with timestamp, side, feed, quantity and price.",
+            if (fill_files or fill_activity_rows)
+            else "No saved fill/execution feed with timestamp, side, feed, quantity and price.",
         },
         {
             "source": "replay_modeled_fills",
@@ -126,12 +159,15 @@ def inventory(root: Path) -> dict:
         },
         {
             "source": "paper_account_activities",
-            "status": "present_unparsed" if fill_activity_rows else ("present_non_fill" if activity_rows else "missing"),
+            "status": "present_unparsed"
+            if fill_activity_rows
+            else ("present_non_fill" if activity_rows else "missing"),
             "records": activity_rows,
             "activity_types": dict(sorted(activity_types.items())),
             "files": activity_hashes,
             "excluded_reason": "FILL activity rows require execution-field mapping; other activities are not fills."
-            if fill_activity_rows else "Account activity is not attributable execution evidence; no fill row is present.",
+            if fill_activity_rows
+            else "Account activity is not attributable execution evidence; no fill row is present.",
         },
         {
             "source": "run_db_journals",

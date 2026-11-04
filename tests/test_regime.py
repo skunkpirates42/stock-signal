@@ -7,9 +7,9 @@ def _ind(close, sma20, sma50):
     return {"close": close, "sma20": sma20, "sma50": sma50}
 
 
-UP = _ind(110, 105, 100)     # close > sma20 > sma50
-DOWN = _ind(90, 95, 100)     # close < sma20 < sma50
-FLAT = _ind(100, 99, 100)    # not aligned either way
+UP = _ind(110, 105, 100)  # close > sma20 > sma50
+DOWN = _ind(90, 95, 100)  # close < sma20 < sma50
+FLAT = _ind(100, 99, 100)  # not aligned either way
 
 
 def test_both_up_is_bull():

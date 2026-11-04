@@ -58,6 +58,7 @@ def fetch_bars(ticker: str, n: int = 120) -> pd.DataFrame:
     df = df.reset_index()
     df = df[["timestamp", "open", "high", "low", "close", "volume"]]
     from data.sessions import in_regular_hours, utc
+
     cutoff = utc(datetime.now(timezone.utc)) - pd.Timedelta(minutes=5)
     df = df[(pd.to_datetime(df.timestamp, utc=True) <= cutoff) & df.timestamp.map(in_regular_hours)]
     return df.tail(n).reset_index(drop=True)

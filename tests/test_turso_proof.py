@@ -1,4 +1,5 @@
 """Offline proof checks; these never read Turso credentials or use the network."""
+
 import pytest
 
 from experiments.turso import store
@@ -6,7 +7,9 @@ from experiments.turso.probe import exercise, expire, local_factory, require_emp
 
 
 def test_two_workspace_contract(tmp_path):
-    report = exercise(local_factory(tmp_path / "a.db"), local_factory(tmp_path / "b.db"), uid(), uid())
+    report = exercise(
+        local_factory(tmp_path / "a.db"), local_factory(tmp_path / "b.db"), uid(), uid()
+    )
     assert report["lease_recovery"] == "passed"
 
 
@@ -18,7 +21,12 @@ def test_resume_retains_prior_synthetic_evidence(tmp_path):
         before = conn.execute("SELECT id,state,result FROM proof_jobs").fetchone()
     exercise(a, b, workspace_a, workspace_b, resume=True)
     with store.transaction(a) as conn:
-        assert conn.execute("SELECT id,state,result FROM proof_jobs WHERE id=?", (before[0],)).fetchone() == before
+        assert (
+            conn.execute(
+                "SELECT id,state,result FROM proof_jobs WHERE id=?", (before[0],)
+            ).fetchone()
+            == before
+        )
         assert conn.execute("SELECT COUNT(*) FROM proof_jobs").fetchone() == (2,)
 
 
@@ -67,12 +75,16 @@ def test_migration_failure_rolls_back_and_can_resume(tmp_path, monkeypatch):
     connect, workspace = local_factory(tmp_path / "a.db"), uid()
     store.migrate(connect, workspace, target=1)
     original = store.MIGRATIONS
-    monkeypatch.setattr(store, "MIGRATIONS", original + (("CREATE TABLE proof_broken(id INTEGER)", "INVALID SQL"),))
+    monkeypatch.setattr(
+        store, "MIGRATIONS", original + (("CREATE TABLE proof_broken(id INTEGER)", "INVALID SQL"),)
+    )
     with pytest.raises(Exception):
         store.migrate(connect, workspace)
     with store.transaction(connect) as conn:
         assert conn.execute("SELECT MAX(version) FROM proof_migrations").fetchone() == (1,)
-        assert not conn.execute("SELECT name FROM sqlite_master WHERE name='proof_broken'").fetchall()
+        assert not conn.execute(
+            "SELECT name FROM sqlite_master WHERE name='proof_broken'"
+        ).fetchall()
     monkeypatch.setattr(store, "MIGRATIONS", original)
     store.migrate(connect, workspace)
     store.migrate(connect, workspace)
