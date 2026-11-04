@@ -1,3 +1,13 @@
+import {
+  readArrayOf,
+  readFields,
+  readNullable,
+  readNumber,
+  readString,
+  readBoolean,
+  type Read,
+} from "@/lib/parse";
+
 export function heartbeatState(timestamp: string, now: number): "fresh" | "stale" {
   const age = now - Date.parse(timestamp);
   return Number.isFinite(age) && age >= -5000 && age <= 30000 ? "fresh" : "stale";
@@ -79,3 +89,43 @@ export function marketStatusLabel(status: MarketStatus | null, now: number): str
     return "US regular market: unavailable";
   return status.market_open ? "US regular market: open" : "US regular market: closed";
 }
+
+const readRuntimeRow: Read<RuntimeRow> = (value, path) => {
+  const field = readFields(value, path);
+  return {
+    scope: field("scope", readString),
+    status: field("status", readString),
+    updated_at: field("updated_at", readString),
+    detail: field("detail", readString),
+    data_at: field("data_at", readNullable(readString)),
+  };
+};
+
+const readUnresolvedOrder: Read<UnresolvedOrder> = (value, path) => {
+  const field = readFields(value, path);
+  return {
+    id: field("id", readString),
+    ticker: field("ticker", readString),
+    purpose: field("purpose", readString),
+    state: field("state", readString),
+    filled_qty: field("filled_qty", readNumber),
+    requested_qty: field("requested_qty", readNumber),
+  };
+};
+
+export const readOperationalStatus: Read<OperationalStatus> = (value, path) => {
+  const field = readFields(value, path);
+  return {
+    latest_bar: field("latest_bar", readNullable(readString)),
+    runtime: field("runtime", readArrayOf(readRuntimeRow)),
+    unresolved_orders: field("unresolved_orders", readArrayOf(readUnresolvedOrder)),
+  };
+};
+
+export const readMarketStatus: Read<MarketStatus> = (value, path) => {
+  const field = readFields(value, path);
+  return {
+    market_open: field("market_open", readNullable(readBoolean)),
+    checked_at: field("checked_at", readString),
+  };
+};

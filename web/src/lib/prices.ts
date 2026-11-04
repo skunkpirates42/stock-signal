@@ -1,3 +1,12 @@
+import {
+  readFields,
+  readLiteral,
+  readNumber,
+  readRecordOf,
+  readString,
+  ResponseShapeError,
+  type Read,
+} from "@/lib/parse";
 import type { Trade } from "@/lib/types";
 
 export interface PriceMark {
@@ -23,3 +32,19 @@ export function markedPosition(trade: Trade, price: number) {
     toTarget: (trade.target - price) * sign,
   };
 }
+
+const readPriceMark: Read<PriceMark> = (value, path) => {
+  const field = readFields(value, path);
+  const price = field("price", readNumber);
+  if (price <= 0) throw new ResponseShapeError(`${path}.price`, "positive price");
+  return { price, timestamp: field("timestamp", readString) };
+};
+
+export const readPositionPrices: Read<PositionPrices> = (value, path) => {
+  const field = readFields(value, path);
+  return {
+    feed: field("feed", readLiteral("iex")),
+    checked_at: field("checked_at", readString),
+    prices: field("prices", readRecordOf(readPriceMark)),
+  };
+};

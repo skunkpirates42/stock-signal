@@ -1,37 +1,38 @@
-import type { Metrics, Signal, Trade } from "@/lib/types";
+import { readMetrics, readSignal, readTrade } from "@/lib/types";
 import { dateRangeQuery, type DateRange } from "@/lib/dateRange";
+import { readArrayOf, type Read } from "@/lib/parse";
 
 export const API_BASE = process.env.FLASK_API_URL ?? "http://127.0.0.1:8000";
 
-async function get<T>(path: string): Promise<T> {
+async function get<T>(path: string, read: Read<T>): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`${path} responded ${response.status}`);
   }
-  return response.json() as Promise<T>;
+  return read(await response.json(), path);
 }
 
 export function getMetrics(source?: string, range: DateRange = {}) {
   const params = dateRangeQuery(range);
   if (source) params.set("source", source);
   const query = params.size ? `?${params}` : "";
-  return get<Metrics>(`/api/metrics${query}`);
+  return get(`/api/metrics${query}`, readMetrics);
 }
 
 export function getSignals(opts: { source?: string; limit?: number } = {}) {
   const params = new URLSearchParams();
   if (opts.source) params.set("source", opts.source);
   params.set("limit", String(opts.limit ?? 500));
-  return get<Signal[]>(`/api/signals?${params}`);
+  return get(`/api/signals?${params}`, readArrayOf(readSignal));
 }
 
 export function getTrades(opts: { source?: string; limit?: number } = {}) {
   const params = new URLSearchParams();
   if (opts.source) params.set("source", opts.source);
   params.set("limit", String(opts.limit ?? 500));
-  return get<Trade[]>(`/api/trades?${params}`);
+  return get(`/api/trades?${params}`, readArrayOf(readTrade));
 }
 
 export function getOpenPositions(source = "live") {
-  return get<Trade[]>(`/api/open?source=${encodeURIComponent(source)}`);
+  return get(`/api/open?source=${encodeURIComponent(source)}`, readArrayOf(readTrade));
 }

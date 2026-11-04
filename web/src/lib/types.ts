@@ -1,3 +1,16 @@
+import {
+  readArrayOf,
+  readBoolean,
+  readFields,
+  readLiteral,
+  readNullable,
+  readNumber,
+  readOptional,
+  readRecordOf,
+  readString,
+  type Read,
+} from "@/lib/parse";
+
 export type Direction = "LONG" | "SHORT" | "WAIT";
 export type Vote = "bull" | "bear" | "neutral";
 export type Source = "live" | "backtest" | "poc";
@@ -33,7 +46,7 @@ export interface Trade {
   outcome: "OPEN" | "WIN" | "LOSS" | "BREAKEVEN";
   backend?: string | null;
   account?: string | null;
-  remaining_shares?: number;
+  remaining_shares?: number | null;
   entry_at?: string | null;
   exit_at?: string | null;
   costs?: number | null;
@@ -100,3 +113,118 @@ export interface ExplainResult {
   synthesis_source: string;
   cached: boolean;
 }
+
+const readDirection = readLiteral<Direction>("LONG", "SHORT", "WAIT");
+const readSource = readNullable(readLiteral<Source>("live", "backtest", "poc"));
+const readNullableNumber = readNullable(readNumber);
+const readNullableString = readNullable(readString);
+
+export const readSignal: Read<Signal> = (value, path) => {
+  const field = readFields(value, path);
+  return {
+    id: field("id", readNumber),
+    ticker: field("ticker", readString),
+    direction: field("direction", readDirection),
+    confidence: field("confidence", readNumber),
+    entry: field("entry", readNullableNumber),
+    stop: field("stop", readNullableNumber),
+    target: field("target", readNullableNumber),
+    rr: field("rr", readNullableNumber),
+    bar_timestamp: field("bar_timestamp", readNullableString),
+    created_at: field("created_at", readString),
+    regime: field("regime", readNullableString),
+    source: field("source", readSource),
+    synthesis_source: field("synthesis_source", readNullableString),
+    reasoning: field("reasoning", readNullableString),
+    indicators_json: field("indicators_json", readNullableString),
+  };
+};
+
+export const readTrade: Read<Trade> = (value, path) => {
+  const field = readFields(value, path);
+  return {
+    id: field("id", readNumber),
+    signal_id: field("signal_id", readNullableNumber),
+    ticker: field("ticker", readString),
+    direction: field("direction", readDirection),
+    entry: field("entry", readNumber),
+    stop: field("stop", readNumber),
+    target: field("target", readNumber),
+    shares: field("shares", readNumber),
+    exit_price: field("exit_price", readNullableNumber),
+    outcome: field("outcome", readLiteral("OPEN", "WIN", "LOSS", "BREAKEVEN")),
+    backend: field("backend", readOptional(readNullableString)),
+    account: field("account", readOptional(readNullableString)),
+    remaining_shares: field("remaining_shares", readOptional(readNullableNumber)),
+    entry_at: field("entry_at", readOptional(readNullableString)),
+    exit_at: field("exit_at", readOptional(readNullableString)),
+    costs: field("costs", readOptional(readNullableNumber)),
+    pnl: field("pnl", readNullableNumber),
+    entry_bar: field("entry_bar", readNullableNumber),
+    exit_bar: field("exit_bar", readNullableNumber),
+    bars_held: field("bars_held", readNullableNumber),
+    created_at: field("created_at", readString),
+    closed_at: field("closed_at", readNullableString),
+    source: field("source", readSource),
+  };
+};
+
+const readBreakdown: Read<Breakdown> = (value, path) => {
+  const field = readFields(value, path);
+  return {
+    n: field("n", readNumber),
+    wins: field("wins", readNumber),
+    win_rate: field("win_rate", readNumber),
+    pnl: field("pnl", readNumber),
+  };
+};
+
+const readEquityPoint: Read<EquityPoint> = (value, path) => {
+  const field = readFields(value, path);
+  return {
+    label: field("label", readString),
+    equity: field("equity", readNumber),
+    pnl: field("pnl", readNumber),
+  };
+};
+
+export const readMetrics: Read<Metrics> = (value, path) => {
+  const field = readFields(value, path);
+  return {
+    metric_basis: field("metric_basis", readOptional(readString)),
+    gross_pnl: field("gross_pnl", readOptional(readNumber)),
+    costs: field("costs", readOptional(readNumber)),
+    n_breakeven: field("n_breakeven", readOptional(readNumber)),
+    n_closed: field("n_closed", readNumber),
+    n_open: field("n_open", readNumber),
+    n_wins: field("n_wins", readNumber),
+    n_losses: field("n_losses", readNumber),
+    win_rate: field("win_rate", readNumber),
+    avg_win: field("avg_win", readNumber),
+    avg_loss: field("avg_loss", readNumber),
+    expectancy: field("expectancy", readNumber),
+    profit_factor: field("profit_factor", readNullableNumber),
+    total_pnl: field("total_pnl", readNumber),
+    max_drawdown: field("max_drawdown", readNumber),
+    max_drawdown_pct: field("max_drawdown_pct", readNumber),
+    avg_bars_held: field("avg_bars_held", readNumber),
+    avg_r_multiple: field("avg_r_multiple", readNumber),
+    avg_win_r: field("avg_win_r", readNumber),
+    avg_loss_r: field("avg_loss_r", readNumber),
+    by_ticker: field("by_ticker", readRecordOf(readBreakdown)),
+    by_regime: field("by_regime", readRecordOf(readBreakdown)),
+    starting_capital: field("starting_capital", readNumber),
+    ending_capital: field("ending_capital", readNumber),
+    equity: field("equity", readArrayOf(readEquityPoint)),
+  };
+};
+
+export const readExplainResult: Read<ExplainResult> = (value, path) => {
+  const field = readFields(value, path);
+  return {
+    id: field("id", readNumber),
+    reasoning: field("reasoning", readString),
+    synthesis_source: field("synthesis_source", readString),
+    cached: field("cached", readBoolean),
+  };
+};

@@ -127,15 +127,31 @@ describe("saved diagnostics adapter", () => {
 describe("savedResultExists", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("is true when the result endpoint answers", async () => {
+  const serve = (body: unknown) =>
     vi.stubGlobal(
       "fetch",
-      vi.fn(
-        async () =>
-          new Response("{}", { status: 200, headers: { "content-type": "application/json" } }),
-      ),
+      vi.fn(async () => Response.json(body)),
     );
+
+  it("is true when the result endpoint answers", async () => {
+    serve({
+      schema_version: 1,
+      warnings: [],
+      data: {
+        result: { record_type: "result" },
+        run: { record_type: "normalized_run" },
+        artifacts: [],
+        status: { origin: "saved_artifact", state: "completed", run_id: RESULT_ID },
+      },
+    });
     await expect(savedResultExists(RESULT_ID)).resolves.toBe(true);
+  });
+
+  it("throws, rather than answering, when the endpoint returns a malformed envelope", async () => {
+    serve({});
+    await expect(savedResultExists(RESULT_ID)).rejects.toThrow(
+      `/results/${RESULT_ID}.schema_version: expected 1`,
+    );
   });
 
   it("is false for a 404", async () => {

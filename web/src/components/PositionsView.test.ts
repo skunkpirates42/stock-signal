@@ -8,7 +8,7 @@ import PositionsView from "./PositionsView";
 const harness = vi.hoisted(() => ({
   states: [] as unknown[],
   index: 0,
-  effect: undefined as undefined | (() => () => void),
+  effects: [] as (() => void | (() => void))[],
   poll: undefined as undefined | (() => Promise<void>),
 }));
 vi.mock("react", async (original) => ({
@@ -19,8 +19,8 @@ vi.mock("react", async (original) => ({
       harness.states[index] = typeof initial === "function" ? initial() : initial;
     return [harness.states[index], (value: unknown) => (harness.states[index] = value)];
   },
-  useEffect: (effect: () => () => void) => {
-    harness.effect = effect;
+  useEffect: (effect: () => void | (() => void)) => {
+    harness.effects.push(effect);
   },
 }));
 vi.mock("@/lib/polling", () => ({
@@ -34,12 +34,13 @@ vi.mock("./FillsTable", () => ({ default: () => null }));
 
 const render = () => {
   harness.index = 0;
+  harness.effects = [];
   return renderToStaticMarkup(createElement(PositionsView));
 };
-let cleanup: (() => void) | undefined;
+let cleanups: (void | (() => void))[] = [];
 afterEach(() => {
-  cleanup?.();
-  cleanup = undefined;
+  cleanups.forEach((cleanup) => cleanup?.());
+  cleanups = [];
   harness.states = [];
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -48,9 +49,13 @@ afterEach(() => {
 it("keeps newly fetched position data fresh between one-second clock ticks", async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-10-29T14:00:00.000Z"));
-  vi.stubGlobal("document", {});
+  vi.stubGlobal("document", {
+    visibilityState: "visible",
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  });
   render();
-  cleanup = harness.effect!();
+  cleanups = harness.effects.map((effect) => effect());
   for (let second = 0; second <= 10; second += 5) {
     vi.setSystemTime(new Date(`2026-10-29T14:00:${String(second).padStart(2, "0")}.500Z`));
     const data: PositionState = {
@@ -62,7 +67,7 @@ it("keeps newly fetched position data fresh between one-second clock ticks", asy
       exit_fills: [],
       closed_trades: [],
     };
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => data }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(data)));
     await harness.poll!();
     expect(render()).not.toContain("Position data is stale");
     await vi.advanceTimersByTimeAsync(1000);

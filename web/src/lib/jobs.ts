@@ -2,11 +2,27 @@ import {
   demoGet,
   DemoNotFound,
   isOpaqueDemoId,
+  readArtifact,
+  readContractRecord,
+  readNextCursor,
+  readNormalizedRun,
+  readResult,
   type Artifact,
   type Availability,
   type NormalizedRun,
   type Result,
 } from "@/lib/demo";
+import {
+  readArrayOf,
+  readBoolean,
+  readFields,
+  readLiteral,
+  readNullable,
+  readNumber,
+  readString,
+  ResponseShapeError,
+  type Read,
+} from "@/lib/parse";
 
 export interface ReplayCatalog {
   strategy: { id: "stock-signal"; label: string; editable_fields: [] };
@@ -61,8 +77,87 @@ export function phaseLabel(state: JobStatus["state"]): string {
   return ENDED_STATES.has(state) ? "Last phase" : "Phase";
 }
 
+const readJobStatus = readContractRecord<JobStatus>("status");
+
+const readCatalogWindow: Read<ReplayCatalog["datasets"][number]["windows"][number]> = (
+  value,
+  path,
+) => {
+  const field = readFields(value, path);
+  return {
+    id: field("id", readString),
+    start: field("start", readString),
+    end_exclusive: field("end_exclusive", readString),
+  };
+};
+
+const readCatalogDataset: Read<ReplayCatalog["datasets"][number]> = (value, path) => {
+  const field = readFields(value, path);
+  return {
+    id: field("id", readString),
+    label: field("label", readString),
+    content_sha256: field("content_sha256", readString),
+    feed: field("feed", readString),
+    synthetic: field("synthetic", readBoolean),
+    available: field("available", readBoolean),
+    windows: field("windows", readArrayOf(readCatalogWindow)),
+    cost_profile_ids: field("cost_profile_ids", readArrayOf(readString)),
+  };
+};
+
+const readCostProfile: Read<ReplayCatalog["cost_profiles"][number]> = (value, path) => {
+  const field = readFields(value, path);
+  return {
+    id: field("id", readString),
+    label: field("label", readString),
+    spread_bps: field("spread_bps", readNumber),
+    slippage_bps_per_fill: field("slippage_bps_per_fill", readNumber),
+    fee_per_share_per_fill: field("fee_per_share_per_fill", readNumber),
+    evidence: field("evidence", readString),
+  };
+};
+
+const readCatalogStrategy: Read<ReplayCatalog["strategy"]> = (value, path) => {
+  const field = readFields(value, path);
+  const editableFields = field("editable_fields", readArrayOf(readString));
+  if (editableFields.length > 0)
+    throw new ResponseShapeError(`${path}.editable_fields`, "empty array");
+  return {
+    id: field("id", readLiteral("stock-signal")),
+    label: field("label", readString),
+    editable_fields: [],
+  };
+};
+
+const readReplayCatalog: Read<ReplayCatalog> = (value, path) => {
+  const field = readFields(value, path);
+  return {
+    strategy: field("strategy", readCatalogStrategy),
+    datasets: field("datasets", readArrayOf(readCatalogDataset)),
+    cost_profiles: field("cost_profiles", readArrayOf(readCostProfile)),
+  };
+};
+
+const readJobsPage: Read<{ runs: JobStatus[]; next_cursor: string | null }> = (value, path) => {
+  const field = readFields(value, path);
+  return {
+    runs: field("runs", readArrayOf(readJobStatus)),
+    next_cursor: field("next_cursor", readNextCursor),
+  };
+};
+
+const readJobDetail: Read<JobDetail> = (value, path) => {
+  const field = readFields(value, path);
+  return {
+    run: field("run", readNormalizedRun),
+    status: field("status", readJobStatus),
+    result: field("result", readNullable(readResult)),
+    artifacts: field("artifacts", readArrayOf(readArtifact)),
+  };
+};
+
 export function getReplayCatalog() {
-  return demoGet<ReplayCatalog>("/replay-catalog");
+  return demoGet("/replay-catalog", readReplayCatalog);
 }
 
 export function getJobs(cursor?: string) {
@@ -70,10 +165,10 @@ export function getJobs(cursor?: string) {
     throw new DemoNotFound("Demo cursor was not found");
   const query = new URLSearchParams({ limit: "25" });
   if (cursor) query.set("cursor", cursor);
-  return demoGet<{ runs: JobStatus[]; next_cursor: string | null }>(`/runs?${query}`);
+  return demoGet(`/runs?${query}`, readJobsPage);
 }
 
 export function getJob(runId: string) {
   if (!isOpaqueDemoId(runId)) throw new DemoNotFound("Demo job was not found");
-  return demoGet<JobDetail>(`/runs/${encodeURIComponent(runId)}`);
+  return demoGet(`/runs/${encodeURIComponent(runId)}`, readJobDetail);
 }
