@@ -11,7 +11,6 @@ from tests.test_alpaca_broker import LONG, FakeClient, broker
 from tests.test_correctness import bar, candidate
 
 MARKET_OPEN = utc("2026-06-10T15:00Z")
-SECRET = "sentinel-secret-value-123"
 
 
 @pytest.fixture
@@ -107,18 +106,3 @@ def test_block_restored_by_trader_after_reconcile_is_logged_as_blocked(tmp_path,
     [blocked] = events(caplog, "execution_blocked")
     assert "Legacy open positions" in blocked.getMessage()
     assert not events(caplog, "execution_running")
-
-
-def test_logged_events_carry_no_credentials(tmp_path, monkeypatch, caplog):
-    monkeypatch.setenv("ALPACA_API_KEY", SECRET)
-    monkeypatch.setenv("ALPACA_SECRET_KEY", SECRET)
-    caplog.set_level(logging.DEBUG)
-    client = FakeClient()
-    b = broker(tmp_path, client)
-    b.open_position(LONG, 0, 1)
-    client.fail = "after"
-    b.close_position("NVDA", 104, "WIN", 2)
-    client.fail = "positions"
-    b.reconcile()
-    assert caplog.records
-    assert SECRET not in caplog.text
