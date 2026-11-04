@@ -202,7 +202,9 @@ def _insert(conn: sqlite3.Connection, table: str, values: Mapping[str, Any]) -> 
     ).lastrowid
 
 
-def _update(conn: sqlite3.Connection, table: str, row_id: int, values: Mapping[str, Any]) -> None:
+def _update(
+    conn: sqlite3.Connection, table: str, row_id: int | str, values: Mapping[str, Any]
+) -> None:
     conn.execute(
         f"UPDATE {table} SET {','.join(k + '=?' for k in values)} WHERE id=?",
         list(values.values()) + [row_id],
