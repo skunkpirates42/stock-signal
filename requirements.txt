@@ -1,8 +1,9 @@
 # PoC dependencies.
-# NOTE: pandas-ta is intentionally NOT used. Its only PyPI releases now require
-# Python >=3.12 and the old 0.3.14b0 has been removed, so it won't install on the
-# Python 3.9.6 here. Indicators are computed directly in pandas/numpy in
-# signals/indicators.py (standard formulas). Swap pandas-ta back in on Python 3.12 if desired.
+# Exact versions live in constraints.txt; install with
+#   pip install -r requirements.txt -c constraints.txt
+# and regenerate it with `pip freeze > constraints.txt` from a clean .venv.
+# NOTE: pandas-ta is intentionally NOT used. Indicators are computed directly in
+# pandas/numpy in signals/indicators.py (standard formulas).
 numpy<2
 pandas>=1.5,<2.2
 anthropic>=0.39
