@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from dotenv import dotenv_values
 
 import config
+from app_logging import configure_logging
 
 from .artifacts import RUN_ARTIFACTS, ArtifactIndex
 from .availability import available, unavailable
@@ -474,6 +475,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     parser.add_argument("--once", action="store_true", help="Run at most one job, then exit")
     args = parser.parse_args(argv)
+    configure_logging("demo-worker")
     worker = DemoWorker(
         JobStore(args.job_db),
         args.root or Path(args.job_db).with_name("demo-worker"),

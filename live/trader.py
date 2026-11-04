@@ -8,12 +8,14 @@ asynchronously at confirmed market fills.
 """
 
 import json
+import logging
 from collections import deque
 from datetime import datetime, timezone
 
 import pandas as pd
 
 import config
+from app_logging import log_event
 from data.sessions import flatten_due, in_regular_hours, session_bounds, utc
 from data.source import get_bars
 from db.logger import (
@@ -33,6 +35,8 @@ from signals.llm_synthesis import synthesize
 from signals.regime import classify
 from trades.executor import PaperBroker
 from trades.tracker import check_exit
+
+logger = logging.getLogger(__name__)
 
 
 def floor_5min(ts):
@@ -73,6 +77,7 @@ class LiveTrader:
         self.worker_error = None
         self.worker_failure_count = 0
         self._worker_recovery_required = False
+        self._last_logged_execution_state = None
         self.on_event = None
         init_db(self.db_path)
         self.broker = broker or self._rebuild_broker()
@@ -143,8 +148,30 @@ class LiveTrader:
                 self.last_closed[s] = records[-1]["timestamp"]
 
     def _emit(self, kind, payload):
+        if kind in ("open", "close"):
+            self._log_position_event(kind, payload)
         if self.on_event:
             self.on_event(kind, payload)
+
+    def _log_position_event(self, kind, payload):
+        fields = dict(
+            scope=self.scope,
+            ticker=payload.get("ticker"),
+            direction=payload.get("direction"),
+            signal_id=payload.get("signal_id"),
+            trade_id=payload.get("db_id") or payload.get("id"),
+            order_id=payload.get("entry_order_id"),
+            shares=payload.get("shares"),
+            entry=payload.get("entry"),
+        )
+        if kind == "close":
+            fields.update(
+                exit_price=payload.get("exit_price"),
+                outcome=payload.get("outcome"),
+                pnl=payload.get("pnl"),
+                exit_reason=payload.get("exit_reason"),
+            )
+        log_event(logger, "position_opened" if kind == "open" else "position_closed", **fields)
 
     def on_minute_bar(self, symbol, ts, open_, high, low, close, volume):
         ts = utc(ts)
@@ -184,6 +211,15 @@ class LiveTrader:
         self.buckets[symbol] = None
         self.last_closed[symbol] = b["start"]
         if len(b["minutes"]) != 5:
+            log_event(
+                logger,
+                "bar_incomplete",
+                logging.WARNING,
+                scope=self.scope,
+                ticker=symbol,
+                bar_at=b["start"].isoformat(),
+                minutes=len(b["minutes"]),
+            )
             detail = self.worker_error_detail
             set_status(
                 self.scope,
@@ -241,6 +277,7 @@ class LiveTrader:
         if self.legacy_blocked:
             self.broker.blocked = self.legacy_blocked
         self._worker_recovery_required = False
+        log_event(logger, "worker_recovered", scope=self.scope)
 
     def tick(self, ts=None):
         ts = utc(ts or datetime.now(timezone.utc))
@@ -276,6 +313,9 @@ class LiveTrader:
             if p.get("pending_exit")
         )
         if waiting and not self.broker.blocked and not self.worker_failure_count:
+            self._log_execution_state_change(
+                "unresolved", "Session flatten awaiting an observed executable price"
+            )
             set_status(
                 self.scope,
                 "unresolved",
@@ -284,11 +324,31 @@ class LiveTrader:
             )
             return
         detail = self.worker_error_detail or self.broker.blocked
+        self._log_execution_state_change("blocked" if detail else "running", detail)
         set_status(
             self.scope,
             "blocked" if detail else "running",
             detail or "Worker heartbeat; data freshness is separate",
             db_path=self.db_path,
+        )
+
+    def _log_execution_state_change(self, status, detail):
+        # Reasons embed exception text (object addresses, counts) that changes every
+        # attempt; the text before the first colon is the stable category.
+        category = detail.split(":", 1)[0] if detail else None
+        safe_to_flatten = getattr(self.broker, "safe_to_flatten", None)
+        state = (status, category, safe_to_flatten)
+        if state == self._last_logged_execution_state:
+            return
+        self._last_logged_execution_state = state
+        blocked = status == "blocked"
+        log_event(
+            logger,
+            "execution_blocked" if blocked else f"execution_{status}",
+            logging.WARNING if blocked else logging.INFO,
+            scope=self.scope,
+            safe_to_flatten=safe_to_flatten,
+            reason=detail,
         )
 
     def _broker_events(self):
@@ -341,6 +401,13 @@ class LiveTrader:
         if self.watermark is not None and ts <= self.watermark:
             return {}
         self.watermark = ts
+        log_event(
+            logger,
+            "bar_batch",
+            scope=self.scope,
+            bar_at=ts.isoformat(),
+            tickers=",".join(sorted(bars)),
+        )
         decision_at = ts + pd.Timedelta(minutes=5)
         for s, bar in sorted(bars.items()):
             self.processed[s] = ts
@@ -358,6 +425,7 @@ class LiveTrader:
                     conn.execute(
                         "DELETE FROM local_pending WHERE scope=? AND ticker=?", (self.scope, s)
                     )
+            opened = False
             if pending and executable and not self.broker.has_open(s) and not self.broker.blocked:
                 same_session = utc(pending["decision_at"]).date() == ts.date()
                 if (
@@ -375,6 +443,20 @@ class LiveTrader:
                     if pos:
                         pos["db_id"] = log_trade_open(pos, self.db_path, self.source)
                         self._emit("open", pos)
+                        opened = True
+            if pending and not opened:
+                log_event(
+                    logger,
+                    "entry_dropped",
+                    scope=self.scope,
+                    ticker=s,
+                    signal_id=pending.get("signal_id"),
+                    decision_at=pending.get("decision_at"),
+                    bar_at=ts.isoformat(),
+                    executable=executable,
+                    position_or_order_open=self.broker.has_open(s),
+                    blocked=self.broker.blocked,
+                )
         # Resolve local protective exits on the touching bar before close-time flatten/allocation.
         for s, bar in sorted(bars.items()):
             pos = self.broker.open_positions.get(s)
@@ -469,6 +551,17 @@ class LiveTrader:
             signal["skip_reason"] = reason
             synthesize(signal, provider="template")
             sid = log_signal(signal, ts, self.db_path, self.source)
+            log_event(
+                logger,
+                "signal",
+                scope=self.scope,
+                ticker=s,
+                direction=signal["direction"],
+                confidence=signal.get("confidence"),
+                signal_id=sid,
+                skip_reason=reason,
+                run_id=self.run_id,
+            )
             self._emit("signal", signal)
             if not reason:
                 if self.is_alpaca:
@@ -476,6 +569,7 @@ class LiveTrader:
                     self._broker_events()
                 else:
                     self.pending[s] = {**signal, "signal_id": sid}
+                    log_event(logger, "entry_pending", scope=self.scope, ticker=s, signal_id=sid)
                     if self.source == "live":
                         with _connect(self.db_path) as conn:
                             conn.execute(
@@ -488,6 +582,7 @@ class LiveTrader:
         detail = (
             self.worker_error_detail if self._worker_recovery_required else None
         ) or self.broker.blocked
+        self._log_execution_state_change("blocked" if detail else "running", detail)
         set_status(
             self.scope, "blocked" if detail else "running", detail or "", decision_at, self.db_path
         )

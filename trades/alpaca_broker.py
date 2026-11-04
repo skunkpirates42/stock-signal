@@ -5,6 +5,7 @@ are called by the live worker, not the websocket ingestion callback.
 """
 
 import json
+import logging
 import math
 import sqlite3
 import uuid
@@ -14,6 +15,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, overload
 
 import config
+from app_logging import log_event
 from db.logger import (
     DbPath,
     _connect,
@@ -26,7 +28,10 @@ from db.logger import (
     trade_values,
 )
 
+logger = logging.getLogger(__name__)
+
 TERMINAL_ORDER_STATES = {"filled", "canceled", "rejected", "expired"}
+FAILED_ORDER_STATES = ("rejected", "expired", "suspended")
 OrderRow = Mapping[str, Any] | sqlite3.Row
 
 
@@ -180,6 +185,17 @@ class AlpacaBroker:
                     updated_at=now(),
                 ),
             )
+        log_event(
+            logger,
+            "order_intent",
+            order_id=order_id,
+            ticker=ticker,
+            purpose=purpose,
+            qty=qty,
+            signal_id=signal_id,
+            trade_id=trade_id,
+            account=self.account,
+        )
         return order_id
 
     def _submit(self, order_id: str) -> None:
@@ -213,6 +229,17 @@ class AlpacaBroker:
                     **legs,
                 )
             )
+            log_event(
+                logger,
+                "order_submitted",
+                order_id=order_id,
+                broker_id=getattr(order, "id", None),
+                ticker=row["ticker"],
+                purpose=row["purpose"],
+                side="buy" if buy else "sell",
+                qty=row["requested_qty"],
+                bracket=bracket,
+            )
             self._apply_broker_order_state(order_id, order)
             if bracket:
                 self._discover_legs(order_id, order)
@@ -220,6 +247,13 @@ class AlpacaBroker:
             self._mark_unresolved(order_id, exc)
 
     def _mark_unresolved(self, order_id: str, exc: Exception) -> None:
+        log_event(
+            logger,
+            "order_unresolved",
+            logging.WARNING,
+            order_id=order_id,
+            error=f"{type(exc).__name__}: {exc}"[:200],
+        )
         self.blocked = str(exc)
         with _connect(self.db_path) as conn:
             _update(
@@ -235,6 +269,7 @@ class AlpacaBroker:
         event: tuple[str, int] | None = None
         with _connect(self.db_path) as conn:
             row = dict(conn.execute("SELECT * FROM orders WHERE id=?", (order_id,)).fetchone())
+            previous_state, previous_qty = row["state"], row["applied_qty"]
             qty, price = self._validated_cumulative_fill(row, order, state)
             payload = _payload(row)
             if self._is_bracket_leg(row):
@@ -264,9 +299,21 @@ class AlpacaBroker:
                     "fill_price": price,
                     "trade_id": row["trade_id"],
                     "payload_json": json.dumps(payload),
-                    "last_error": state if state in ("rejected", "expired", "suspended") else None,
+                    "last_error": state if state in FAILED_ORDER_STATES else None,
                     "updated_at": now(),
                 },
+            )
+        if state != previous_state or qty != previous_qty:
+            log_event(
+                logger,
+                "order_state",
+                logging.WARNING if state in FAILED_ORDER_STATES else logging.INFO,
+                order_id=order_id,
+                ticker=row["ticker"],
+                state=state,
+                filled_qty=qty,
+                fill_price=price,
+                trade_id=row["trade_id"],
             )
         self._reload_open_positions()
         if event:
@@ -469,6 +516,14 @@ class AlpacaBroker:
             if not row["broker_id"]:
                 self.blocked = self.blocked or "Flatten entry identity awaiting reconciliation"
                 continue
+            log_event(
+                logger,
+                "cancel_requested",
+                order_id=row["id"],
+                broker_id=row["broker_id"],
+                ticker=row["ticker"],
+                reason="session_flatten",
+            )
             try:
                 self._client.cancel_order_by_id(row["broker_id"])
             except Exception as exc:
@@ -643,19 +698,26 @@ class AlpacaBroker:
     def open_position(
         self, signal: Mapping[str, Any], entry_bar: int, signal_id: int | None = None
     ) -> dict[str, Any] | None:
-        if (
-            signal["direction"] not in ("LONG", "SHORT")
-            or self.has_open(signal["ticker"])
-            or self.blocked
-        ):
+        if signal["direction"] not in ("LONG", "SHORT"):
+            self._skip_entry(signal, signal_id, "not_a_trade_direction")
+            return None
+        if self.has_open(signal["ticker"]):
+            self._skip_entry(signal, signal_id, "position_or_order_open")
+            return None
+        if self.blocked:
+            self._skip_entry(signal, signal_id, "blocked", blocked=self.blocked)
             return None
         shares = math.floor(self.capital * self.position_pct / signal["entry"])
         if shares < 1:
+            self._skip_entry(
+                signal, signal_id, "under_one_share", capital=self.capital, entry=signal["entry"]
+            )
             return None
         levels: dict[str, float] = {}
         for name in ("stop", "target"):
             value = _float_or_default(signal.get(name))
             if value is None or value <= 0:
+                self._skip_entry(signal, signal_id, f"invalid_{name}", value=value)
                 return None
             tick = Decimal("0.01") if value >= 1 else Decimal("0.0001")
             levels[name] = float(Decimal(str(value)).quantize(tick, rounding=ROUND_HALF_UP))
@@ -664,6 +726,7 @@ class AlpacaBroker:
             if signal["direction"] == "LONG"
             else levels["target"] < signal["entry"] < levels["stop"]
         ):
+            self._skip_entry(signal, signal_id, "levels_out_of_order", **levels)
             return None
         payload = {
             **signal,
@@ -675,6 +738,20 @@ class AlpacaBroker:
         order_id = self._intent(signal["ticker"], "entry", shares, payload, signal_id)
         self._submit(order_id)
         return self.open_positions.get(signal["ticker"])
+
+    def _skip_entry(
+        self, signal: Mapping[str, Any], signal_id: int | None, reason: str, **fields: object
+    ) -> None:
+        log_event(
+            logger,
+            "order_skipped",
+            logging.INFO,
+            exc_info=False,
+            ticker=signal.get("ticker"),
+            signal_id=signal_id,
+            reason=reason,
+            **fields,
+        )
 
     def close_position(
         self,
@@ -713,6 +790,14 @@ class AlpacaBroker:
             for row in active:
                 if not self._is_bracket_leg(row) and row["purpose"] == "exit":
                     return None
+                log_event(
+                    logger,
+                    "cancel_requested",
+                    order_id=row["id"],
+                    broker_id=row["broker_id"],
+                    ticker=ticker,
+                    reason=exit_reason or outcome.lower(),
+                )
                 try:
                     self._client.cancel_order_by_id(row["broker_id"])
                 except Exception as exc:
