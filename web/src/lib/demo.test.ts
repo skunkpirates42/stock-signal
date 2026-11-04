@@ -49,7 +49,7 @@ describe("saved diagnostics adapter", () => {
     });
     expect(fetch).toHaveBeenCalledWith(
       `http://127.0.0.1:8000/api/demo/v1/results/${RESULT_ID}/artifacts/${ARTIFACT_ID}`,
-      { cache: "no-store", redirect: "manual" },
+      { cache: "no-store", redirect: "manual", signal: expect.any(AbortSignal) },
     );
   });
 

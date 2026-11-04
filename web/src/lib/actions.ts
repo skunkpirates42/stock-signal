@@ -8,6 +8,7 @@ export async function explainSignal(signalId: number): Promise<ExplainResult> {
   const response = await fetch(`${API_BASE}/api/signals/${signalId}/explain`, {
     method: "POST",
     cache: "no-store",
+    signal: AbortSignal.timeout(60000),
   });
   if (!response.ok) {
     throw new Error(`explain responded ${response.status}`);
