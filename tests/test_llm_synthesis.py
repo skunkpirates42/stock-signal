@@ -15,20 +15,42 @@ from signals.llm_synthesis import synthesize
 
 def _actionable():
     return {
-        "ticker": "NVDA", "direction": "LONG", "confidence": 0.7167,
-        "entry": 212.5, "stop": 211.6693, "target": 214.1615, "rr": 2.0,
-        "votes": {"rsi": "neutral", "price_vs_sma20": "bull", "sma20_vs_sma50": "bull",
-                  "price_vs_vwap": "bull", "macd": "bull", "bb": "neutral"},
+        "ticker": "NVDA",
+        "direction": "LONG",
+        "confidence": 0.7167,
+        "entry": 212.5,
+        "stop": 211.6693,
+        "target": 214.1615,
+        "rr": 2.0,
+        "votes": {
+            "rsi": "neutral",
+            "price_vs_sma20": "bull",
+            "sma20_vs_sma50": "bull",
+            "price_vs_vwap": "bull",
+            "macd": "bull",
+            "bb": "neutral",
+        },
         "vote_tally": {"bull": 4, "bear": 0, "neutral": 2},
     }
 
 
 def _wait():
     return {
-        "ticker": "AAPL", "direction": "WAIT", "confidence": 0.55,
-        "entry": 327.6, "stop": None, "target": None, "rr": None,
-        "votes": {"rsi": "neutral", "price_vs_sma20": "bull", "sma20_vs_sma50": "bull",
-                  "price_vs_vwap": "bull", "macd": "bear", "bb": "neutral"},
+        "ticker": "AAPL",
+        "direction": "WAIT",
+        "confidence": 0.55,
+        "entry": 327.6,
+        "stop": None,
+        "target": None,
+        "rr": None,
+        "votes": {
+            "rsi": "neutral",
+            "price_vs_sma20": "bull",
+            "sma20_vs_sma50": "bull",
+            "price_vs_vwap": "bull",
+            "macd": "bear",
+            "bb": "neutral",
+        },
         "vote_tally": {"bull": 3, "bear": 1, "neutral": 2},
     }
 
@@ -49,8 +71,11 @@ def test_template_handles_wait_signals(monkeypatch):
 
 def test_anthropic_provider_records_provider_and_model(monkeypatch):
     monkeypatch.setattr(config, "LLM_PROVIDER", "anthropic")
-    monkeypatch.setattr(llm_synthesis, "_anthropic_reasoning",
-                        lambda s: ("four of six lean bullish", "anthropic:claude-haiku-4-5"))
+    monkeypatch.setattr(
+        llm_synthesis,
+        "_anthropic_reasoning",
+        lambda s: ("four of six lean bullish", "anthropic:claude-haiku-4-5"),
+    )
     out = synthesize(_actionable())
     assert out["reasoning"] == "four of six lean bullish"
     assert out["synthesis_source"] == "anthropic:claude-haiku-4-5"
@@ -58,8 +83,9 @@ def test_anthropic_provider_records_provider_and_model(monkeypatch):
 
 def test_groq_provider_records_provider_and_model(monkeypatch):
     monkeypatch.setattr(config, "LLM_PROVIDER", "groq")
-    monkeypatch.setattr(llm_synthesis, "_groq_reasoning",
-                        lambda s: ("bullish lean", "groq:qwen/qwen3.6-27b"))
+    monkeypatch.setattr(
+        llm_synthesis, "_groq_reasoning", lambda s: ("bullish lean", "groq:qwen/qwen3.6-27b")
+    )
     out = synthesize(_actionable())
     assert out["synthesis_source"] == "groq:qwen/qwen3.6-27b"
 

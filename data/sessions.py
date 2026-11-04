@@ -1,17 +1,19 @@
 """XNYS session boundaries, including holidays, DST and early closes."""
+
 from functools import lru_cache
-import pandas as pd
+
 import exchange_calendars as xcals
+import pandas as pd
 
 
 def utc(ts):
     ts = pd.Timestamp(ts)
-    return ts.tz_localize('UTC') if ts.tzinfo is None else ts.tz_convert('UTC')
+    return ts.tz_localize("UTC") if ts.tzinfo is None else ts.tz_convert("UTC")
 
 
 @lru_cache(maxsize=32)
 def calendar(year):
-    return xcals.get_calendar('XNYS', start=f'{year-1}-01-01', end=f'{year+1}-12-31')
+    return xcals.get_calendar("XNYS", start=f"{year - 1}-01-01", end=f"{year + 1}-12-31")
 
 
 @lru_cache(maxsize=4096)
@@ -23,7 +25,7 @@ def bounds(day):
 
 
 def session_bounds(ts):
-    return bounds(str(utc(ts).tz_convert('America/New_York').date()))
+    return bounds(str(utc(ts).tz_convert("America/New_York").date()))
 
 
 def in_regular_hours(ts):

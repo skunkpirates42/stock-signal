@@ -97,7 +97,10 @@ def compute_metrics(trades, starting_capital: float = None) -> dict:
         "n_wins": len(wins),
         "n_losses": len(losses),
         "n_breakeven": sum(t["outcome"] == "BREAKEVEN" for t in closed),
-        "gross_pnl": round(sum(t.get("gross_pnl") if t.get("gross_pnl") is not None else t["pnl"] for t in closed), 2),
+        "gross_pnl": round(
+            sum(t.get("gross_pnl") if t.get("gross_pnl") is not None else t["pnl"] for t in closed),
+            2,
+        ),
         "costs": round(sum(t.get("costs") or 0 for t in closed), 2),
         "metric_basis": "net of recorded costs; legacy rows may have unmodeled costs",
         "win_rate": win_rate,
@@ -108,7 +111,9 @@ def compute_metrics(trades, starting_capital: float = None) -> dict:
         "total_pnl": round(sum(t["pnl"] for t in closed), 2),
         "max_drawdown": max_dd_abs,
         "max_drawdown_pct": max_dd_pct,
-        "avg_bars_held": round(_safe_mean([t["bars_held"] for t in closed if t["bars_held"] is not None]), 1),
+        "avg_bars_held": round(
+            _safe_mean([t["bars_held"] for t in closed if t["bars_held"] is not None]), 1
+        ),
         "avg_r_multiple": round(_safe_mean([_r_multiple(t) for t in closed]), 3),
         "avg_win_r": round(_safe_mean([_r_multiple(t) for t in wins]), 3),
         "avg_loss_r": round(_safe_mean([_r_multiple(t) for t in losses]), 3),
@@ -137,8 +142,14 @@ def equity_curve(trades, starting_capital: float = None):
     return points
 
 
-def load_closed_trades(db_path: str = None, source: str = None, backend=None, account=None,
-                       closed_from: str = None, closed_to: str = None):
+def load_closed_trades(
+    db_path: str = None,
+    source: str = None,
+    backend=None,
+    account=None,
+    closed_from: str = None,
+    closed_to: str = None,
+):
     """Load all trades from SQLite as dicts, ordered by close time (then id).
 
     `source` optionally restricts to "live" or "backtest" rows; omitted, all rows load
@@ -153,7 +164,8 @@ def load_closed_trades(db_path: str = None, source: str = None, backend=None, ac
           LEFT JOIN signals s ON t.signal_id = s.id
         """
     params = []
-    from db.logger import scope_sql, init_db
+    from db.logger import scope_sql
+
     clauses, params = scope_sql(source, backend, account, "t.")
     close_day = "substr(COALESCE(t.exit_at,t.closed_at),1,10)"
     # Open trades have no close date and stay in every window as current state.
@@ -191,10 +203,14 @@ def format_report(m: dict) -> str:
     add(f"Total P&L:        {m['total_pnl']:+.2f}")
     add(f"Max drawdown:     {m['max_drawdown']:.2f}  ({m['max_drawdown_pct']:.1%})")
     add(f"Avg bars held:    {m['avg_bars_held']}")
-    add(f"Realized R-mult:  {m['avg_r_multiple']:+.3f}  "
-        f"(wins {m['avg_win_r']:+.2f}R, losses {m['avg_loss_r']:+.2f}R; theoretical +2 / -1)")
-    add(f"Ending capital:   {m['ending_capital']:,.2f}  "
-        f"({(m['ending_capital'] / m['starting_capital'] - 1):+.2%})")
+    add(
+        f"Realized R-mult:  {m['avg_r_multiple']:+.3f}  "
+        f"(wins {m['avg_win_r']:+.2f}R, losses {m['avg_loss_r']:+.2f}R; theoretical +2 / -1)"
+    )
+    add(
+        f"Ending capital:   {m['ending_capital']:,.2f}  "
+        f"({(m['ending_capital'] / m['starting_capital'] - 1):+.2%})"
+    )
 
     add("-" * 64)
     add(f"{'BY REGIME':<10}{'N':>5}{'WIN%':>8}{'PNL':>12}")

@@ -4,6 +4,7 @@ Jobs live in their own SQLite database, apart from the engine journal, so web li
 state never enters an engine run manifest. One host and one worker only: WAL, a busy
 timeout and ``BEGIN IMMEDIATE`` transactions serialize submits, claims and transitions.
 """
+
 from __future__ import annotations
 
 import json
@@ -18,10 +19,15 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .artifacts import ArtifactImportError, ImportedArtifact, _open_root, _read_file
 from .availability import available, unavailable
-from .read_service import (DEFAULT_PAGE_SIZE, MAX_ARTIFACT_BYTES, MAX_PAGE_SIZE, DemoContentTooLarge, DemoNotFound,
-                           envelope)
+from .read_service import (
+    DEFAULT_PAGE_SIZE,
+    MAX_ARTIFACT_BYTES,
+    MAX_PAGE_SIZE,
+    DemoContentTooLarge,
+    DemoNotFound,
+    envelope,
+)
 from .replay_catalog import build_replay_request, request_fingerprint, validated_request_fields
-
 
 ACTIVE_STATES = ("running", "cancel_requested")
 PHASES = ("validating", "replaying", "exporting", "verifying")
@@ -71,8 +77,15 @@ class PublishedArtifact:
     byte_size: int
 
     def as_record(self, result_id: str) -> Dict[str, Any]:
-        return {"record_type": "artifact", "id": self.id, "result_id": result_id, "kind": self.kind,
-                "sha256": self.sha256, "mime_type": self.mime_type, "byte_size": self.byte_size}
+        return {
+            "record_type": "artifact",
+            "id": self.id,
+            "result_id": result_id,
+            "kind": self.kind,
+            "sha256": self.sha256,
+            "mime_type": self.mime_type,
+            "byte_size": self.byte_size,
+        }
 
 
 @dataclass(frozen=True)
@@ -110,7 +123,12 @@ def _page_size(value: Optional[str]) -> int:
 
 
 def _lease_duration(value: Any) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+        or value <= 0
+    ):
         raise ValueError("lease_seconds must be a positive number")
     return float(value)
 
@@ -121,8 +139,12 @@ def requester_id_for(owner_id: str) -> str:
 
 
 class JobStore:
-    def __init__(self, db_path: Path | str, *,
-                 clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc)):
+    def __init__(
+        self,
+        db_path: Path | str,
+        *,
+        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+    ):
         self.db_path = Path(db_path)
         self.clock = clock
         self.init_db()
@@ -234,15 +256,23 @@ class JobStore:
                 """INSERT INTO demo_jobs (id, owner_id, idempotency_key, request_fingerprint, request_json,
                        normalized_run_json, strategy_configuration_json, state, created_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?)""",
-                (job_id, owner_id, built.idempotency_key, built.request_fingerprint,
-                 json.dumps(fields, sort_keys=True), json.dumps(built.normalized_run, sort_keys=True),
-                 json.dumps(built.strategy_configuration, sort_keys=True), created_at),
+                (
+                    job_id,
+                    owner_id,
+                    built.idempotency_key,
+                    built.request_fingerprint,
+                    json.dumps(fields, sort_keys=True),
+                    json.dumps(built.normalized_run, sort_keys=True),
+                    json.dumps(built.strategy_configuration, sort_keys=True),
+                    created_at,
+                ),
             )
         return job_id, True
 
     @staticmethod
-    def _job_for_key(conn: sqlite3.Connection, owner_id: str, idempotency_key: str,
-                     fingerprint: str) -> Optional[str]:
+    def _job_for_key(
+        conn: sqlite3.Connection, owner_id: str, idempotency_key: str, fingerprint: str
+    ) -> Optional[str]:
         existing = conn.execute(
             "SELECT id, request_fingerprint FROM demo_jobs WHERE owner_id=? AND idempotency_key=?",
             (owner_id, idempotency_key),
@@ -254,14 +284,17 @@ class JobStore:
         return existing["id"]
 
     def _owned_row(self, conn: sqlite3.Connection, owner_id: str, job_id: str) -> sqlite3.Row:
-        row = conn.execute("SELECT * FROM demo_jobs WHERE id=? AND owner_id=?",
-                           (_canonical_job_id(job_id), owner_id)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM demo_jobs WHERE id=? AND owner_id=?",
+            (_canonical_job_id(job_id), owner_id),
+        ).fetchone()
         if row is None:
             raise DemoNotFound("Unknown run")
         return row
 
-    def list_jobs(self, owner_id: str, *, limit: Optional[str] = None,
-                  cursor: Optional[str] = None) -> Dict[str, Any]:
+    def list_jobs(
+        self, owner_id: str, *, limit: Optional[str] = None, cursor: Optional[str] = None
+    ) -> Dict[str, Any]:
         page_size = _page_size(limit)
         conn = self._connect()
         try:
@@ -283,8 +316,12 @@ class JobStore:
             conn.close()
         has_more = len(rows) > page_size
         rows = rows[:page_size]
-        return envelope({"runs": [self._status(row) for row in rows],
-                         "next_cursor": rows[-1]["id"] if has_more else None})
+        return envelope(
+            {
+                "runs": [self._status(row) for row in rows],
+                "next_cursor": rows[-1]["id"] if has_more else None,
+            }
+        )
 
     def job_detail(self, owner_id: str, job_id: str) -> Dict[str, Any]:
         conn = self._connect()
@@ -292,17 +329,32 @@ class JobStore:
             row = self._owned_row(conn, owner_id, job_id)
             result, artifacts = None, []
             # Jobs completed before B3 recorded results have no result row to show.
-            result_row = conn.execute("SELECT id, result_json FROM demo_job_results WHERE job_id=?",
-                                      (row["id"],)).fetchone() if row["state"] == "completed" else None
+            result_row = (
+                conn.execute(
+                    "SELECT id, result_json FROM demo_job_results WHERE job_id=?", (row["id"],)
+                ).fetchone()
+                if row["state"] == "completed"
+                else None
+            )
             if result_row is not None:
                 result = json.loads(result_row["result_json"])
-                artifacts = [self._artifact(artifact).as_record(result_row["id"]) for artifact in conn.execute(
-                    "SELECT * FROM demo_job_artifacts WHERE result_id=? ORDER BY relative_path",
-                    (result_row["id"],))]
+                artifacts = [
+                    self._artifact(artifact).as_record(result_row["id"])
+                    for artifact in conn.execute(
+                        "SELECT * FROM demo_job_artifacts WHERE result_id=? ORDER BY relative_path",
+                        (result_row["id"],),
+                    )
+                ]
         finally:
             conn.close()
-        return envelope({"run": json.loads(row["normalized_run_json"]), "status": self._status(row),
-                         "result": result, "artifacts": artifacts})
+        return envelope(
+            {
+                "run": json.loads(row["normalized_run_json"]),
+                "status": self._status(row),
+                "result": result,
+                "artifacts": artifacts,
+            }
+        )
 
     def artifact_content(self, owner_id: str, job_id: str, artifact_id: str) -> ImportedArtifact:
         artifact_id = _canonical_uuid(artifact_id, "Unknown artifact")
@@ -323,18 +375,27 @@ class JobStore:
             raise DemoContentTooLarge("Artifact exceeds the demo content limit")
         try:
             with _open_root(Path(row["directory"])) as root_fd:
-                content, digest = _read_file(root_fd, row["relative_path"], required=True,
-                                             max_bytes=MAX_ARTIFACT_BYTES)
+                content, digest = _read_file(
+                    root_fd, row["relative_path"], required=True, max_bytes=MAX_ARTIFACT_BYTES
+                )
         except ArtifactImportError as exc:
             raise DemoNotFound("Unknown artifact") from exc
         if digest != row["sha256"] or len(content) != row["byte_size"]:
             raise DemoNotFound("Unknown artifact")
-        return ImportedArtifact(row["id"], row["result_id"], row["kind"], row["mime_type"], row["byte_size"], content)
+        return ImportedArtifact(
+            row["id"], row["result_id"], row["kind"], row["mime_type"], row["byte_size"], content
+        )
 
     @staticmethod
     def _artifact(row: sqlite3.Row) -> PublishedArtifact:
-        return PublishedArtifact(row["id"], row["kind"], row["relative_path"], row["sha256"], row["mime_type"],
-                                 row["byte_size"])
+        return PublishedArtifact(
+            row["id"],
+            row["kind"],
+            row["relative_path"],
+            row["sha256"],
+            row["mime_type"],
+            row["byte_size"],
+        )
 
     def request_cancel(self, owner_id: str, job_id: str) -> Dict[str, Any]:
         with self._transaction() as conn:
@@ -359,7 +420,9 @@ class JobStore:
         lease_token = str(uuid.uuid4())
         with self._transaction() as conn:
             started_at, now = self._now()
-            row = conn.execute("SELECT * FROM demo_jobs WHERE state='queued' ORDER BY seq LIMIT 1").fetchone()
+            row = conn.execute(
+                "SELECT * FROM demo_jobs WHERE state='queued' ORDER BY seq LIMIT 1"
+            ).fetchone()
             if row is None:
                 return None
             conn.execute(
@@ -367,22 +430,29 @@ class JobStore:
                        attempt=attempt+1, lease_token=?, lease_expires_at=? WHERE id=? AND state='queued'""",
                 (started_at, started_at, lease_token, now + lease_seconds, row["id"]),
             )
-        return ClaimedJob(id=row["id"], lease_token=lease_token, attempt=row["attempt"] + 1,
-                          request=json.loads(row["request_json"]),
-                          normalized_run=json.loads(row["normalized_run_json"]),
-                          strategy_configuration=json.loads(row["strategy_configuration_json"]))
+        return ClaimedJob(
+            id=row["id"],
+            lease_token=lease_token,
+            attempt=row["attempt"] + 1,
+            request=json.loads(row["request_json"]),
+            normalized_run=json.loads(row["normalized_run_json"]),
+            strategy_configuration=json.loads(row["strategy_configuration_json"]),
+        )
 
-    def _leased_row(self, conn: sqlite3.Connection, job_id: str, lease_token: str,
-                    now: Optional[float]) -> sqlite3.Row:
-        row = conn.execute("SELECT * FROM demo_jobs WHERE id=? AND lease_token=?",
-                           (job_id, lease_token)).fetchone()
+    def _leased_row(
+        self, conn: sqlite3.Connection, job_id: str, lease_token: str, now: Optional[float]
+    ) -> sqlite3.Row:
+        row = conn.execute(
+            "SELECT * FROM demo_jobs WHERE id=? AND lease_token=?", (job_id, lease_token)
+        ).fetchone()
         expired = now is not None and row is not None and row["lease_expires_at"] < now
         if row is None or row["state"] not in ACTIVE_STATES or expired:
             raise LeaseLost("Job %s is no longer leased to this worker" % job_id)
         return row
 
-    def heartbeat(self, job_id: str, lease_token: str, *, lease_seconds: float,
-                  phase: Optional[str] = None) -> str:
+    def heartbeat(
+        self, job_id: str, lease_token: str, *, lease_seconds: float, phase: Optional[str] = None
+    ) -> str:
         if phase is not None and phase not in PHASES:
             raise ValueError("Unknown phase: %s" % phase)
         lease_seconds = _lease_duration(lease_seconds)
@@ -395,12 +465,17 @@ class JobStore:
             )
         return row["state"]
 
-    def complete(self, job_id: str, lease_token: str, *, engine_run_id: str, result: PublishedResult) -> None:
+    def complete(
+        self, job_id: str, lease_token: str, *, engine_run_id: str, result: PublishedResult
+    ) -> None:
         if not isinstance(engine_run_id, str) or not engine_run_id:
             raise ValueError("engine_run_id is required")
         result_id = str(uuid.UUID(result.id))
-        if (result.record.get("id") != result_id or result.record.get("run_id") != job_id
-                or result.record.get("artifact_ids") != [artifact.id for artifact in result.artifacts]):
+        if (
+            result.record.get("id") != result_id
+            or result.record.get("run_id") != job_id
+            or result.record.get("artifact_ids") != [artifact.id for artifact in result.artifacts]
+        ):
             raise ValueError("Result record does not match the job and its artifacts")
         with self._transaction() as conn:
             ended_at, _ = self._now()
@@ -409,13 +484,25 @@ class JobStore:
             self._leased_row(conn, job_id, lease_token, None)
             # The result rows commit with the job's completion, so no crash can leave a
             # served result on a job that recovery would then replay.
-            conn.execute("INSERT INTO demo_job_results (id, job_id, directory, result_json) VALUES (?, ?, ?, ?)",
-                         (result_id, job_id, result.directory, json.dumps(result.record, sort_keys=True)))
+            conn.execute(
+                "INSERT INTO demo_job_results (id, job_id, directory, result_json) VALUES (?, ?, ?, ?)",
+                (result_id, job_id, result.directory, json.dumps(result.record, sort_keys=True)),
+            )
             conn.executemany(
                 """INSERT INTO demo_job_artifacts (id, result_id, kind, relative_path, sha256, mime_type, byte_size)
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                [(artifact.id, result_id, artifact.kind, artifact.relative_path, artifact.sha256,
-                  artifact.mime_type, artifact.byte_size) for artifact in result.artifacts],
+                [
+                    (
+                        artifact.id,
+                        result_id,
+                        artifact.kind,
+                        artifact.relative_path,
+                        artifact.sha256,
+                        artifact.mime_type,
+                        artifact.byte_size,
+                    )
+                    for artifact in result.artifacts
+                ],
             )
             # Completion wins over a pending cancel: the result was already published.
             conn.execute(
@@ -488,33 +575,59 @@ class JobStore:
             raise ValueError("Unknown failure code: %s" % code)
         if not isinstance(retryable, bool):
             raise ValueError("retryable must be a boolean")
-        return {"code": code, "summary": FAILURE_SUMMARIES[code], "at": at,
-                "retryable": retryable,
-                "log_artifact_id": unavailable("not_recorded", "No log artifact is published for this job.")}
+        return {
+            "code": code,
+            "summary": FAILURE_SUMMARIES[code],
+            "at": at,
+            "retryable": retryable,
+            "log_artifact_id": unavailable(
+                "not_recorded", "No log artifact is published for this job."
+            ),
+        }
 
     @staticmethod
     def _status(row: sqlite3.Row) -> Dict[str, Any]:
         def recorded(column: str, missing: str) -> Dict[str, Any]:
-            return available(row[column]) if row[column] is not None else unavailable("not_applicable", missing)
+            return (
+                available(row[column])
+                if row[column] is not None
+                else unavailable("not_applicable", missing)
+            )
 
         state = row["state"]
         if row["cancel_requested_at"] is not None:
-            cancellation = {"requested_at": row["cancel_requested_at"], "requester_id": row["cancel_requester_id"]}
+            cancellation = {
+                "requested_at": row["cancel_requested_at"],
+                "requester_id": row["cancel_requester_id"],
+            }
         else:
             cancellation = unavailable("not_applicable", "No cancellation was requested.")
         return {
-            "record_type": "status", "run_id": row["id"], "origin": "job", "state": state,
+            "record_type": "status",
+            "run_id": row["id"],
+            "origin": "job",
+            "state": state,
             "created_at": available(row["created_at"]),
             "started_at": recorded("started_at", "The current attempt has not started."),
             "ended_at": recorded("ended_at", "The job has not ended."),
             "phase": recorded("phase", "No worker phase is reported for the current attempt."),
-            "progress": unavailable("not_recorded", "The replay does not report trustworthy progress counts."),
-            "heartbeat_at": recorded("heartbeat_at", "No worker heartbeat is recorded for the current attempt."),
+            "progress": unavailable(
+                "not_recorded", "The replay does not report trustworthy progress counts."
+            ),
+            "heartbeat_at": recorded(
+                "heartbeat_at", "No worker heartbeat is recorded for the current attempt."
+            ),
             "attempt": available(row["attempt"]),
             "engine_run_id": recorded("engine_run_id", "No engine run is recorded."),
-            "result_id": (available(row["result_id"]) if state == "completed"
-                          else unavailable("not_applicable", "Only a completed job has a result.")),
-            "failure": (json.loads(row["failure_json"]) if state == "failed"
-                        else unavailable("not_applicable", "The job has not failed.")),
+            "result_id": (
+                available(row["result_id"])
+                if state == "completed"
+                else unavailable("not_applicable", "Only a completed job has a result.")
+            ),
+            "failure": (
+                json.loads(row["failure_json"])
+                if state == "failed"
+                else unavailable("not_applicable", "The job has not failed.")
+            ),
             "cancellation": cancellation,
         }

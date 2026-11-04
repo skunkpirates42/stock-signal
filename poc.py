@@ -11,7 +11,6 @@ Signals are logged with source="poc" so they're never mistaken for live trading 
 Run:  python3 poc.py
 """
 
-
 import config
 from data.source import active_source_name, get_bars
 from db.logger import init_db, log_signal
@@ -19,7 +18,6 @@ from signals.engine import generate_signal
 from signals.indicators import compute_indicators
 from signals.llm_synthesis import synthesize
 from signals.regime import classify
-
 
 
 def _print_signal(sig: dict) -> None:
@@ -31,8 +29,7 @@ def _print_signal(sig: dict) -> None:
     print(f"  votes: {t['bull']} bull / {t['bear']} bear / {t['neutral']} neutral")
     if sig["direction"] != "WAIT":
         print(
-            f"  entry={sig['entry']}  stop={sig['stop']}  "
-            f"target={sig['target']}  R:R={sig['rr']}"
+            f"  entry={sig['entry']}  stop={sig['stop']}  target={sig['target']}  R:R={sig['rr']}"
         )
     ind = sig["indicators"]
     print(
@@ -75,8 +72,10 @@ def main() -> None:
         rr = f"{s['rr']}" if s["rr"] is not None else "-"
         print(f"{s['ticker']:<8}{s['direction']:<11}{s['confidence']:<8.0%}{rr:<6}")
     n_trades = sum(1 for s in results if s["direction"] != "WAIT")
-    print(f"\n{n_trades}/{len(results)} names produced an actionable signal "
-          f"(threshold {config.CONFIDENCE_THRESHOLD:.0%}).")
+    print(
+        f"\n{n_trades}/{len(results)} names produced an actionable signal "
+        f"(threshold {config.CONFIDENCE_THRESHOLD:.0%})."
+    )
     print(f"Logged to {config.DB_PATH}")
 
 

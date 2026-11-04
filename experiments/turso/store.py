@@ -3,11 +3,13 @@
 Factories return fresh DB-API connections to the authoritative database. No
 embedded replicas, engine imports, automatic retries or production provisioning.
 """
-from contextlib import contextmanager
-from dataclasses import dataclass
+
 import hashlib
 import json
 import uuid
+from contextlib import contextmanager
+from dataclasses import dataclass
+
 
 class BoundaryDenied(Exception):
     def __init__(self, code="unauthenticated", status=401):
@@ -42,8 +44,9 @@ class Scope:
 
 
 def hash_document(document):
-    return hashlib.sha256(json.dumps(document, sort_keys=True, separators=(",", ":"),
-                                     allow_nan=False).encode()).hexdigest()
+    return hashlib.sha256(
+        json.dumps(document, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+    ).hexdigest()
 
 
 MIGRATIONS = (
@@ -83,7 +86,9 @@ def migrate(connect, workspace, *, target=None):
     if type(target) is not int or not 1 <= target <= len(MIGRATIONS):
         raise ValueError("Invalid schema version")
     with transaction(connect) as conn:
-        conn.execute("CREATE TABLE IF NOT EXISTS proof_migrations (version INTEGER PRIMARY KEY, digest TEXT NOT NULL)")
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS proof_migrations (version INTEGER PRIMARY KEY, digest TEXT NOT NULL)"
+        )
         applied = dict(conn.execute("SELECT version,digest FROM proof_migrations").fetchall())
         if sorted(applied) != list(range(1, len(applied) + 1)) or len(applied) > target:
             raise ValueError("Unsupported schema version")
@@ -113,6 +118,7 @@ class Router:
     Never construct scopes from request fields. This proof injects fake sessions;
     production OIDC/session and concurrent revocation wiring remain separate work.
     """
+
     def __init__(self, resolve_session, registry):
         self.resolve_session = resolve_session
         self.registry = dict(registry)
@@ -131,6 +137,7 @@ class Router:
 
 class Store:
     """Worker uses a trusted workspace binding, never an HTTP-supplied endpoint."""
+
     def __init__(self, connect, workspace):
         self.connect, self.workspace = connect, workspace
 
@@ -138,7 +145,9 @@ class Store:
     def tx(self):
         with transaction(self.connect) as conn:
             check_workspace(conn, self.workspace)
-            if conn.execute("SELECT MAX(version) FROM proof_migrations").fetchone()[0] != len(MIGRATIONS):
+            if conn.execute("SELECT MAX(version) FROM proof_migrations").fetchone()[0] != len(
+                MIGRATIONS
+            ):
                 raise ValueError("Migration required")
             yield conn
 
@@ -154,13 +163,17 @@ class Store:
                     raise IdempotencyConflict("idempotency_key_conflict")
                 return row[0]
             run = str(uuid.uuid4())
-            conn.execute("INSERT INTO proof_jobs(id,key,digest,request,state) VALUES (?,?,?,?,'queued')",
-                         (run, key, digest, document))
+            conn.execute(
+                "INSERT INTO proof_jobs(id,key,digest,request,state) VALUES (?,?,?,?,'queued')",
+                (run, key, digest, document),
+            )
             return run
 
     def get(self, run):
         with self.tx() as conn:
-            row = conn.execute("SELECT state,attempt,result FROM proof_jobs WHERE id=?", (run,)).fetchone()
+            row = conn.execute(
+                "SELECT state,attempt,result FROM proof_jobs WHERE id=?", (run,)
+            ).fetchone()
             if row is None:
                 raise BoundaryDenied("not_found", 404)
             return row
@@ -169,19 +182,27 @@ class Store:
         if type(seconds) is not int or not 1 <= seconds <= 3600:
             raise ValueError("Invalid lease duration")
         with self.tx() as conn:
-            row = conn.execute("SELECT id,attempt FROM proof_jobs WHERE state='queued' "
-                               "AND (? IS NULL OR id=?) ORDER BY id LIMIT 1", (run_id, run_id)).fetchone()
+            row = conn.execute(
+                "SELECT id,attempt FROM proof_jobs WHERE state='queued' "
+                "AND (? IS NULL OR id=?) ORDER BY id LIMIT 1",
+                (run_id, run_id),
+            ).fetchone()
             if row is None:
                 return None
             token = str(uuid.uuid4())
-            conn.execute("UPDATE proof_jobs SET state='running',attempt=attempt+1,token=?,"
-                         "expires=CAST(strftime('%s','now') AS INTEGER)+? WHERE id=?", (token, seconds, row[0]))
+            conn.execute(
+                "UPDATE proof_jobs SET state='running',attempt=attempt+1,token=?,"
+                "expires=CAST(strftime('%s','now') AS INTEGER)+? WHERE id=?",
+                (token, seconds, row[0]),
+            )
             return row[0], token, row[1] + 1
 
     def complete(self, run, token, result):
         document = json.dumps(result, sort_keys=True, separators=(",", ":"), allow_nan=False)
         with self.tx() as conn:
-            row = conn.execute("SELECT state,token,result FROM proof_jobs WHERE id=?", (run,)).fetchone()
+            row = conn.execute(
+                "SELECT state,token,result FROM proof_jobs WHERE id=?", (run,)
+            ).fetchone()
             if row is None or row[1] != token:
                 raise LeaseLost("Lease unavailable")
             if row[0] == "completed" and row[2] == document:
@@ -189,12 +210,17 @@ class Store:
             if row[0] != "running":
                 raise LeaseLost("Lease unavailable")
             # Like C3, expiry permits completion until recovery fences the token.
-            conn.execute("UPDATE proof_jobs SET state='completed',result=? WHERE id=?", (document, run))
+            conn.execute(
+                "UPDATE proof_jobs SET state='completed',result=? WHERE id=?", (document, run)
+            )
             return True
 
     def recover(self, *, run_id=None):
         with self.tx() as conn:
-            conn.execute("UPDATE proof_jobs SET state=CASE WHEN attempt<2 THEN 'queued' ELSE 'failed' END,"
-                         "token=NULL,expires=NULL WHERE state='running' "
-                         "AND expires<CAST(strftime('%s','now') AS INTEGER) "
-                         "AND (? IS NULL OR id=?)", (run_id, run_id))
+            conn.execute(
+                "UPDATE proof_jobs SET state=CASE WHEN attempt<2 THEN 'queued' ELSE 'failed' END,"
+                "token=NULL,expires=NULL WHERE state='running' "
+                "AND expires<CAST(strftime('%s','now') AS INTEGER) "
+                "AND (? IS NULL OR id=?)",
+                (run_id, run_id),
+            )

@@ -35,44 +35,50 @@ def build_alert_events(signals, trades, limit: int = 80) -> list:
     for s in signals:
         if s.get("direction") not in ACTIONABLE:
             continue
-        events.append({
-            "key": f"sig:{s['id']}",
-            "kind": "signal",
-            "ticker": s.get("ticker"),
-            "direction": s.get("direction"),
-            "confidence": s.get("confidence"),
-            "entry": s.get("entry"),
-            "stop": s.get("stop"),
-            "target": s.get("target"),
-            "rr": s.get("rr"),
-            "regime": s.get("regime"),
-            "bar_time": s.get("bar_timestamp"),
-            "order_ts": s.get("created_at") or s.get("bar_timestamp") or "",
-        })
+        events.append(
+            {
+                "key": f"sig:{s['id']}",
+                "kind": "signal",
+                "ticker": s.get("ticker"),
+                "direction": s.get("direction"),
+                "confidence": s.get("confidence"),
+                "entry": s.get("entry"),
+                "stop": s.get("stop"),
+                "target": s.get("target"),
+                "rr": s.get("rr"),
+                "regime": s.get("regime"),
+                "bar_time": s.get("bar_timestamp"),
+                "order_ts": s.get("created_at") or s.get("bar_timestamp") or "",
+            }
+        )
 
     for t in trades:
         if t.get("created_at"):
-            events.append({
-                "key": f"open:{t['id']}",
-                "kind": "open",
-                "ticker": t.get("ticker"),
-                "direction": t.get("direction"),
-                "entry": t.get("entry"),
-                "shares": t.get("shares"),
-                "order_ts": t.get("created_at") or "",
-            })
+            events.append(
+                {
+                    "key": f"open:{t['id']}",
+                    "kind": "open",
+                    "ticker": t.get("ticker"),
+                    "direction": t.get("direction"),
+                    "entry": t.get("entry"),
+                    "shares": t.get("shares"),
+                    "order_ts": t.get("created_at") or "",
+                }
+            )
         if t.get("outcome") in CLOSED and t.get("closed_at"):
-            events.append({
-                "key": f"close:{t['id']}",
-                "kind": "close",
-                "ticker": t.get("ticker"),
-                "direction": t.get("direction"),
-                "outcome": t.get("outcome"),
-                "pnl": t.get("pnl"),
-                "exit": t.get("exit_price"),
-                "bars_held": t.get("bars_held"),
-                "order_ts": t.get("closed_at") or "",
-            })
+            events.append(
+                {
+                    "key": f"close:{t['id']}",
+                    "kind": "close",
+                    "ticker": t.get("ticker"),
+                    "direction": t.get("direction"),
+                    "outcome": t.get("outcome"),
+                    "pnl": t.get("pnl"),
+                    "exit": t.get("exit_price"),
+                    "bars_held": t.get("bars_held"),
+                    "order_ts": t.get("closed_at") or "",
+                }
+            )
 
     events.sort(key=lambda e: e["order_ts"], reverse=True)
     return events[:limit]

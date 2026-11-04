@@ -16,31 +16,46 @@ from pathlib import Path
 from flask import Flask, Response, abort, jsonify, render_template, request
 
 import config
-from dashboard.prices import MarketStatus, PositionPrices
-from dashboard.position_state import position_state
 from alerts.feed import build_alert_events
 from analytics.metrics import compute_metrics, equity_curve, load_closed_trades
-from db.logger import load_open_positions, init_db, scope_sql, _connect
+from dashboard.position_state import position_state
+from dashboard.prices import MarketStatus, PositionPrices
+from db.logger import _connect, init_db, load_open_positions, scope_sql
 from demo.jobs import IdempotencyConflict, InvalidPageRequest, JobStore
-from demo.read_service import MAX_JSON_RESPONSE_BYTES, DemoContentTooLarge, DemoNotFound, DemoReadService
+from demo.read_service import (
+    MAX_JSON_RESPONSE_BYTES,
+    DemoContentTooLarge,
+    DemoNotFound,
+    DemoReadService,
+)
 from demo.replay_catalog import ReplayRequestRejected, replay_catalog
 from signals.llm_synthesis import signal_from_row, synthesize
-
 
 MAX_RUN_REQUEST_BYTES = 4096
 
 
-def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: str = None,
-               demo_job_db_path: str = None) -> Flask:
+def create_app(
+    db_path: str = None,
+    *,
+    demo_db_path: str = None,
+    demo_owner_id: str = None,
+    demo_job_db_path: str = None,
+) -> Flask:
     app = Flask(__name__)
     app.config["DB_PATH"] = db_path or config.DB_PATH
     # These are server configuration, never request parameters.  The demo index is
     # deliberately separate from the operational journal and has no write endpoint.
-    app.config["DEMO_DB_PATH"] = (demo_db_path or os.environ.get("DEMO_ARTIFACT_DB_PATH")
-                                  or str(Path(app.config["DB_PATH"]).with_name("demo-artifacts.db")))
+    app.config["DEMO_DB_PATH"] = (
+        demo_db_path
+        or os.environ.get("DEMO_ARTIFACT_DB_PATH")
+        or str(Path(app.config["DB_PATH"]).with_name("demo-artifacts.db"))
+    )
     app.config["DEMO_OWNER_ID"] = demo_owner_id or os.environ.get("DEMO_OPERATOR_OWNER_ID", "local")
-    app.config["DEMO_JOB_DB_PATH"] = (demo_job_db_path or os.environ.get("DEMO_JOB_DB_PATH")
-                                      or str(Path(app.config["DB_PATH"]).with_name("demo-jobs.db")))
+    app.config["DEMO_JOB_DB_PATH"] = (
+        demo_job_db_path
+        or os.environ.get("DEMO_JOB_DB_PATH")
+        or str(Path(app.config["DB_PATH"]).with_name("demo-jobs.db"))
+    )
     init_db(app.config["DB_PATH"])
     demo = DemoReadService(app.config["DEMO_DB_PATH"], owner_id=app.config["DEMO_OWNER_ID"])
     jobs = JobStore(app.config["DEMO_JOB_DB_PATH"])
@@ -71,7 +86,9 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
         params = []
         clauses, params = scope_sql(source)
         if table in ("trades", "signals"):
-            more, values = scope_sql(backend=request.args.get("backend"), account=request.args.get("account"))
+            more, values = scope_sql(
+                backend=request.args.get("backend"), account=request.args.get("account")
+            )
             clauses += more
             params += values
         if clauses:
@@ -113,9 +130,14 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
 
     @app.route("/api/metrics")
     def api_metrics():
-        trades = load_closed_trades(_db(), source=request.args.get("source"),
-            backend=request.args.get("backend"), account=request.args.get("account"),
-            closed_from=_date_param("from"), closed_to=_date_param("to"))
+        trades = load_closed_trades(
+            _db(),
+            source=request.args.get("source"),
+            backend=request.args.get("backend"),
+            account=request.args.get("account"),
+            closed_from=_date_param("from"),
+            closed_to=_date_param("to"),
+        )
         m = compute_metrics(trades)
         m["equity"] = equity_curve(trades)
         return jsonify(m)
@@ -132,8 +154,14 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
 
     @app.route("/api/open")
     def api_open():
-        return jsonify(load_open_positions(_db(), source=request.args.get("source", "live"),
-            backend=request.args.get("backend"), account=request.args.get("account")))
+        return jsonify(
+            load_open_positions(
+                _db(),
+                source=request.args.get("source", "live"),
+                backend=request.args.get("backend"),
+                account=request.args.get("account"),
+            )
+        )
 
     @app.route("/api/position-state")
     def api_position_state():
@@ -142,7 +170,7 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
         except (sqlite3.Error, ValueError, TypeError):
             response = jsonify(error="Position state unavailable")
             response.status_code = 503
-        response.headers['Cache-Control'] = 'no-store'
+        response.headers["Cache-Control"] = "no-store"
         return response
 
     @app.route("/api/signals/<int:signal_id>/explain", methods=["POST"])
@@ -153,9 +181,7 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
         conn = sqlite3.connect(_db())
         conn.row_factory = sqlite3.Row
         try:
-            row = conn.execute(
-                "SELECT * FROM signals WHERE id = ?", (signal_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM signals WHERE id = ?", (signal_id,)).fetchone()
         except sqlite3.OperationalError:
             row = None
         finally:
@@ -165,8 +191,14 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
 
         existing = row["synthesis_source"] or ""
         if existing and not existing.startswith("template"):
-            return jsonify({"id": signal_id, "reasoning": row["reasoning"],
-                            "synthesis_source": existing, "cached": True})
+            return jsonify(
+                {
+                    "id": signal_id,
+                    "reasoning": row["reasoning"],
+                    "synthesis_source": existing,
+                    "cached": True,
+                }
+            )
 
         result = synthesize(signal_from_row(row))
         source = result["synthesis_source"]
@@ -181,24 +213,43 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
             conn.commit()
             conn.close()
 
-        return jsonify({"id": signal_id, "reasoning": result["reasoning"],
-                        "synthesis_source": source, "cached": False})
+        return jsonify(
+            {
+                "id": signal_id,
+                "reasoning": result["reasoning"],
+                "synthesis_source": source,
+                "cached": False,
+            }
+        )
 
     @app.route("/api/alerts")
     def api_alerts():
         # Unified, newest-first stream of alert-worthy events (actionable signals + trade
         # opens/closes). Filtering is done client-side so the UI controls stay responsive.
-        events = build_alert_events(_recent("signals", 200, request.args.get("source", "live")),
-                                    _recent("trades", 200, request.args.get("source", "live")), limit=80)
+        events = build_alert_events(
+            _recent("signals", 200, request.args.get("source", "live")),
+            _recent("trades", 200, request.args.get("source", "live")),
+            limit=80,
+        )
         return jsonify(events)
 
     @app.route("/api/status")
     def api_status():
         with _connect(_db()) as conn:
-            runtime = [dict(r) for r in conn.execute("SELECT * FROM runtime_status WHERE scope LIKE 'live:%'")]
-            orders = [dict(r) for r in conn.execute("SELECT id,ticker,purpose,state,requested_qty,filled_qty,last_error,account "
-                "FROM orders WHERE state NOT IN ('filled','canceled','rejected','expired','done_for_day','suspended')")]
-            latest = conn.execute("SELECT MAX(bar_timestamp) FROM signals WHERE source='live'").fetchone()[0]
+            runtime = [
+                dict(r)
+                for r in conn.execute("SELECT * FROM runtime_status WHERE scope LIKE 'live:%'")
+            ]
+            orders = [
+                dict(r)
+                for r in conn.execute(
+                    "SELECT id,ticker,purpose,state,requested_qty,filled_qty,last_error,account "
+                    "FROM orders WHERE state NOT IN ('filled','canceled','rejected','expired','done_for_day','suspended')"
+                )
+            ]
+            latest = conn.execute(
+                "SELECT MAX(bar_timestamp) FROM signals WHERE source='live'"
+            ).fetchone()[0]
         return jsonify(runtime=runtime, unresolved_orders=orders, latest_bar=latest)
 
     def _demo_json(operation):
@@ -208,7 +259,9 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
             # actual serialized response rather than an approximation of it.
             response = jsonify(payload)
             if len(response.get_data()) > MAX_JSON_RESPONSE_BYTES:
-                raise DemoContentTooLarge("Demo JSON response exceeds the configured response limit")
+                raise DemoContentTooLarge(
+                    "Demo JSON response exceeds the configured response limit"
+                )
             return response
         except DemoNotFound:
             # Keep absent, wrong-owner, malformed IDs, and unavailable/tampered indexed
@@ -233,8 +286,11 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
 
     @app.route("/api/demo/v1/research")
     def api_demo_research():
-        return _demo_json(lambda: demo.list_research(limit=request.args.get("limit"),
-                                                      cursor=request.args.get("cursor")))
+        return _demo_json(
+            lambda: demo.list_research(
+                limit=request.args.get("limit"), cursor=request.args.get("cursor")
+            )
+        )
 
     @app.route("/api/demo/v1/results/<result_id>")
     def api_demo_result(result_id):
@@ -284,9 +340,13 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
     def api_demo_submit_run():
         # Requiring a JSON body makes a cross-site form post fail CORS preflight.
         if not request.is_json:
-            return _demo_error(415, "unsupported_media_type", "Run requests must be application/json.")
+            return _demo_error(
+                415, "unsupported_media_type", "Run requests must be application/json."
+            )
         if request.content_length is None:
-            return _demo_error(411, "length_required", "Run requests must declare a Content-Length.")
+            return _demo_error(
+                411, "length_required", "Run requests must declare a Content-Length."
+            )
         if request.content_length > MAX_RUN_REQUEST_BYTES:
             return _demo_error(413, "request_too_large", "Run requests must be at most 4 KB.")
         body = request.get_json(silent=True)
@@ -310,8 +370,13 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
 
     @app.route("/api/demo/v1/runs")
     def api_demo_runs():
-        return _demo_run_json(lambda: jobs.list_jobs(app.config["DEMO_OWNER_ID"], limit=request.args.get("limit"),
-                                                     cursor=request.args.get("cursor")))
+        return _demo_run_json(
+            lambda: jobs.list_jobs(
+                app.config["DEMO_OWNER_ID"],
+                limit=request.args.get("limit"),
+                cursor=request.args.get("cursor"),
+            )
+        )
 
     @app.route("/api/demo/v1/runs/<run_id>")
     def api_demo_run(run_id):
@@ -324,7 +389,9 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
         except DemoNotFound:
             return _demo_error(404, "not_found", "No artifact with this ID for this run.")
         except DemoContentTooLarge:
-            return _demo_error(413, "content_too_large", "The artifact exceeds the demo content limit.")
+            return _demo_error(
+                413, "content_too_large", "The artifact exceeds the demo content limit."
+            )
         except sqlite3.OperationalError as exc:
             if not _is_lock_timeout(exc):
                 raise
@@ -338,7 +405,9 @@ def create_app(db_path: str = None, *, demo_db_path: str = None, demo_owner_id: 
     @app.route("/api/demo/v1/runs/<run_id>/cancel", methods=["POST"])
     def api_demo_cancel_run(run_id):
         if not request.is_json:
-            return _demo_error(415, "unsupported_media_type", "Cancel requests must be application/json.")
+            return _demo_error(
+                415, "unsupported_media_type", "Cancel requests must be application/json."
+            )
         return _demo_run_json(lambda: jobs.request_cancel(app.config["DEMO_OWNER_ID"], run_id))
 
     return app

@@ -8,7 +8,7 @@ uses when Alpaca credentials are absent; the live path is `data.alpaca_rest`.
 """
 
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -33,8 +33,8 @@ def synthetic_bars(ticker: str, n: int = 120) -> pd.DataFrame:
     rng = np.random.default_rng(_seed_for(ticker))
 
     start_price = rng.uniform(80, 400)
-    drift = rng.uniform(-0.0004, 0.0004)        # per-bar drift, varies by ticker
-    vol = rng.uniform(0.001, 0.004)             # per-bar volatility
+    drift = rng.uniform(-0.0004, 0.0004)  # per-bar drift, varies by ticker
+    vol = rng.uniform(0.001, 0.004)  # per-bar volatility
 
     returns = rng.normal(drift, vol, size=n)
     close = start_price * np.exp(np.cumsum(returns))
@@ -50,14 +50,17 @@ def synthetic_bars(ticker: str, n: int = 120) -> pd.DataFrame:
 
     # Calendar-aware completed bars, even when invoked on a weekend.
     from data.sessions import session_bounds, utc
-    end = utc(datetime.utcnow()).floor('5min')
+
+    end = utc(datetime.utcnow()).floor("5min")
     timestamps = []
     day = end
     while len(timestamps) < n:
         pair = session_bounds(day)
         if pair:
-            candidates = pd.date_range(pair[0], pair[1], freq='5min', inclusive='left')
-            timestamps = [ts for ts in candidates if ts + pd.Timedelta(minutes=5) <= end] + timestamps
+            candidates = pd.date_range(pair[0], pair[1], freq="5min", inclusive="left")
+            timestamps = [
+                ts for ts in candidates if ts + pd.Timedelta(minutes=5) <= end
+            ] + timestamps
         day -= pd.Timedelta(days=1)
     timestamps = timestamps[-n:]
 

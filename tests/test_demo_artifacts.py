@@ -1,4 +1,5 @@
 """Offline A2 artifact-index checks using a small, synthetic legacy-shaped tree."""
+
 import copy
 import hashlib
 import json
@@ -11,7 +12,6 @@ import pytest
 
 from demo import artifacts
 from demo.artifacts import ArtifactImportError, ArtifactIndex
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -26,15 +26,22 @@ def artifact_tree(tmp_path):
     source = tmp_path / "synthetic-result"
     protocol = copy.deepcopy(fixture["protocol"])
     digest = "a" * 64
-    protocol.update(synthetic=True, dataset_file_sha256=digest,
-                    unprojected_protocol_field={"keep": ["unknown", "source", "data"]})
+    protocol.update(
+        synthetic=True,
+        dataset_file_sha256=digest,
+        unprojected_protocol_field={"keep": ["unknown", "source", "data"]},
+    )
     protocol["dataset_metadata"]["dataset_file_sha256"] = digest
     row = copy.deepcopy(fixture["comparison"][0])
     manifest = copy.deepcopy(fixture["manifest"])
-    manifest.update(window=row["window"], gate=row["variant"], input_dataset_sha256=digest,
-                    dataset_metadata={"dataset_file_sha256": digest},
-                    settings={"SPREAD_BPS": 2.0, "SLIPPAGE_BPS": 1.0, "FEE_PER_SHARE": 0.0},
-                    unprojected_manifest_field="preserved internally")
+    manifest.update(
+        window=row["window"],
+        gate=row["variant"],
+        input_dataset_sha256=digest,
+        dataset_metadata={"dataset_file_sha256": digest},
+        settings={"SPREAD_BPS": 2.0, "SLIPPAGE_BPS": 1.0, "FEE_PER_SHARE": 0.0},
+        unprojected_manifest_field="preserved internally",
+    )
     _write_json(source / "protocol.json", protocol)
     _write_json(source / "comparison.json", [row])
     _write_json(source / "fixture/baseline/manifest.json", manifest)
@@ -55,8 +62,11 @@ def test_valid_import_is_idempotent_preserves_unknown_metadata_and_excludes_raw_
     source = artifact_tree(tmp_path)
     db = tmp_path / "demo.db"
     index = ArtifactIndex(db)
-    original_hashes = {path.relative_to(source): hashlib.sha256(path.read_bytes()).hexdigest()
-                       for path in source.rglob("*") if path.is_file()}
+    original_hashes = {
+        path.relative_to(source): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in source.rglob("*")
+        if path.is_file()
+    }
 
     first = index.import_directory(source, synthetic=True)
     second = index.import_directory(source, synthetic=True)
@@ -68,14 +78,26 @@ def test_valid_import_is_idempotent_preserves_unknown_metadata_and_excludes_raw_
     artifact = index.resolve_artifact(_artifact_id(db))
     assert artifact.content == (source / "fixture/baseline/metrics.json").read_bytes()
     with sqlite3.connect(db) as conn:
-        metadata = json.loads(conn.execute("SELECT metadata_json FROM demo_artifact_imports").fetchone()[0])
+        metadata = json.loads(
+            conn.execute("SELECT metadata_json FROM demo_artifact_imports").fetchone()[0]
+        )
         paths = {row[0] for row in conn.execute("SELECT relative_path FROM demo_artifact_files")}
-    assert metadata["protocol.json"]["unprojected_protocol_field"]["keep"] == ["unknown", "source", "data"]
-    assert metadata["fixture/baseline/manifest.json"]["unprojected_manifest_field"] == "preserved internally"
+    assert metadata["protocol.json"]["unprojected_protocol_field"]["keep"] == [
+        "unknown",
+        "source",
+        "data",
+    ]
+    assert (
+        metadata["fixture/baseline/manifest.json"]["unprojected_manifest_field"]
+        == "preserved internally"
+    )
     assert "fixture/baseline/bars.json" not in paths
     assert "fixture/baseline/run.db" not in paths
-    assert {path.relative_to(source): hashlib.sha256(path.read_bytes()).hexdigest()
-            for path in source.rglob("*") if path.is_file()} == original_hashes
+    assert {
+        path.relative_to(source): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in source.rglob("*")
+        if path.is_file()
+    } == original_hashes
 
 
 def test_synthetic_projection_uses_explicit_source_evidence(tmp_path):
@@ -105,7 +127,9 @@ def test_tampered_source_fails_on_resolution_and_reimport(tmp_path):
         index.import_directory(source, synthetic=True)
 
 
-def test_resolution_byte_cap_rejects_a_stale_enlarged_file_without_reading_it(tmp_path, monkeypatch):
+def test_resolution_byte_cap_rejects_a_stale_enlarged_file_without_reading_it(
+    tmp_path, monkeypatch
+):
     source = artifact_tree(tmp_path)
     report_path = source / "comparison.md"
     report_path.write_bytes(b"small saved report")
@@ -113,7 +137,9 @@ def test_resolution_byte_cap_rejects_a_stale_enlarged_file_without_reading_it(tm
     index = ArtifactIndex(db)
     index.import_directory(source, synthetic=True)
     with sqlite3.connect(db) as conn:
-        artifact_id = conn.execute("SELECT id FROM demo_artifact_files WHERE kind='report'").fetchone()[0]
+        artifact_id = conn.execute(
+            "SELECT id FROM demo_artifact_files WHERE kind='report'"
+        ).fetchone()[0]
 
     # The index still records the small file.  Replacing it with a large regular file
     # must fail at descriptor stat/cap validation, before a complete read is attempted.
@@ -154,7 +180,9 @@ def test_symlinked_allowed_filename_is_rejected(tmp_path):
         ArtifactIndex(tmp_path / "demo.db").import_directory(source, synthetic=True)
 
 
-@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="named pipes are unavailable on this platform")
+@pytest.mark.skipif(
+    not hasattr(os, "mkfifo"), reason="named pipes are unavailable on this platform"
+)
 def test_named_pipe_with_allowed_filename_is_rejected_without_blocking(tmp_path):
     source = artifact_tree(tmp_path)
     metrics = source / "fixture/baseline/metrics.json"

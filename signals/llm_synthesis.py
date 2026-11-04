@@ -60,22 +60,40 @@ def _template_reasoning(signal: dict) -> str:
 
 
 def _prompt_for(signal: dict) -> str:
-    facts = json.dumps({k: signal.get(k) for k in
-                        ("ticker", "direction", "confidence", "entry", "stop", "target",
-                         "rr", "votes", "vote_tally")})
+    facts = json.dumps(
+        {
+            k: signal.get(k)
+            for k in (
+                "ticker",
+                "direction",
+                "confidence",
+                "entry",
+                "stop",
+                "target",
+                "rr",
+                "votes",
+                "vote_tally",
+            )
+        }
+    )
     if signal["direction"] == "WAIT":
-        task = ("Explain in at most two sentences why this rule-based engine stood aside "
-                "(WAIT) on this bar, referencing which indicator votes disagreed.")
+        task = (
+            "Explain in at most two sentences why this rule-based engine stood aside "
+            "(WAIT) on this bar, referencing which indicator votes disagreed."
+        )
     else:
-        task = ("Explain in at most two sentences why this rule-based engine fired this "
-                "signal, referencing the indicator votes that support it.")
+        task = (
+            "Explain in at most two sentences why this rule-based engine fired this "
+            "signal, referencing the indicator votes that support it."
+        )
     return (
         "You are summarizing a rule-based intraday trading signal for a personal trading "
         "journal. The decision has already been made by rules; you are not being asked to "
         "evaluate, agree with, or change it. Do not add price predictions or advice. "
         + task
         + " Reply with the explanation text only, no preamble and no JSON.\n\n"
-        + "Signal: " + facts
+        + "Signal: "
+        + facts
     )
 
 

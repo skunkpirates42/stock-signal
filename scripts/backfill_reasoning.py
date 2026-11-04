@@ -20,32 +20,36 @@ import sqlite3
 import sys
 import time
 
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
 from signals.llm_synthesis import _prompt_for, _template_reasoning, signal_from_row
 
-
 _COLUMNS = "id, ticker, direction, confidence, entry, stop, target, rr, indicators_json"
 
-SELECT_BLANK = """
+SELECT_BLANK = (
+    """
     SELECT %s
       FROM signals
      WHERE source = 'live'
        AND (reasoning IS NULL OR reasoning = '')
      ORDER BY id
-""" % _COLUMNS
+"""
+    % _COLUMNS
+)
 
 # Rows that already carry template text written before synthesis_source existed. Selecting
 # these overwrites real history, so it is behind an explicit flag rather than the default.
-SELECT_TEMPLATE = """
+SELECT_TEMPLATE = (
+    """
     SELECT %s
       FROM signals
      WHERE source = 'live'
        AND synthesis_source = 'template'
      ORDER BY id
-""" % _COLUMNS
+"""
+    % _COLUMNS
+)
 
 
 def load_blank(db_path, limit=None, sql=SELECT_BLANK):
@@ -59,9 +63,7 @@ def load_blank(db_path, limit=None, sql=SELECT_BLANK):
 
 def save(db_path, updates):
     conn = sqlite3.connect(db_path)
-    conn.executemany(
-        "UPDATE signals SET reasoning = ?, synthesis_source = ? WHERE id = ?", updates
-    )
+    conn.executemany("UPDATE signals SET reasoning = ?, synthesis_source = ? WHERE id = ?", updates)
     conn.commit()
     conn.close()
 
@@ -101,9 +103,7 @@ def run_anthropic_batch(rows):
         if result.result.type != "succeeded":
             print("  id=%d failed: %s" % (signal_id, result.result.type))
             continue
-        text = "".join(
-            b.text for b in result.result.message.content if b.type == "text"
-        ).strip()
+        text = "".join(b.text for b in result.result.message.content if b.type == "text").strip()
         if text:
             updates.append((text, source, signal_id))
     return updates
@@ -133,8 +133,10 @@ def run_groq_sequential(rows, db_path, max_retries=5):
                 break
             except RateLimitError as exc:
                 wait = _retry_after_seconds(exc)
-                print("  rate limited, sleeping %.1fs (attempt %d/%d)"
-                      % (wait, attempt + 1, max_retries))
+                print(
+                    "  rate limited, sleeping %.1fs (attempt %d/%d)"
+                    % (wait, attempt + 1, max_retries)
+                )
                 time.sleep(wait)
             except Exception as exc:
                 print("  id=%d failed: %s" % (row["id"], exc))
@@ -156,8 +158,11 @@ def main():
     ap.add_argument("--provider", default=config.LLM_PROVIDER, choices=["anthropic", "groq"])
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--dry-run", action="store_true")
-    ap.add_argument("--resynthesize-template", action="store_true",
-                    help="regenerate rows whose synthesis_source is 'template', overwriting them")
+    ap.add_argument(
+        "--resynthesize-template",
+        action="store_true",
+        help="regenerate rows whose synthesis_source is 'template', overwriting them",
+    )
     args = ap.parse_args()
 
     # argparse's `choices` only validates a value the user actually typed, not the

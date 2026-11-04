@@ -7,8 +7,7 @@ from analytics.metrics import compute_metrics, load_closed_trades
 from db.logger import close_trade, init_db, log_trade_open
 
 
-def _t(outcome, pnl, entry=100.0, stop=98.0, shares=10, bars_held=5, ticker="AAA",
-       regime="BULL"):
+def _t(outcome, pnl, entry=100.0, stop=98.0, shares=10, bars_held=5, ticker="AAA", regime="BULL"):
     return {
         "outcome": outcome,
         "pnl": pnl,
@@ -60,8 +59,11 @@ def test_realized_r_multiple():
 
 
 def test_by_ticker_breakdown():
-    trades = [_t("WIN", 100, ticker="AAA"), _t("LOSS", -50, ticker="AAA"),
-              _t("WIN", 80, ticker="BBB")]
+    trades = [
+        _t("WIN", 100, ticker="AAA"),
+        _t("LOSS", -50, ticker="AAA"),
+        _t("WIN", 80, ticker="BBB"),
+    ]
     m = compute_metrics(trades, starting_capital=10_000.0)
     assert m["by_ticker"]["AAA"]["n"] == 2
     assert m["by_ticker"]["AAA"]["win_rate"] == 0.5
@@ -70,8 +72,12 @@ def test_by_ticker_breakdown():
 
 
 def test_by_regime_breakdown():
-    trades = [_t("WIN", 100, regime="BULL"), _t("LOSS", -50, regime="BULL"),
-              _t("WIN", 80, regime="CHOPPY"), _t("WIN", 60, regime=None)]
+    trades = [
+        _t("WIN", 100, regime="BULL"),
+        _t("LOSS", -50, regime="BULL"),
+        _t("WIN", 80, regime="CHOPPY"),
+        _t("WIN", 60, regime=None),
+    ]
     m = compute_metrics(trades, starting_capital=10_000.0)
     assert m["by_regime"]["BULL"]["n"] == 2
     assert m["by_regime"]["BULL"]["win_rate"] == 0.5
@@ -88,16 +94,43 @@ def test_empty_trades():
 
 def _seed_live_and_backtest_trade(db):
     init_db(db)
-    live = {"ticker": "AAA", "direction": "LONG", "entry": 100, "stop": 98,
-            "target": 104, "shares": 10, "entry_bar": 1}
-    backtest = {"ticker": "BBB", "direction": "SHORT", "entry": 50, "stop": 51,
-                "target": 48, "shares": 20, "entry_bar": 1}
+    live = {
+        "ticker": "AAA",
+        "direction": "LONG",
+        "entry": 100,
+        "stop": 98,
+        "target": 104,
+        "shares": 10,
+        "entry_bar": 1,
+    }
+    backtest = {
+        "ticker": "BBB",
+        "direction": "SHORT",
+        "entry": 50,
+        "stop": 51,
+        "target": 48,
+        "shares": 20,
+        "entry_bar": 1,
+    }
     live_id = log_trade_open(live, db_path=db, source="live")
     backtest_id = log_trade_open(backtest, db_path=db, source="backtest")
-    close_trade(live_id, {**live, "exit_price": 104, "outcome": "WIN", "pnl": 40.0,
-                          "exit_bar": 5, "bars_held": 4}, db_path=db)
-    close_trade(backtest_id, {**backtest, "exit_price": 47, "outcome": "WIN", "pnl": 60.0,
-                              "exit_bar": 5, "bars_held": 4}, db_path=db)
+    close_trade(
+        live_id,
+        {**live, "exit_price": 104, "outcome": "WIN", "pnl": 40.0, "exit_bar": 5, "bars_held": 4},
+        db_path=db,
+    )
+    close_trade(
+        backtest_id,
+        {
+            **backtest,
+            "exit_price": 47,
+            "outcome": "WIN",
+            "pnl": 60.0,
+            "exit_bar": 5,
+            "bars_held": 4,
+        },
+        db_path=db,
+    )
 
 
 def test_load_closed_trades_filters_by_source(tmp_path):

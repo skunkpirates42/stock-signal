@@ -18,7 +18,6 @@ from trades.cashflows import (
     round_cents,
 )
 
-
 UTC = timezone.utc
 
 
@@ -27,18 +26,26 @@ def at(day: int, hour: int = 0) -> datetime:
 
 
 def long_lot(quantity="100", *, entry=5, exit=None):
-    return Holding("L1", "TEST", "LONG", Decimal(quantity), at(entry), None if exit is None else at(exit))
+    return Holding(
+        "L1", "TEST", "LONG", Decimal(quantity), at(entry), None if exit is None else at(exit)
+    )
 
 
 def short_lot(quantity="100", *, entry=5, exit=None):
-    return Holding("S1", "TEST", "SHORT", Decimal(quantity), at(entry), None if exit is None else at(exit))
+    return Holding(
+        "S1", "TEST", "SHORT", Decimal(quantity), at(entry), None if exit is None else at(exit)
+    )
 
 
 def action(rate="1.00", *, ex_hour=4, revision="A", supersedes=None, knowledge=1):
     return DistributionAction(
-        "D1", "TEST", at(8, ex_hour), None if rate is None else Decimal(rate),
+        "D1",
+        "TEST",
+        at(8, ex_hour),
+        None if rate is None else Decimal(rate),
         currency="USD",
-        revision_id=revision, supersedes_revision=supersedes,
+        revision_id=revision,
+        supersedes_revision=supersedes,
         knowledge_at=at(knowledge),
     )
 
@@ -58,7 +65,8 @@ def test_long_accrual_and_payment_are_separate():
 
     paid = result(
         calculate_distribution(
-            (long_lot(),), action(),
+            (long_lot(),),
+            action(),
             (Settlement("P1", "D1", Decimal("100"), at(15), currency="USD"),),
         ),
         "LONG",
@@ -75,7 +83,8 @@ def test_short_distribution_has_opposite_sign_and_payment_is_not_second_expense(
     assert accrued.cash_delta == Decimal("0")
     paid = result(
         calculate_distribution(
-            (short_lot(),), action(),
+            (short_lot(),),
+            action(),
             (Settlement("P1", "D1", Decimal("100"), at(15), currency="USD"),),
         ),
         "SHORT",
@@ -112,11 +121,18 @@ def test_close_after_ex_date_retains_full_entitlement_and_window_is_end_inclusiv
     lot = long_lot(exit=10)
     payment = Settlement("P1", "D1", Decimal("100"), at(15), currency="USD")
     partial_window = TimeWindow(at(8), at(12))
-    closed = result(calculate_distribution((lot,), action(), (payment,), window=partial_window), "LONG")
+    closed = result(
+        calculate_distribution((lot,), action(), (payment,), window=partial_window), "LONG"
+    )
     assert closed.target == Decimal("100")
     assert closed.receivable == Decimal("100")
     at_end = result(
-            calculate_distribution((lot,), action(), (Settlement("P2", "D1", Decimal("100"), at(12), currency="USD"),), window=partial_window),
+        calculate_distribution(
+            (lot,),
+            action(),
+            (Settlement("P2", "D1", Decimal("100"), at(12), currency="USD"),),
+            window=partial_window,
+        ),
         "LONG",
     )
     assert at_end.receivable == Decimal("0")
@@ -177,14 +193,25 @@ def test_zero_position_is_known_even_when_rate_is_missing():
 
 
 def test_borrow_counts_weekend_and_rounds_cumulatively():
-    interval = BorrowInterval("B1", Decimal("100"), Decimal("50"), Decimal("0.36"), at(5), at(8), currency="USD")
+    interval = BorrowInterval(
+        "B1", Decimal("100"), Decimal("50"), Decimal("0.36"), at(5), at(8), currency="USD"
+    )
     fee = calculate_borrow(interval)
     assert fee.calendar_days == 3
     assert fee.notional_days == Decimal("15000")
     assert fee.exact_fee == Decimal("15.00")
     assert fee.cumulative_postings == (Decimal("5.00"), Decimal("5.00"), Decimal("5.00"))
 
-    tiny = BorrowInterval("B2", Decimal("1"), Decimal("1"), Decimal("1.44"), at(5), at(8), denominator=Decimal("360"), currency="USD")
+    tiny = BorrowInterval(
+        "B2",
+        Decimal("1"),
+        Decimal("1"),
+        Decimal("1.44"),
+        at(5),
+        at(8),
+        denominator=Decimal("360"),
+        currency="USD",
+    )
     tiny_fee = calculate_borrow(tiny)
     assert tiny_fee.daily_exact == (Decimal("0.004"),) * 3
     assert tiny_fee.cumulative_postings == (Decimal("0.00"), Decimal("0.01"), Decimal("0.00"))
@@ -192,32 +219,46 @@ def test_borrow_counts_weekend_and_rounds_cumulatively():
 
 
 def test_borrow_payment_refund_and_revised_target_are_balanced():
-    original = BorrowInterval("B1", Decimal("100"), Decimal("50"), Decimal("0.36"), at(5), at(8), currency="USD")
+    original = BorrowInterval(
+        "B1", Decimal("100"), Decimal("50"), Decimal("0.36"), at(5), at(8), currency="USD"
+    )
     payment = BorrowSettlement("P1", "B1", Decimal("15"), at(9), currency="USD")
     paid = calculate_borrow(original, settlements=(payment,))
     assert paid.payable == Decimal("0")
     assert paid.refund_receivable == Decimal("0")
     assert paid.cash_delta == Decimal("-15")
 
-    revised = BorrowInterval("B1", Decimal("100"), Decimal("50"), Decimal("0.24"), at(5), at(8), currency="USD")
-    corrected = calculate_borrow(revised, previous_rounded_target=Decimal("15"), prior_settled=Decimal("15"))
+    revised = BorrowInterval(
+        "B1", Decimal("100"), Decimal("50"), Decimal("0.24"), at(5), at(8), currency="USD"
+    )
+    corrected = calculate_borrow(
+        revised, previous_rounded_target=Decimal("15"), prior_settled=Decimal("15")
+    )
     assert corrected.rounded_target == Decimal("10")
     assert corrected.refund_receivable == Decimal("5")
     refund = BorrowSettlement("R1", "B1", Decimal("5"), at(10), kind="refund", currency="USD")
-    settled_correction = calculate_borrow(revised, settlements=(refund,), previous_rounded_target=Decimal("15"), prior_settled=Decimal("15"))
+    settled_correction = calculate_borrow(
+        revised,
+        settlements=(refund,),
+        previous_rounded_target=Decimal("15"),
+        prior_settled=Decimal("15"),
+    )
     assert settled_correction.refund_receivable == Decimal("0")
     assert settled_correction.cash_delta == Decimal("5")
 
 
 def test_continuation_opening_receivable_payment_has_no_new_income():
     window = TimeWindow(
-        at(12), at(16),
+        at(12),
+        at(16),
         opening_receivables={("D1", "LONG"): Decimal("100")},
     )
     inherited_action = action()
     inherited = Holding("old", "TEST", "LONG", Decimal("0"), at(5))
     payment = Settlement("P1", "D1", Decimal("100"), at(15), side="LONG", currency="USD")
-    result_ = result(calculate_distribution((inherited,), inherited_action, (payment,), window=window), "LONG")
+    result_ = result(
+        calculate_distribution((inherited,), inherited_action, (payment,), window=window), "LONG"
+    )
     assert result_.economic_income == Decimal("0")
     assert result_.receivable == Decimal("0")
     assert result_.cash_delta == Decimal("100")
@@ -225,10 +266,13 @@ def test_continuation_opening_receivable_payment_has_no_new_income():
 
 def test_borrow_continuation_opening_payable_payment_has_no_new_expense():
     window = TimeWindow(
-        at(8), at(16),
+        at(8),
+        at(16),
         opening_borrow_payables={"B1": Decimal("15")},
     )
-    interval = BorrowInterval("B1", Decimal("100"), Decimal("50"), Decimal("0"), at(8), at(9), currency="USD")
+    interval = BorrowInterval(
+        "B1", Decimal("100"), Decimal("50"), Decimal("0"), at(8), at(9), currency="USD"
+    )
     payment = BorrowSettlement("P1", "B1", Decimal("15"), at(10), currency="USD")
     result_ = calculate_borrow(interval, settlements=(payment,), window=window)
     assert result_.economic_expense == Decimal("0")
@@ -238,11 +282,22 @@ def test_borrow_continuation_opening_payable_payment_has_no_new_expense():
 
 def test_causal_borrow_hides_late_payment_from_decision_state():
     interval = BorrowInterval(
-        "B1", Decimal("100"), Decimal("50"), Decimal("0.36"), at(5), at(8),
-        currency="USD", knowledge_at=at(8),
+        "B1",
+        Decimal("100"),
+        Decimal("50"),
+        Decimal("0.36"),
+        at(5),
+        at(8),
+        currency="USD",
+        knowledge_at=at(8),
     )
     late_payment = BorrowSettlement(
-        "P1", "B1", Decimal("15"), at(9), currency="USD", knowledge_at=at(12),
+        "P1",
+        "B1",
+        Decimal("15"),
+        at(9),
+        currency="USD",
+        knowledge_at=at(12),
     )
     causal = calculate_borrow(interval, settlements=(late_payment,), decision_time=at(10))
     assert causal.payable == Decimal("15")
@@ -254,7 +309,8 @@ def test_causal_borrow_hides_late_payment_from_decision_state():
 
 def test_continuation_revision_carries_prior_target_and_settlement_to_repayment_liability():
     window = TimeWindow(
-        at(12), at(16),
+        at(12),
+        at(16),
         opening_targets={("D1", "LONG"): Decimal("100")},
         opening_settled={("D1", "LONG"): Decimal("100")},
         opening_receivables={("D1", "LONG"): Decimal("0")},
@@ -285,7 +341,8 @@ def test_float_amounts_are_rejected_and_currency_is_required():
 def test_settlement_currency_mismatch_is_unknown_without_fx():
     distribution = result(
         calculate_distribution(
-            (long_lot(),), action(),
+            (long_lot(),),
+            action(),
             (Settlement("P1", "D1", Decimal("100"), at(15), currency="EUR"),),
         ),
         "LONG",
@@ -294,7 +351,9 @@ def test_settlement_currency_mismatch_is_unknown_without_fx():
     assert "settlement_currency_mismatch" in distribution.unknown_reasons
 
     borrow = calculate_borrow(
-        BorrowInterval("B1", Decimal("100"), Decimal("50"), Decimal("0.36"), at(5), at(8), currency="USD"),
+        BorrowInterval(
+            "B1", Decimal("100"), Decimal("50"), Decimal("0.36"), at(5), at(8), currency="USD"
+        ),
         settlements=(BorrowSettlement("P1", "B1", Decimal("15"), at(9), currency="EUR"),),
     )
     assert borrow.status == "unknown"
@@ -302,11 +361,15 @@ def test_settlement_currency_mismatch_is_unknown_without_fx():
 
 
 def test_missing_borrow_rate_is_unknown_but_zero_exposure_is_known():
-    missing = calculate_borrow(BorrowInterval("B1", Decimal("100"), Decimal("50"), None, at(5), at(8), currency="USD"))
+    missing = calculate_borrow(
+        BorrowInterval("B1", Decimal("100"), Decimal("50"), None, at(5), at(8), currency="USD")
+    )
     assert missing.status == "unknown"
     assert missing.notional_days == Decimal("15000")
     assert missing.missing_rate_days == 3
-    zero = calculate_borrow(BorrowInterval("B2", Decimal("0"), Decimal("50"), None, at(5), at(8), currency="USD"))
+    zero = calculate_borrow(
+        BorrowInterval("B2", Decimal("0"), Decimal("50"), None, at(5), at(8), currency="USD")
+    )
     assert zero.status == "known" and zero.exact_fee == Decimal("0")
 
 
@@ -325,7 +388,11 @@ def test_duplicate_settlement_is_idempotent_and_conflicting_id_is_unknown():
     paid = result(calculate_distribution((long_lot(),), action(), (p, p)), "LONG")
     assert paid.cash_delta == Decimal("100")
     conflict = result(
-        calculate_distribution((long_lot(),), action(), (p, Settlement("P1", "D1", Decimal("90"), at(15), currency="USD"))),
+        calculate_distribution(
+            (long_lot(),),
+            action(),
+            (p, Settlement("P1", "D1", Decimal("90"), at(15), currency="USD")),
+        ),
         "LONG",
     )
     assert conflict.status == "unknown"

@@ -4,6 +4,7 @@ The index records source locations and hashes; it never copies, rewrites, or ser
 arbitrary file. Public callers receive opaque IDs and verified bytes, never a source
 path that could be reopened after verification.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -19,7 +20,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List, Optional, Tuple
-
 
 ROOT_ARTIFACTS = {
     "protocol.json": ("protocol", "application/json"),
@@ -110,18 +110,24 @@ def _open_root(root: Path):
         os.close(fd)
 
 
-def _read_file(root_fd: int, relative: str, required: bool = False,
-               max_bytes: Optional[int] = None) -> Optional[Tuple[bytes, str]]:
+def _read_file(
+    root_fd: int, relative: str, required: bool = False, max_bytes: Optional[int] = None
+) -> Optional[Tuple[bytes, str]]:
     """Read a regular source file through no-follow, descriptor-relative traversal."""
-    if max_bytes is not None and (isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 0):
+    if max_bytes is not None and (
+        isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 0
+    ):
         raise ValueError("max_bytes must be a nonnegative integer or None")
     parts = _relative_parts(relative)
     parent_fd = os.dup(root_fd)
     try:
         for part in parts[:-1]:
             try:
-                child_fd = os.open(part, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) |
-                                   getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd)
+                child_fd = os.open(
+                    part,
+                    os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                    dir_fd=parent_fd,
+                )
             except FileNotFoundError:
                 if required:
                     raise ArtifactImportError("Missing required artifact: " + relative)
@@ -131,8 +137,11 @@ def _read_file(root_fd: int, relative: str, required: bool = False,
             os.close(parent_fd)
             parent_fd = child_fd
         try:
-            file_fd = os.open(parts[-1], os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) |
-                              getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd)
+            file_fd = os.open(
+                parts[-1],
+                os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=parent_fd,
+            )
         except FileNotFoundError:
             if required:
                 raise ArtifactImportError("Missing required artifact: " + relative)
@@ -151,7 +160,9 @@ def _read_file(root_fd: int, relative: str, required: bool = False,
                 # The stat check is a fast path, but a file can grow after it.  Read
                 # at most one byte beyond the ceiling so a stale index cannot make a
                 # browser request consume an arbitrarily large source file.
-                read_size = 1024 * 1024 if max_bytes is None else min(1024 * 1024, max_bytes - total + 1)
+                read_size = (
+                    1024 * 1024 if max_bytes is None else min(1024 * 1024, max_bytes - total + 1)
+                )
                 chunk = os.read(file_fd, read_size)
                 if not chunk:
                     break
@@ -169,7 +180,9 @@ def _read_file(root_fd: int, relative: str, required: bool = False,
         os.close(parent_fd)
 
 
-def _read_json(root_fd: int, relative: str, required: bool = False) -> Optional[Tuple[Any, bytes, str]]:
+def _read_json(
+    root_fd: int, relative: str, required: bool = False
+) -> Optional[Tuple[Any, bytes, str]]:
     item = _read_file(root_fd, relative, required)
     if item is None:
         return None
@@ -275,11 +288,17 @@ class ArtifactIndex:
                     ON demo_artifact_files(owner_id, id);
                 """
             )
-            columns = {row["name"] for row in conn.execute("PRAGMA table_info(demo_artifact_imports)")}
+            columns = {
+                row["name"] for row in conn.execute("PRAGMA table_info(demo_artifact_imports)")
+            }
             if "projection_sha256" not in columns:
-                conn.execute("ALTER TABLE demo_artifact_imports ADD COLUMN projection_sha256 TEXT NOT NULL DEFAULT ''")
+                conn.execute(
+                    "ALTER TABLE demo_artifact_imports ADD COLUMN projection_sha256 TEXT NOT NULL DEFAULT ''"
+                )
 
-    def import_directory(self, directory: Path | str, *, owner_id: str = "local", synthetic: bool = False) -> ImportReport:
+    def import_directory(
+        self, directory: Path | str, *, owner_id: str = "local", synthetic: bool = False
+    ) -> ImportReport:
         """Validate and index a frozen directory without modifying its contents.
 
         ``owner_id`` is deliberately part of idempotency.  The same evidence cannot
@@ -306,9 +325,13 @@ class ArtifactIndex:
                 if prior_source["owner_id"] != owner_id:
                     raise ArtifactImportError("Artifact directory is indexed for a different owner")
                 if prior_source["source_manifest_sha256"] != manifest_digest:
-                    raise ArtifactImportError("Indexed source artifacts changed; refusing replacement")
+                    raise ArtifactImportError(
+                        "Indexed source artifacts changed; refusing replacement"
+                    )
                 if prior_source["projection_sha256"] != candidate["projection_sha256"]:
-                    raise ArtifactImportError("Import labels would change the indexed public projection")
+                    raise ArtifactImportError(
+                        "Import labels would change the indexed public projection"
+                    )
                 return self._prior_report(conn, prior_source)
 
             prior_manifest = conn.execute(
@@ -317,70 +340,129 @@ class ArtifactIndex:
             ).fetchone()
             if prior_manifest:
                 if prior_manifest["projection_sha256"] != candidate["projection_sha256"]:
-                    raise ArtifactImportError("Import labels would change the indexed public projection")
-                raise ArtifactImportError("Artifact content is already indexed from a different source directory")
+                    raise ArtifactImportError(
+                        "Import labels would change the indexed public projection"
+                    )
+                raise ArtifactImportError(
+                    "Artifact content is already indexed from a different source directory"
+                )
             cross_owner = conn.execute(
-                "SELECT 1 FROM demo_artifact_imports WHERE source_manifest_sha256=?", (manifest_digest,)
+                "SELECT 1 FROM demo_artifact_imports WHERE source_manifest_sha256=?",
+                (manifest_digest,),
             ).fetchone()
             if cross_owner:
-                raise ArtifactImportError("Artifact content is already indexed for a different owner")
+                raise ArtifactImportError(
+                    "Artifact content is already indexed for a different owner"
+                )
 
             import_id = str(uuid.uuid4())
             dataset_id = str(uuid.uuid4())
             try:
-                prepared = self._prepare_public_records(candidate, import_id, dataset_id, owner_id, synthetic)
+                prepared = self._prepare_public_records(
+                    candidate, import_id, dataset_id, owner_id, synthetic
+                )
                 self._validate_public_records(prepared)
             except ArtifactImportError:
                 raise
-            except (AttributeError, IndexError, KeyError, TypeError, UnicodeError, ValueError) as exc:
+            except (
+                AttributeError,
+                IndexError,
+                KeyError,
+                TypeError,
+                UnicodeError,
+                ValueError,
+            ) as exc:
                 raise ArtifactImportError("Malformed source artifact") from exc
             conn.execute(
                 """INSERT INTO demo_artifact_imports
                    (id, owner_id, source_directory, scenario_name, protocol_sha256,
                     source_manifest_sha256, projection_sha256, metadata_json, imported_at)
                    VALUES (?,?,?,?,?,?,?,?,?)""",
-                (import_id, owner_id, str(root), root.name, candidate["protocol_sha256"], manifest_digest,
-                 candidate["projection_sha256"], candidate["metadata_json"], _utcnow()),
+                (
+                    import_id,
+                    owner_id,
+                    str(root),
+                    root.name,
+                    candidate["protocol_sha256"],
+                    manifest_digest,
+                    candidate["projection_sha256"],
+                    candidate["metadata_json"],
+                    _utcnow(),
+                ),
             )
             for result in prepared["results"]:
                 conn.execute(
                     "INSERT INTO demo_artifact_results VALUES (?,?,?,?,?,?,?,?)",
-                    (result["id"], import_id, owner_id, result["run_id"], result["window_name"],
-                     result["variant"], result["result_json"], result["run_json"]),
+                    (
+                        result["id"],
+                        import_id,
+                        owner_id,
+                        result["run_id"],
+                        result["window_name"],
+                        result["variant"],
+                        result["result_json"],
+                        result["run_json"],
+                    ),
                 )
             for artifact in prepared["artifacts"]:
                 conn.execute(
                     "INSERT INTO demo_artifact_files VALUES (?,?,?,?,?,?,?,?,?)",
-                    (artifact["id"], import_id, artifact["result_id"], owner_id, artifact["kind"],
-                     artifact["relative_path"], artifact["sha256"], artifact["mime_type"], artifact["byte_size"]),
+                    (
+                        artifact["id"],
+                        import_id,
+                        artifact["result_id"],
+                        owner_id,
+                        artifact["kind"],
+                        artifact["relative_path"],
+                        artifact["sha256"],
+                        artifact["mime_type"],
+                        artifact["byte_size"],
+                    ),
                 )
-        return ImportReport(import_id, True, tuple(item["id"] for item in prepared["results"]),
-                            len(prepared["artifacts"]), manifest_digest)
+        return ImportReport(
+            import_id,
+            True,
+            tuple(item["id"] for item in prepared["results"]),
+            len(prepared["artifacts"]),
+            manifest_digest,
+        )
 
     def _prior_report(self, conn: sqlite3.Connection, imported: sqlite3.Row) -> ImportReport:
         results = conn.execute(
-            "SELECT id FROM demo_artifact_results WHERE import_id=? ORDER BY window_name, variant", (imported["id"],)
+            "SELECT id FROM demo_artifact_results WHERE import_id=? ORDER BY window_name, variant",
+            (imported["id"],),
         ).fetchall()
         count = conn.execute(
             "SELECT COUNT(*) AS count FROM demo_artifact_files WHERE import_id=?", (imported["id"],)
         ).fetchone()["count"]
-        return ImportReport(imported["id"], False, tuple(row["id"] for row in results), count,
-                            imported["source_manifest_sha256"])
+        return ImportReport(
+            imported["id"],
+            False,
+            tuple(row["id"] for row in results),
+            count,
+            imported["source_manifest_sha256"],
+        )
 
     def _collect(self, root: Path, synthetic: bool) -> Dict[str, Any]:
         with _open_root(root) as root_fd:
             snapshot = _SourceSnapshot(root_fd)
             return self._collect_snapshot(root, snapshot, synthetic)
 
-    def _collect_snapshot(self, root: Path, snapshot: _SourceSnapshot, synthetic: bool) -> Dict[str, Any]:
+    def _collect_snapshot(
+        self, root: Path, snapshot: _SourceSnapshot, synthetic: bool
+    ) -> Dict[str, Any]:
         protocol_item = snapshot.json("protocol.json", required=True)
         comparison_item = snapshot.json("comparison.json", required=True)
         assert protocol_item and comparison_item
         protocol, protocol_bytes, protocol_digest = protocol_item
         comparison, _, _ = comparison_item
         if not isinstance(protocol, dict) or not isinstance(comparison, list) or not comparison:
-            raise ArtifactImportError("protocol.json must be an object and comparison.json a nonempty array")
-        if not isinstance(protocol.get("windows"), list) or not isinstance(protocol.get("costs"), dict):
+            raise ArtifactImportError(
+                "protocol.json must be an object and comparison.json a nonempty array"
+            )
+        if not isinstance(protocol.get("windows"), list) or not isinstance(
+            protocol.get("costs"), dict
+        ):
             raise ArtifactImportError("Protocol lacks frozen windows or cost settings")
         if "dataset_metadata" in protocol and not isinstance(protocol["dataset_metadata"], dict):
             raise ArtifactImportError("Protocol dataset metadata must be an object")
@@ -396,8 +478,16 @@ class ArtifactIndex:
                 parsed_item = snapshot.json(relative, required=True)
                 assert parsed_item
                 parsed[relative] = parsed_item[0]
-            files.append({"relative_path": relative, "kind": kind, "mime_type": mime_type,
-                          "sha256": digest, "byte_size": len(content), "result_key": None})
+            files.append(
+                {
+                    "relative_path": relative,
+                    "kind": kind,
+                    "mime_type": mime_type,
+                    "sha256": digest,
+                    "byte_size": len(content),
+                    "result_key": None,
+                }
+            )
 
         marked = parsed.get("marked-review.json")
         if marked is not None and not isinstance(marked, list):
@@ -409,7 +499,9 @@ class ArtifactIndex:
                 raise ArtifactImportError("Comparison row lacks a window")
             window = _safe_component(row["window"].get("name"), "window")
             variant = _safe_component(row.get("variant"), "variant")
-            if not isinstance(row.get("metrics"), dict) or not isinstance(row.get("diagnostics"), dict):
+            if not isinstance(row.get("metrics"), dict) or not isinstance(
+                row.get("diagnostics"), dict
+            ):
                 raise ArtifactImportError("Comparison row lacks saved metrics or diagnostics")
             if row["window"] not in protocol["windows"]:
                 raise ArtifactImportError("Comparison window is not in protocol")
@@ -421,17 +513,31 @@ class ArtifactIndex:
                 assert item
                 run_files[filename] = item[0]
             manifest = run_files["manifest.json"]
-            if not isinstance(manifest, dict) or manifest.get("window") != row["window"] or manifest.get("gate") != variant:
+            if (
+                not isinstance(manifest, dict)
+                or manifest.get("window") != row["window"]
+                or manifest.get("gate") != variant
+            ):
                 raise ArtifactImportError("Run manifest does not match comparison row: %s/%s" % key)
-            if "dataset_metadata" in manifest and not isinstance(manifest["dataset_metadata"], dict):
+            if "dataset_metadata" in manifest and not isinstance(
+                manifest["dataset_metadata"], dict
+            ):
                 raise ArtifactImportError("Run manifest dataset metadata must be an object")
-            if run_files["metrics.json"] != row["metrics"] or run_files["diagnostics.json"] != row["diagnostics"]:
-                raise ArtifactImportError("Comparison values do not match per-run artifacts: %s/%s" % key)
+            if (
+                run_files["metrics.json"] != row["metrics"]
+                or run_files["diagnostics.json"] != row["diagnostics"]
+            ):
+                raise ArtifactImportError(
+                    "Comparison values do not match per-run artifacts: %s/%s" % key
+                )
             self._verify_dataset_identity(protocol, manifest)
             self._verify_manifest_settings(protocol, manifest)
             for filename, (kind, mime_type) in RUN_ARTIFACTS.items():
                 relative = "/".join((window, variant, filename))
-                item = snapshot.file(relative, required=filename in ("manifest.json", "metrics.json", "diagnostics.json"))
+                item = snapshot.file(
+                    relative,
+                    required=filename in ("manifest.json", "metrics.json", "diagnostics.json"),
+                )
                 if item is None:
                     continue
                 content, digest = item
@@ -439,33 +545,71 @@ class ArtifactIndex:
                     parsed_item = snapshot.json(relative, required=True)
                     assert parsed_item
                     parsed[relative] = parsed_item[0]
-                files.append({"relative_path": relative, "kind": kind, "mime_type": mime_type,
-                              "sha256": digest, "byte_size": len(content), "result_key": key})
-            rows.append({"row": row, "index": index, "window": window, "variant": variant,
-                         "manifest": manifest, "marked": marked_by_key.get(key)})
+                files.append(
+                    {
+                        "relative_path": relative,
+                        "kind": kind,
+                        "mime_type": mime_type,
+                        "sha256": digest,
+                        "byte_size": len(content),
+                        "result_key": key,
+                    }
+                )
+            rows.append(
+                {
+                    "row": row,
+                    "index": index,
+                    "window": window,
+                    "variant": variant,
+                    "manifest": manifest,
+                    "marked": marked_by_key.get(key),
+                }
+            )
 
-        provenance_evidence = self._verify_provenance(root.name, protocol_digest, protocol, rows, synthetic)
+        provenance_evidence = self._verify_provenance(
+            root.name, protocol_digest, protocol, rows, synthetic
+        )
         # The parsed values, hashes and projected records all come from this snapshot.
         # Reopening every indexed path through the same no-follow traversal detects any
         # replacement before SQLite receives an immutable index entry.
         snapshot.verify_unchanged()
         fingerprint = json.dumps(
-            [{"path": item["relative_path"], "sha256": item["sha256"], "byte_size": item["byte_size"]}
-             for item in sorted(files, key=lambda item: item["relative_path"])],
-            sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+            [
+                {
+                    "path": item["relative_path"],
+                    "sha256": item["sha256"],
+                    "byte_size": item["byte_size"],
+                }
+                for item in sorted(files, key=lambda item: item["relative_path"])
+            ],
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
         ).encode("utf-8")
         try:
-            metadata_json = json.dumps(parsed, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
-                                      allow_nan=False)
+            metadata_json = json.dumps(
+                parsed, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+            )
         except (TypeError, ValueError) as exc:
             raise ArtifactImportError("Source metadata contains unsupported JSON values") from exc
-        projection_sha256 = _sha256(json.dumps(
-            {"synthetic": synthetic, "provenance_evidence": provenance_evidence},
-            sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False,
-        ).encode("utf-8"))
-        return {"protocol": protocol, "protocol_sha256": _sha256(protocol_bytes), "rows": rows, "files": files,
-                "source_manifest_sha256": _sha256(fingerprint), "projection_sha256": projection_sha256,
-                "metadata_json": metadata_json}
+        projection_sha256 = _sha256(
+            json.dumps(
+                {"synthetic": synthetic, "provenance_evidence": provenance_evidence},
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+                allow_nan=False,
+            ).encode("utf-8")
+        )
+        return {
+            "protocol": protocol,
+            "protocol_sha256": _sha256(protocol_bytes),
+            "rows": rows,
+            "files": files,
+            "source_manifest_sha256": _sha256(fingerprint),
+            "projection_sha256": projection_sha256,
+            "metadata_json": metadata_json,
+        }
 
     @staticmethod
     def _marked_rows(marked: Any) -> Dict[Tuple[str, str], Tuple[int, Dict[str, Any]]]:
@@ -475,8 +619,10 @@ class ArtifactIndex:
         for index, row in enumerate(marked):
             if not isinstance(row, dict):
                 raise ArtifactImportError("Invalid marked review row")
-            key = (_safe_component(row.get("window"), "marked-review window"),
-                   _safe_component(row.get("variant"), "marked-review variant"))
+            key = (
+                _safe_component(row.get("window"), "marked-review window"),
+                _safe_component(row.get("variant"), "marked-review variant"),
+            )
             if key in rows:
                 raise ArtifactImportError("Duplicate marked review row")
             rows[key] = (index, row)
@@ -487,12 +633,18 @@ class ArtifactIndex:
         # These are declarations from legacy artifacts, not a claim that the raw bars
         # (which are intentionally never indexed) were available to hash here.
         declared = protocol.get("dataset_file_sha256")
-        values = [declared, protocol.get("dataset_metadata", {}).get("dataset_file_sha256"),
-                  manifest.get("input_dataset_sha256"), manifest.get("dataset_metadata", {}).get("dataset_file_sha256")]
+        values = [
+            declared,
+            protocol.get("dataset_metadata", {}).get("dataset_file_sha256"),
+            manifest.get("input_dataset_sha256"),
+            manifest.get("dataset_metadata", {}).get("dataset_file_sha256"),
+        ]
         known = [value for value in values if value is not None]
         valid_digest = re.compile(r"^[0-9a-f]{64}$")
-        if known and (not all(isinstance(value, str) and valid_digest.fullmatch(value) for value in known)
-                      or len(set(known)) != 1):
+        if known and (
+            not all(isinstance(value, str) and valid_digest.fullmatch(value) for value in known)
+            or len(set(known)) != 1
+        ):
             raise ArtifactImportError("Declared dataset identities disagree")
 
     @staticmethod
@@ -507,32 +659,52 @@ class ArtifactIndex:
         ):
             protocol_value = protocol["costs"].get(protocol_key)
             manifest_value = settings.get(manifest_key)
-            if (isinstance(protocol_value, bool) or isinstance(manifest_value, bool)
-                    or not isinstance(protocol_value, (int, float))
-                    or not isinstance(manifest_value, (int, float))
-                    or protocol_value != manifest_value):
+            if (
+                isinstance(protocol_value, bool)
+                or isinstance(manifest_value, bool)
+                or not isinstance(protocol_value, (int, float))
+                or not isinstance(manifest_value, (int, float))
+                or protocol_value != manifest_value
+            ):
                 raise ArtifactImportError("Protocol costs disagree with run manifest settings")
 
     @staticmethod
-    def _verify_provenance(scenario_name: str, protocol_sha256: str, protocol: Dict[str, Any],
-                           rows: List[Dict[str, Any]], synthetic: bool) -> Dict[str, str]:
+    def _verify_provenance(
+        scenario_name: str,
+        protocol_sha256: str,
+        protocol: Dict[str, Any],
+        rows: List[Dict[str, Any]],
+        synthetic: bool,
+    ) -> Dict[str, str]:
         for source in rows:
             manifest = source["manifest"]
             if manifest.get("source") != "backtest" or manifest.get("backend") != "local":
                 raise ArtifactImportError("Saved artifact provenance must be backtest/local")
         if synthetic:
             if protocol.get("synthetic") is not True:
-                raise ArtifactImportError("Synthetic import requires an explicit source synthetic declaration")
+                raise ArtifactImportError(
+                    "Synthetic import requires an explicit source synthetic declaration"
+                )
             return {"mode": "synthetic", "source": "protocol.synthetic=true"}
         if protocol.get("synthetic") is True:
-            raise ArtifactImportError("Source declares synthetic evidence; import must retain that label")
+            raise ArtifactImportError(
+                "Source declares synthetic evidence; import must retain that label"
+            )
         expected = REVIEWED_V2_PROTOCOLS.get(scenario_name)
         if expected != protocol_sha256:
-            raise ArtifactImportError("Retrospective projection is restricted to reviewed v2 source evidence")
+            raise ArtifactImportError(
+                "Retrospective projection is restricted to reviewed v2 source evidence"
+            )
         return {"mode": "retrospective", "source": "reviewed-v2:" + scenario_name}
 
-    def _prepare_public_records(self, candidate: Dict[str, Any], import_id: str, dataset_id: str,
-                                owner_id: str, synthetic: bool) -> Dict[str, Any]:
+    def _prepare_public_records(
+        self,
+        candidate: Dict[str, Any],
+        import_id: str,
+        dataset_id: str,
+        owner_id: str,
+        synthetic: bool,
+    ) -> Dict[str, Any]:
         contract = self._contract_module()
         results = []
         artifact_rows = []
@@ -543,9 +715,16 @@ class ArtifactIndex:
         for source in candidate["rows"]:
             run_id, result_id = str(uuid.uuid4()), str(uuid.uuid4())
             marked_index, marked_row = source["marked"] if source["marked"] else (0, None)
-            records = contract.normalize(candidate["protocol"], source["row"], source["manifest"], marked_row,
-                                         candidate["protocol"].get("label", import_id), synthetic,
-                                         source["index"], marked_index)
+            records = contract.normalize(
+                candidate["protocol"],
+                source["row"],
+                source["manifest"],
+                marked_row,
+                candidate["protocol"].get("label", import_id),
+                synthetic,
+                source["index"],
+                marked_index,
+            )
             if synthetic:
                 for envelope in records:
                     provenance = envelope["data"].get("provenance")
@@ -561,21 +740,53 @@ class ArtifactIndex:
                     data.update(id=result_id, run_id=run_id, artifact_ids=[])
                 elif data["record_type"] == "status":
                     data.update(run_id=run_id, result_id=contract.available(result_id))
-            result_data = next(item["data"] for item in records if item["data"]["record_type"] == "result")
-            run_data = next(item["data"] for item in records if item["data"]["record_type"] == "normalized_run")
+            result_data = next(
+                item["data"] for item in records if item["data"]["record_type"] == "result"
+            )
+            run_data = next(
+                item["data"] for item in records if item["data"]["record_type"] == "normalized_run"
+            )
             scoped_files = root_files + files_by_key.get((source["window"], source["variant"]), [])
             for file in scoped_files:
                 artifact_id = str(uuid.uuid4())
                 result_data["artifact_ids"].append(artifact_id)
-                records.append(contract.envelope({"record_type": "artifact", "id": artifact_id, "result_id": result_id,
-                                                  "kind": file["kind"], "sha256": file["sha256"],
-                                                  "mime_type": file["mime_type"], "byte_size": file["byte_size"]}))
+                records.append(
+                    contract.envelope(
+                        {
+                            "record_type": "artifact",
+                            "id": artifact_id,
+                            "result_id": result_id,
+                            "kind": file["kind"],
+                            "sha256": file["sha256"],
+                            "mime_type": file["mime_type"],
+                            "byte_size": file["byte_size"],
+                        }
+                    )
+                )
                 artifact_rows.append({**file, "id": artifact_id, "result_id": result_id})
-            results.append({"id": result_id, "run_id": run_id, "window_name": source["window"],
-                            "variant": source["variant"], "result_json": json.dumps(result_data, sort_keys=True,
-                            separators=(",", ":"), ensure_ascii=False, allow_nan=False),
-                            "run_json": json.dumps(run_data, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
-                            allow_nan=False), "records": records})
+            results.append(
+                {
+                    "id": result_id,
+                    "run_id": run_id,
+                    "window_name": source["window"],
+                    "variant": source["variant"],
+                    "result_json": json.dumps(
+                        result_data,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                        ensure_ascii=False,
+                        allow_nan=False,
+                    ),
+                    "run_json": json.dumps(
+                        run_data,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                        ensure_ascii=False,
+                        allow_nan=False,
+                    ),
+                    "records": records,
+                }
+            )
         return {"results": results, "artifacts": artifact_rows}
 
     @staticmethod
@@ -598,20 +809,24 @@ class ArtifactIndex:
             except Exception as exc:
                 raise ArtifactImportError("Artifact projection fails the A1 schema") from exc
 
-    def resolve_artifact(self, artifact_id: str, *, owner_id: str = "local",
-                         max_bytes: Optional[int] = None) -> ImportedArtifact:
+    def resolve_artifact(
+        self, artifact_id: str, *, owner_id: str = "local", max_bytes: Optional[int] = None
+    ) -> ImportedArtifact:
         """Return verified bytes for an opaque indexed artifact ID only.
 
         Returning bytes rather than a source path prevents a later caller from opening
         a file after it changes between checksum verification and use.
         """
-        if max_bytes is not None and (isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 0):
+        if max_bytes is not None and (
+            isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 0
+        ):
             raise ValueError("max_bytes must be a nonnegative integer or None")
         with self._connect() as conn:
             row = conn.execute(
                 """SELECT files.*, imports.source_directory FROM demo_artifact_files AS files
                    JOIN demo_artifact_imports AS imports ON imports.id=files.import_id
-                   WHERE files.id=? AND files.owner_id=?""", (artifact_id, owner_id),
+                   WHERE files.id=? AND files.owner_id=?""",
+                (artifact_id, owner_id),
             ).fetchone()
         if row is None:
             raise ArtifactImportError("Unknown artifact")
@@ -629,4 +844,6 @@ class ArtifactIndex:
             raise ArtifactImportError("Indexed source directory is unavailable") from exc
         if digest != row["sha256"] or len(content) != row["byte_size"]:
             raise ArtifactImportError("Indexed artifact no longer matches its checksum")
-        return ImportedArtifact(row["id"], row["result_id"], row["kind"], row["mime_type"], row["byte_size"], content)
+        return ImportedArtifact(
+            row["id"], row["result_id"], row["kind"], row["mime_type"], row["byte_size"], content
+        )

@@ -1,4 +1,5 @@
 """Portable offline A1 contracts; saved ignored research directories are optional."""
+
 import copy
 import importlib.util
 from pathlib import Path
@@ -7,7 +8,9 @@ import pytest
 from jsonschema import ValidationError
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location("engine_demo_contract", ROOT / "docs/engine-demo/validate.py")
+SPEC = importlib.util.spec_from_file_location(
+    "engine_demo_contract", ROOT / "docs/engine-demo/validate.py"
+)
 contract = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(contract)
 
@@ -25,16 +28,19 @@ def test_synthetic_omissions_preserve_zero_and_unavailable():
     assert records[4]["data"]["created_at"]["value"] is None
 
 
-@pytest.mark.parametrize("mutation", [
-    lambda result: result["metrics"]["realized_net_pnl"].pop("basis"),
-    lambda result: result["metrics"]["borrow_cost"]["observation"].update(value=0),
-    lambda result: result["provenance"].update(synthetic=False),
-    lambda result: result["window"].update(start="2026-01-05T00:00:00-05:00"),
-    lambda result: result.update(id="/private/saved/result.json"),
-    lambda result: result.update(absolute_path="/private/saved/result.json"),
-    lambda result: result["metrics"]["realized_net_pnl"]["observation"].update(value="0"),
-    lambda result: result["metrics"]["realized_net_pnl"].update(source_pointer=None),
-])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda result: result["metrics"]["realized_net_pnl"].pop("basis"),
+        lambda result: result["metrics"]["borrow_cost"]["observation"].update(value=0),
+        lambda result: result["provenance"].update(synthetic=False),
+        lambda result: result["window"].update(start="2026-01-05T00:00:00-05:00"),
+        lambda result: result.update(id="/private/saved/result.json"),
+        lambda result: result.update(absolute_path="/private/saved/result.json"),
+        lambda result: result["metrics"]["realized_net_pnl"]["observation"].update(value="0"),
+        lambda result: result["metrics"]["realized_net_pnl"].update(source_pointer=None),
+    ],
+)
 def test_schema_rejects_unsafe_or_ambiguous_records(mutation):
     records = contract.synthetic_records()
     mutation(records[3]["data"])
@@ -88,7 +94,9 @@ def test_schema_complete_accounting_requires_no_unresolved_fields():
     contract.VALIDATOR.validate(result)
 
 
-@pytest.mark.parametrize("metric_name", contract.SCHEMA["$defs"]["result"]["properties"]["metrics"]["required"])
+@pytest.mark.parametrize(
+    "metric_name", contract.SCHEMA["$defs"]["result"]["properties"]["metrics"]["required"]
+)
 def test_schema_itself_rejects_wrong_named_metric_units(metric_name):
     result = contract.synthetic_records()[3]
     result["data"]["metrics"][metric_name]["unit"] = "multiple"
@@ -96,19 +104,22 @@ def test_schema_itself_rejects_wrong_named_metric_units(metric_name):
         contract.VALIDATOR.validate(result)
 
 
-@pytest.mark.parametrize("mutation", [
-    lambda wrapper: wrapper.pop("basis"),
-    lambda wrapper: wrapper.pop("unit"),
-    lambda wrapper: wrapper.pop("source_pointer"),
-    lambda wrapper: wrapper.update(unit="fraction"),
-    lambda wrapper: wrapper.update(values={"BULL": "profitable"}),
-    lambda wrapper: wrapper["values"]["BULL"].pop("win_rate"),
-    lambda wrapper: wrapper["values"]["BULL"].update(pnl="12.50"),
-    lambda wrapper: wrapper["values"]["BULL"].update(n=1.5),
-    lambda wrapper: wrapper["values"]["BULL"].update(wins=-1),
-    lambda wrapper: wrapper["values"]["BULL"].update(win_rate=50),
-    lambda wrapper: wrapper["values"]["BULL"].update(win_rate=-0.5),
-])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda wrapper: wrapper.pop("basis"),
+        lambda wrapper: wrapper.pop("unit"),
+        lambda wrapper: wrapper.pop("source_pointer"),
+        lambda wrapper: wrapper.update(unit="fraction"),
+        lambda wrapper: wrapper.update(values={"BULL": "profitable"}),
+        lambda wrapper: wrapper["values"]["BULL"].pop("win_rate"),
+        lambda wrapper: wrapper["values"]["BULL"].update(pnl="12.50"),
+        lambda wrapper: wrapper["values"]["BULL"].update(n=1.5),
+        lambda wrapper: wrapper["values"]["BULL"].update(wins=-1),
+        lambda wrapper: wrapper["values"]["BULL"].update(win_rate=50),
+        lambda wrapper: wrapper["values"]["BULL"].update(win_rate=-0.5),
+    ],
+)
 def test_schema_rejects_malformed_available_regime_values(mutation):
     result = contract.synthetic_records()[3]
     wrapper = result["data"]["by_regime"]["value"]
@@ -127,16 +138,28 @@ def test_completed_status_requires_result_and_failed_status_requires_details():
     status["data"].update(origin="job", state="failed")
     with pytest.raises(ValidationError):
         contract.validate([status])
-    status["data"]["failure"] = {"code": "worker_lost", "summary": "Worker lease expired.",
-                                  "at": "2026-09-20T12:00:00Z", "retryable": False,
-                                  "log_artifact_id": contract.unavailable()}
+    status["data"]["failure"] = {
+        "code": "worker_lost",
+        "summary": "Worker lease expired.",
+        "at": "2026-09-20T12:00:00Z",
+        "retryable": False,
+        "log_artifact_id": contract.unavailable(),
+    }
     contract.validate([status])
 
 
 def test_artifact_references_do_not_accept_paths_or_database_downloads():
-    artifact = contract.envelope({"record_type": "artifact", "id": contract.identifier("artifact"),
-                                  "result_id": contract.identifier("result"), "kind": "comparison",
-                                  "sha256": "a" * 64, "mime_type": "application/json", "byte_size": 20})
+    artifact = contract.envelope(
+        {
+            "record_type": "artifact",
+            "id": contract.identifier("artifact"),
+            "result_id": contract.identifier("result"),
+            "kind": "comparison",
+            "sha256": "a" * 64,
+            "mime_type": "application/json",
+            "byte_size": 20,
+        }
+    )
     contract.validate([artifact])
     changed = copy.deepcopy(artifact)
     changed["data"]["path"] = "../../.env"
@@ -153,5 +176,10 @@ def test_saved_v2_sources_validate_without_changes(scenario):
     if not directory.is_dir():
         pytest.skip("Ignored local saved scenario is not bundled; portable fixture still runs")
     report = contract.check_saved(directory)
-    assert report == {"scenario": scenario, "validated_rows": 8, "unchanged_files": 27,
-                      "evaluation": "retrospective", "accounting": "incomplete"}
+    assert report == {
+        "scenario": scenario,
+        "validated_rows": 8,
+        "unchanged_files": 27,
+        "evaluation": "retrospective",
+        "accounting": "incomplete",
+    }
