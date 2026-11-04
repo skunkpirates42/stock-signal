@@ -349,12 +349,8 @@ def _posting_scope(posting: Mapping[str, Any]) -> tuple[str, str, str, str]:
     missing = [key for key in required if not posting.get(key)]
     if missing:
         raise ValueError("accounting posting requires " + ", ".join(missing))
-    return (
-        str(posting["run_id"]),
-        str(posting["source"]),
-        str(posting["backend"]),
-        str(posting["account"]),
-    )
+    run_id, source, backend, account = (str(posting[key]) for key in required)
+    return run_id, source, backend, account
 
 
 def _canonical_posting(posting: Mapping[str, Any]) -> dict[str, Any]:
