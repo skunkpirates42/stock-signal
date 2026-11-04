@@ -9,7 +9,7 @@ trading costs? So far, not convincingly. The results below say so plainly.
 | | |
 |---|---|
 | **Frontend** | Next.js 16 (App Router, server components), React 19, TypeScript, Recharts, Vitest, ESLint, pnpm |
-| **Backend** | Python 3.9, Flask JSON API, SQLite, pandas/numpy, pytest |
+| **Backend** | Python 3.12, Flask JSON API, SQLite, pandas/numpy, pytest |
 | **Data and execution** | Alpaca IEX bars (seeded synthetic fallback, runs fully offline), local fill simulator or Alpaca paper orders |
 | **LLM** | Optional, presentation-only signal explanations (Groq or Anthropic). Never touches the trading decision. |
 | **Status** | Personal research project, in validation |
@@ -83,7 +83,7 @@ always formatted through `lib/format.ts`.
 Everything below runs offline, with no API keys.
 
 ```bash
-python3 -m venv .venv
+python3.12 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt -c constraints.txt
 
 # Replay the bundled synthetic fixture into a local database
