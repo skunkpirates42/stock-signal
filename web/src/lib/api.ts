@@ -3,9 +3,13 @@ import { dateRangeQuery, type DateRange } from "@/lib/dateRange";
 import { readArrayOf, type Read } from "@/lib/parse";
 
 export const API_BASE = process.env.FLASK_API_URL ?? "http://127.0.0.1:8000";
+export const READ_TIMEOUT_MS = 10_000;
 
 async function get<T>(path: string, read: Read<T>): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+  const response = await fetch(`${API_BASE}${path}`, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(READ_TIMEOUT_MS),
+  });
   if (!response.ok) {
     throw new Error(`${path} responded ${response.status}`);
   }

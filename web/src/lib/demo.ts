@@ -1,4 +1,4 @@
-import { API_BASE } from "@/lib/api";
+import { API_BASE, READ_TIMEOUT_MS } from "@/lib/api";
 import {
   readArrayOf,
   readFields,
@@ -175,6 +175,7 @@ export async function demoGet<T>(path: string, readData: Read<T>): Promise<Envel
   const response = await fetch(`${API_BASE}/api/demo/v1${path}`, {
     cache: "no-store",
     redirect: "manual",
+    signal: AbortSignal.timeout(READ_TIMEOUT_MS),
   });
   if (response.status === 404) throw new DemoNotFound("Demo record was not found");
   if (!response.ok) throw new Error(`${path} responded ${response.status}`);
@@ -316,7 +317,7 @@ export async function getSavedDiagnostics(
   try {
     const response = await fetch(
       `${API_BASE}/api/demo/v1/results/${encodeURIComponent(resultId)}/artifacts/${encodeURIComponent(artifact.id)}`,
-      { cache: "no-store", redirect: "manual" },
+      { cache: "no-store", redirect: "manual", signal: AbortSignal.timeout(READ_TIMEOUT_MS) },
     );
     const contentType = response.headers.get("content-type")?.split(";", 1)[0].trim();
     const contentLength = response.headers.get("content-length");

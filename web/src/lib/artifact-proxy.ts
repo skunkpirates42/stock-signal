@@ -1,4 +1,4 @@
-import { API_BASE } from "@/lib/api";
+import { API_BASE, READ_TIMEOUT_MS } from "@/lib/api";
 
 const MAX_ARTIFACT_BYTES = 1024 * 1024;
 const ALLOWED_TYPES = new Set(["application/json", "text/plain", "text/markdown"]);
@@ -10,6 +10,7 @@ export async function proxyArtifact(path: string): Promise<Response> {
     upstream = await fetch(`${API_BASE}/api/demo/v1${path}`, {
       cache: "no-store",
       redirect: "manual",
+      signal: AbortSignal.timeout(READ_TIMEOUT_MS),
     });
   } catch {
     return new Response(null, { status: 502, headers: SAFE_HEADERS });
