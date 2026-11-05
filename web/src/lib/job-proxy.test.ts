@@ -107,6 +107,7 @@ describe("local run mutation proxy", () => {
   });
 
   it("does not forward HTML or upstream faults to the browser", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.stubGlobal(
       "fetch",
       vi.fn(
@@ -120,5 +121,21 @@ describe("local run mutation proxy", () => {
     const response = await submitJob(request("/api/demo/v1/runs", requestBody));
     expect(response.status).toBe(502);
     expect(JSON.stringify(await response.json())).not.toContain("traceback");
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log.mock.calls[0][0]).toMatch(
+      /web_upstream_failed path=\/api\/demo\/v1\/runs status=500$/,
+    );
+    expect(log.mock.calls[0][0]).not.toContain("traceback");
+  });
+
+  it("logs an unreachable demo service by error name", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
+    const response = await cancelJob(request("/cancel", {}), RUN_ID);
+    expect(response.status).toBe(502);
+    expect((await response.json()).error.code).toBe("demo_unavailable");
+    expect(log.mock.calls[0][0]).toMatch(
+      new RegExp(`web_upstream_failed path=/api/demo/v1/runs/${RUN_ID}/cancel error=TypeError$`),
+    );
   });
 });

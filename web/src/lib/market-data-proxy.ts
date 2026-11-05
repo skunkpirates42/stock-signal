@@ -1,4 +1,5 @@
 import { API_BASE } from "@/lib/api";
+import { logUpstreamError, logUpstreamStatus } from "@/lib/log";
 
 /** Fixed read-only endpoints; browser input cannot choose the upstream URL. */
 export async function proxyMarketData(path: "/api/position-prices" | "/api/market-status") {
@@ -7,9 +8,17 @@ export async function proxyMarketData(path: "/api/position-prices" | "/api/marke
       cache: "no-store",
       signal: AbortSignal.timeout(5000),
     });
-    if (!response.ok) throw new Error("Market data unavailable");
+    if (!response.ok) {
+      logUpstreamStatus(path, response.status);
+      return marketDataUnavailable();
+    }
     return Response.json(await response.json(), { headers: { "Cache-Control": "no-store" } });
-  } catch {
-    return Response.json({ error: "Market data unavailable" }, { status: 503 });
+  } catch (error) {
+    logUpstreamError(path, error);
+    return marketDataUnavailable();
   }
+}
+
+function marketDataUnavailable(): Response {
+  return Response.json({ error: "Market data unavailable" }, { status: 503 });
 }
