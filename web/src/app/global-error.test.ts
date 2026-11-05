@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { Children, isValidElement, type ReactNode } from "react";
+
+// next/font calls only work after Next's compiler transform, which vitest does not run.
+vi.mock("@/styles/fonts", () => ({ fontVariableClasses: "font-vars" }));
+
 import GlobalError from "./global-error";
 
 function textOf(node: unknown): string {
@@ -24,6 +28,7 @@ describe("global error page", () => {
   it("renders its own document, since it replaces the root layout", () => {
     const page = GlobalError({ error: new Error("layout broke"), retry: () => {} });
     expect(isValidElement(page) && page.type).toBe("html");
+    expect(isValidElement<{ className?: string }>(page) && page.props.className).toBe("font-vars");
     expect(findByType(page, "body")).toBeDefined();
     expect(findByType(page, "title")?.props.children).toBe("Something went wrong");
   });

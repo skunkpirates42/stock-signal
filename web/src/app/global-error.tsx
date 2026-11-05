@@ -1,6 +1,7 @@
 "use client";
 
 import Page from "@/components/Page";
+import { fontVariableClasses } from "@/styles/fonts";
 import "./globals.css";
 
 export default function GlobalError({
@@ -11,7 +12,7 @@ export default function GlobalError({
   retry: () => void;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={fontVariableClasses}>
       <body>
         <title>Something went wrong</title>
         <div className="canvas">
