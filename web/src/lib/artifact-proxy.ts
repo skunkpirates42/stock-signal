@@ -1,24 +1,30 @@
 import { API_BASE, READ_TIMEOUT_MS } from "@/lib/api";
+import { logUpstreamError, logUpstreamStatus } from "@/lib/log";
 
 const MAX_ARTIFACT_BYTES = 1024 * 1024;
 const ALLOWED_TYPES = new Set(["application/json", "text/plain", "text/markdown"]);
 const SAFE_HEADERS = { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
 
 export async function proxyArtifact(path: string): Promise<Response> {
+  const upstreamPath = `/api/demo/v1${path}`;
   let upstream: Response;
   try {
-    upstream = await fetch(`${API_BASE}/api/demo/v1${path}`, {
+    upstream = await fetch(`${API_BASE}${upstreamPath}`, {
       cache: "no-store",
       redirect: "manual",
       signal: AbortSignal.timeout(READ_TIMEOUT_MS),
     });
-  } catch {
+  } catch (error) {
+    logUpstreamError(upstreamPath, error);
     return new Response(null, { status: 502, headers: SAFE_HEADERS });
   }
   if (upstream.status === 404 || upstream.status === 413) {
     return new Response(null, { status: upstream.status, headers: SAFE_HEADERS });
   }
-  if (upstream.status !== 200) return new Response(null, { status: 502, headers: SAFE_HEADERS });
+  if (upstream.status !== 200) {
+    logUpstreamStatus(upstreamPath, upstream.status);
+    return new Response(null, { status: 502, headers: SAFE_HEADERS });
+  }
 
   const mimeType = upstream.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
   const declaredSize = upstream.headers.get("content-length");
@@ -49,7 +55,8 @@ export async function proxyArtifact(path: string): Promise<Response> {
       }
       chunks.push(value);
     }
-  } catch {
+  } catch (error) {
+    logUpstreamError(upstreamPath, error);
     return new Response(null, { status: 502, headers: SAFE_HEADERS });
   } finally {
     reader.releaseLock();

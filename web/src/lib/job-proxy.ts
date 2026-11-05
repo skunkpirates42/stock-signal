@@ -1,5 +1,6 @@
 import { API_BASE } from "@/lib/api";
 import { isOpaqueDemoId } from "@/lib/demo";
+import { logUpstreamError, logUpstreamStatus } from "@/lib/log";
 
 const MAX_BODY_BYTES = 4096;
 const MAX_REPLY_BYTES = 1024 * 1024;
@@ -92,9 +93,10 @@ async function boundedReply(response: Response): Promise<unknown> {
 }
 
 async function upstreamPost(path: string, body: object): Promise<Response> {
+  const upstreamPath = `/api/demo/v1${path}`;
   let response: Response;
   try {
-    response = await fetch(`${API_BASE}/api/demo/v1${path}`, {
+    response = await fetch(`${API_BASE}${upstreamPath}`, {
       method: "POST",
       cache: "no-store",
       redirect: "manual",
@@ -102,13 +104,15 @@ async function upstreamPost(path: string, body: object): Promise<Response> {
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(30000),
     });
-  } catch {
+  } catch (exc) {
+    logUpstreamError(upstreamPath, exc);
     return error(502, "demo_unavailable", "The local demo service is unavailable.");
   }
   if (
     ![200, 202, 400, 404, 409, 411, 413, 415, 503].includes(response.status) ||
     !response.headers.get("content-type")?.startsWith("application/json")
   ) {
+    logUpstreamStatus(upstreamPath, response.status);
     return error(
       502,
       "demo_unavailable",
@@ -126,7 +130,8 @@ async function upstreamPost(path: string, body: object): Promise<Response> {
       headers.Location = `/runs/${status.run_id}`;
     }
     return Response.json(payload, { status: response.status, headers });
-  } catch {
+  } catch (exc) {
+    logUpstreamError(upstreamPath, exc);
     return error(502, "demo_unavailable", "The local demo service returned an invalid response.");
   }
 }
