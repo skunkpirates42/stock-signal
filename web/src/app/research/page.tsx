@@ -1,4 +1,3 @@
-import Link from "next/link";
 import ResearchComparisonTable from "@/components/ResearchComparisonTable";
 import { getResearchResults, isOpaqueDemoId } from "@/lib/demo";
 import { warningsBeyondScopeNote } from "@/lib/research";
@@ -7,6 +6,7 @@ import { notFound } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 import ScopeNote from "@/components/ScopeNote";
 import Page from "@/components/Page";
+import Button from "@/components/Button";
 
 export default async function ResearchPage({
   searchParams,
@@ -43,9 +43,9 @@ export default async function ResearchPage({
             This table compares the results on this page only. More saved results are on the next
             page.
           </p>
-          <Link className="button" href={`/research?cursor=${encodeURIComponent(nextCursor)}`}>
+          <Button href={`/research?cursor=${encodeURIComponent(nextCursor)}`}>
             Next saved results
-          </Link>
+          </Button>
         </nav>
       )}
     </Page>

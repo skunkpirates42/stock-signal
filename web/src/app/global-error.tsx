@@ -4,6 +4,7 @@ import Page from "@/components/Page";
 import ScopeNote from "@/components/ScopeNote";
 import { fontVariableClasses } from "@/styles/fonts";
 import "./globals.css";
+import Button from "@/components/Button";
 
 export default function GlobalError({
   error,
@@ -23,9 +24,7 @@ export default function GlobalError({
               The dashboard failed to load. Try again, and if it keeps failing check the dashboard
               logs.
             </ScopeNote>
-            <button type="button" className="button" onClick={() => retry()}>
-              Try again
-            </button>
+            <Button onClick={() => retry()}>Try again</Button>
             <p className="error-detail">{error.message}</p>
             {error.digest && <p className="error-detail">Error reference: {error.digest}</p>}
           </Page>

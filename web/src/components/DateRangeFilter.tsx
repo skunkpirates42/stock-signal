@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { DateRange } from "@/lib/dateRange";
+import Button from "@/components/Button";
 
 export interface DateRangeFilterProps {
   range: DateRange;
@@ -24,9 +25,7 @@ export default function DateRangeFilter({ range, scope }: DateRangeFilterProps) 
         <input type="date" name="to" defaultValue={range.to} />
       </label>
       <div className="date-range-actions">
-        <button type="submit" className="button">
-          Apply
-        </button>
+        <Button type="submit">Apply</Button>
         {(range.from || range.to) && <Link href={clearHref}>Clear dates</Link>}
       </div>
     </form>

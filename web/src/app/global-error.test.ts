@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { Children, isValidElement, type ReactNode } from "react";
+import { Children, isValidElement, type ElementType, type ReactNode } from "react";
 
 // next/font calls only work after Next's compiler transform, which vitest does not run.
 vi.mock("@/styles/fonts", () => ({ fontVariableClasses: "font-vars" }));
 
+import Button from "@/components/Button";
 import GlobalError from "./global-error";
 
 function textOf(node: unknown): string {
@@ -14,7 +15,10 @@ function textOf(node: unknown): string {
     .join("");
 }
 
-function findByType(node: unknown, type: string): { props: Record<string, unknown> } | undefined {
+function findByType(
+  node: unknown,
+  type: ElementType,
+): { props: Record<string, unknown> } | undefined {
   if (!isValidElement<{ children?: ReactNode }>(node)) return undefined;
   if (node.type === type) return { props: node.props as Record<string, unknown> };
   for (const child of Children.toArray(node.props.children)) {
@@ -42,7 +46,7 @@ describe("global error page", () => {
 
   it("retries when Try again is clicked", () => {
     const retry = vi.fn();
-    const button = findByType(GlobalError({ error: new Error("x"), retry }), "button");
+    const button = findByType(GlobalError({ error: new Error("x"), retry }), Button);
     (button?.props.onClick as () => void)();
     expect(retry).toHaveBeenCalledOnce();
   });

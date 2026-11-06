@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ReplayCatalog } from "@/lib/jobs";
 import { queueReplayRun } from "@/lib/runRequests";
+import Button from "@/components/Button";
 
 export default function RunForm({ catalog }: { catalog: ReplayCatalog }) {
   const router = useRouter();
@@ -131,9 +132,9 @@ export default function RunForm({ catalog }: { catalog: ReplayCatalog }) {
           {error}
         </p>
       )}
-      <button className="button" type="submit" disabled={!dataset || busy}>
+      <Button type="submit" disabled={!dataset || busy}>
         {busy ? "Submitting…" : "Queue historical replay"}
-      </button>
+      </Button>
     </form>
   );
 }
