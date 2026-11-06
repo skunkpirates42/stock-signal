@@ -1,4 +1,5 @@
 import AvailableValue from "@/components/AvailableValue";
+import Button from "@/components/Button";
 import Card from "@/components/Card";
 import DataTable from "@/components/DataTable";
 import Disclosure from "@/components/Disclosure";
@@ -140,6 +141,15 @@ export default function SystemPage() {
           <Card title={<MetricTerm {...METRIC_DEFINITIONS.rMultiple} />} titleVariant="label">
             <p className="card-note">In a card title.</p>
           </Card>
+        </div>
+      </Card>
+
+      <Card title="Button" note="A link with an href renders as a Next Link with the same look.">
+        <div className="system-buttons">
+          <Button>Default</Button>
+          <Button disabled>Disabled</Button>
+          <Button inline>Inline</Button>
+          <Button href="/system">Link</Button>
         </div>
       </Card>
 
