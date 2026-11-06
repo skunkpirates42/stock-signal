@@ -1,6 +1,7 @@
 "use client";
 
 import Page from "@/components/Page";
+import ScopeNote from "@/components/ScopeNote";
 
 export default function Error({
   error,
@@ -12,16 +13,15 @@ export default function Error({
   return (
     <Page>
       <h1>Something went wrong</h1>
-      <p className="error-message">
-        This dashboard could not reach its data API. The most likely cause is that the Flask server
-        on port 8000 is not running — start it and try again.
-      </p>
+      <ScopeNote>
+        This dashboard could not reach its data API. Check that the Flask API is running, and that
+        FLASK_API_URL points at it if it is not on the default address, then try again.
+      </ScopeNote>
+      <button type="button" className="button" onClick={() => retry()}>
+        Try again
+      </button>
       <p className="error-detail">{error.message}</p>
-      <p className="error-actions">
-        <button type="button" className="button" onClick={() => retry()}>
-          Try again
-        </button>
-      </p>
+      {error.digest && <p className="error-detail">Error reference: {error.digest}</p>}
     </Page>
   );
 }

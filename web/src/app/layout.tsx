@@ -1,26 +1,9 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { Space_Grotesk, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import LiveStatus from "@/components/LiveStatus";
 import SideRail from "@/components/SideRail";
+import { fontVariableClasses } from "@/styles/fonts";
 import "./globals.css";
-
-const display = Space_Grotesk({
-  variable: "--font-display",
-  subsets: ["latin"],
-});
-
-const sans = IBM_Plex_Sans({
-  variable: "--font-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
-
-const mono = IBM_Plex_Mono({
-  variable: "--font-mono",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
 
 export const metadata: Metadata = {
   title: "Paper Trader Dashboard",
@@ -29,7 +12,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
+    <html lang="en" className={fontVariableClasses}>
       <body>
         <a className="skip-link" href="#content">
           Skip to content

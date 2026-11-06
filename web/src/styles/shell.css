@@ -212,20 +212,9 @@
   color: var(--accent);
 }
 
-.error-message {
-  margin-top: var(--space);
-  max-width: 68ch;
-  line-height: 1.6;
-  color: var(--muted);
-}
-
 .error-detail {
   margin-top: calc(var(--space) * 1.5);
   color: var(--faint);
   font-size: var(--text-body);
   font-family: var(--font-mono);
-}
-
-.error-actions {
-  margin-top: calc(var(--space) * 2);
 }
