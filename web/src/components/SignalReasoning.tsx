@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { explainSignal } from "@/lib/actions";
 import { describeSynthesisSource, hasLlmReasoning } from "@/lib/synthesis";
+import Button from "@/components/Button";
 
 export interface SignalReasoningProps {
   signalId: number;
@@ -40,14 +41,9 @@ export default function SignalReasoning({
       <p>{text ?? "No reasoning recorded for this signal."}</p>
       <p className="rationale-provenance">Source: {describeSynthesisSource(source)}</p>
       {!explained && (
-        <button
-          type="button"
-          className="button button-inline"
-          onClick={handleExplain}
-          disabled={isPending}
-        >
+        <Button inline onClick={handleExplain} disabled={isPending}>
           {isPending ? "Explaining…" : "Explain with AI"}
-        </button>
+        </Button>
       )}
       {error && <p className="rationale-explain-error">Could not explain: {error}</p>}
     </div>

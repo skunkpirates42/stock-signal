@@ -35,12 +35,6 @@
 .run-form .button,
 .run-actions .button {
   justify-self: start;
-  cursor: pointer;
-}
-.run-form .button:disabled,
-.run-actions .button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 .run-actions {
   margin-top: calc(var(--space) * 2);

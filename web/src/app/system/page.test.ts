@@ -32,6 +32,14 @@ describe("system page", () => {
     expect(html).toMatch(/<details open="" class="disclosure card"><summary>Disclosure, open/);
   });
 
+  it("shows the button in each of its states", () => {
+    const html = renderPage();
+    expect(html).toContain('<button type="button" class="button">Default</button>');
+    expect(html).toContain('<button type="button" class="button" disabled="">Disabled</button>');
+    expect(html).toContain('<button type="button" class="button button-inline">Inline</button>');
+    expect(html).toContain('<a class="button" href="/system">Link</a>');
+  });
+
   it("shows a table's empty state", () => {
     expect(renderPage()).toContain('class="data-table-empty">No rows.</td>');
   });

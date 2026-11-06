@@ -48,3 +48,10 @@
 .system-type-row .note {
   flex: 0 0 120px;
 }
+
+.system-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: calc(var(--space) * 2);
+}
