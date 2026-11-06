@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { Children, isValidElement, type ReactNode } from "react";
+import Button from "@/components/Button";
 import ErrorPage from "./error";
 
 function textOf(node: unknown): string {
@@ -12,7 +13,7 @@ function textOf(node: unknown): string {
 
 function findButton(node: unknown): { onClick: () => void } | undefined {
   if (!isValidElement<{ onClick?: () => void; children?: ReactNode }>(node)) return undefined;
-  if (node.type === "button" && node.props.onClick) return { onClick: node.props.onClick };
+  if (node.type === Button && node.props.onClick) return { onClick: node.props.onClick };
   for (const child of Children.toArray(node.props.children)) {
     const found = findButton(child);
     if (found) return found;

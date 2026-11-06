@@ -1,9 +1,9 @@
-import Link from "next/link";
 import RunForm from "@/components/RunForm";
 import { getReplayCatalog } from "@/lib/jobs";
 import PageHeader from "@/components/PageHeader";
 import ScopeNote from "@/components/ScopeNote";
 import Page from "@/components/Page";
+import Button from "@/components/Button";
 
 export default async function RunPage() {
   const { data: catalog } = await getReplayCatalog();
@@ -12,11 +12,7 @@ export default async function RunPage() {
       <PageHeader
         eyebrow="Local historical replay"
         title="New run"
-        aside={
-          <Link href="/runs" className="button">
-            Run history
-          </Link>
-        }
+        aside={<Button href="/runs">Run history</Button>}
       />
       <ScopeNote>
         Replays a past market window on paper. The synthetic fixture only checks correctness.

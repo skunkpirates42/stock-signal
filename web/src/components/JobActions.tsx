@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { JobStatus } from "@/lib/jobs";
 import { startVisiblePolling } from "@/lib/polling";
 import { requestRunCancel } from "@/lib/runRequests";
+import Button from "@/components/Button";
 
 export default function JobActions({ status }: { status: JobStatus }) {
   const router = useRouter();
@@ -41,9 +42,9 @@ export default function JobActions({ status }: { status: JobStatus }) {
         </p>
       )}
       {(status.state === "queued" || status.state === "running") && (
-        <button className="button" type="button" onClick={cancel} disabled={busy}>
+        <Button onClick={cancel} disabled={busy}>
           {busy ? "Cancelling…" : "Cancel run"}
-        </button>
+        </Button>
       )}
       {error && (
         <p role="alert" className="research-warning">

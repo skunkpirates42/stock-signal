@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatTimestamp, labelFromKey } from "@/lib/format";
 import { getJobs } from "@/lib/jobs";
@@ -6,6 +5,7 @@ import { isOpaqueDemoId } from "@/lib/demo";
 import PageHeader from "@/components/PageHeader";
 import ScopeNote from "@/components/ScopeNote";
 import Page from "@/components/Page";
+import Button from "@/components/Button";
 
 export default async function RunsPage({
   searchParams,
@@ -20,11 +20,7 @@ export default async function RunsPage({
       <PageHeader
         eyebrow="Local demo jobs"
         title="Run history"
-        aside={
-          <Link href="/run" className="button">
-            New run
-          </Link>
-        }
+        aside={<Button href="/run">New run</Button>}
       />
       <ScopeNote>
         Replays queued on this machine. A finished run is a simulation. It can’t place trades or
@@ -51,18 +47,16 @@ export default async function RunsPage({
                 ? formatTimestamp(status.created_at.value)
                 : "at an unavailable time"}
             </p>
-            <Link className="button research-link" href={`/runs/${status.run_id}`}>
+            <Button className="research-link" href={`/runs/${status.run_id}`}>
               View run
-            </Link>
+            </Button>
           </article>
         ))}
         {data.runs.length === 0 && <ScopeNote>No runs queued yet.</ScopeNote>}
       </div>
       {data.next_cursor && isOpaqueDemoId(data.next_cursor) && (
         <nav className="research-pagination" aria-label="Run history pages">
-          <Link className="button" href={`/runs?cursor=${encodeURIComponent(data.next_cursor)}`}>
-            Older runs
-          </Link>
+          <Button href={`/runs?cursor=${encodeURIComponent(data.next_cursor)}`}>Older runs</Button>
         </nav>
       )}
     </Page>

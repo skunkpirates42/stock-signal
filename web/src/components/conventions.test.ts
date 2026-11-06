@@ -16,6 +16,7 @@ describe("page conventions", () => {
   it.each([
     ["page-head", "components/PageHeader.tsx"],
     ["scope-note", "components/ScopeNote.tsx"],
+    ["button", "components/Button.tsx"],
   ])("builds %s markup only through its component", (className, owner) => {
     const handRolled = markupFiles()
       .filter(
