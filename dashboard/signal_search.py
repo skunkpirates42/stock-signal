@@ -3,6 +3,7 @@
 import math
 import re
 import sqlite3
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Mapping
@@ -119,71 +120,97 @@ def _utc_signal_day(timestamp):
         return None
 
 
-def search_signals(db_path: str, search: SignalSearch) -> dict:
+@contextmanager
+def _signal_read_snapshot(db_path):
     connection = sqlite3.connect(db_path)
-    connection.row_factory = sqlite3.Row
-    connection.create_function("signal_utc_day", 1, _utc_signal_day, deterministic=True)
     try:
+        connection.row_factory = sqlite3.Row
+        connection.create_function("signal_utc_day", 1, _utc_signal_day, deterministic=True)
         connection.execute("BEGIN")
-        snapshot_id = search.snapshot_id
-        if snapshot_id is None:
-            snapshot_id = connection.execute("SELECT COALESCE(MAX(id), 0) FROM signals").fetchone()[
-                0
-            ]
-        scope_clauses, scope_values = scope_sql(search.source, prefix="s.")
-        scope_clauses.append("s.id <= ?")
-        scope_values.append(snapshot_id)
-        scope_where = " AND ".join(scope_clauses)
-        scope_total = connection.execute(
-            f"SELECT COUNT(*) FROM signals s WHERE {scope_where}", scope_values
-        ).fetchone()[0]
-        tickers = [
-            row[0]
-            for row in connection.execute(
-                f"SELECT DISTINCT s.ticker FROM signals s WHERE {scope_where} ORDER BY s.ticker",
-                scope_values,
-            )
-        ]
-        clauses, values = _filter_clauses(search)
-        clauses.append("s.id <= ?")
-        values.append(snapshot_id)
-        hidden_wait_count = 0
-        if not search.include_wait and not search.direction:
-            hidden_wait_count = connection.execute(
-                "SELECT COUNT(*) FROM signals s WHERE "
-                + " AND ".join(clauses)
-                + " AND s.direction = 'WAIT'",
-                values,
-            ).fetchone()[0]
-            clauses.append("s.direction != 'WAIT'")
-        where = " AND ".join(clauses)
-        total = connection.execute(
-            f"SELECT COUNT(*) FROM signals s WHERE {where}", values
-        ).fetchone()[0]
-        total_pages = max(1, (total + search.page_size - 1) // search.page_size)
-        page = min(search.page, total_pages)
-        # A signal may have multiple trades; show the newest within its exact provenance.
-        rows = connection.execute(
-            f"""SELECT s.*, (
-                SELECT t.outcome FROM trades t
-                WHERE t.signal_id = s.id AND t.source IS s.source
-                  AND t.backend IS s.backend AND t.account IS s.account
-                ORDER BY t.id DESC LIMIT 1
-            ) AS outcome
-            FROM signals s WHERE {where}
-            ORDER BY s.id DESC LIMIT ? OFFSET ?""",
-            [*values, search.page_size, (page - 1) * search.page_size],
-        ).fetchall()
-        return {
-            "items": [dict(row) for row in rows],
-            "total": total,
-            "scope_total": scope_total,
-            "hidden_wait_count": hidden_wait_count,
-            "tickers": tickers,
-            "page": page,
-            "page_size": search.page_size,
-            "total_pages": total_pages,
-            "snapshot_id": snapshot_id,
-        }
+        yield connection
     finally:
         connection.close()
+
+
+def _resolve_snapshot_id(connection, requested_snapshot_id):
+    if requested_snapshot_id is not None:
+        return requested_snapshot_id
+    return connection.execute("SELECT COALESCE(MAX(id), 0) FROM signals").fetchone()[0]
+
+
+def _load_scope_summary(connection, source, snapshot_id):
+    clauses, values = scope_sql(source, prefix="s.")
+    clauses.append("s.id <= ?")
+    values.append(snapshot_id)
+    where = " AND ".join(clauses)
+    total = connection.execute(f"SELECT COUNT(*) FROM signals s WHERE {where}", values).fetchone()[
+        0
+    ]
+    tickers = [
+        row[0]
+        for row in connection.execute(
+            f"SELECT DISTINCT s.ticker FROM signals s WHERE {where} ORDER BY s.ticker", values
+        )
+    ]
+    return {"scope_total": total, "tickers": tickers}
+
+
+def _count_hidden_wait_signals(connection, search, clauses, values):
+    if search.include_wait or search.direction:
+        return 0
+    return connection.execute(
+        "SELECT COUNT(*) FROM signals s WHERE "
+        + " AND ".join(clauses)
+        + " AND s.direction = 'WAIT'",
+        values,
+    ).fetchone()[0]
+
+
+def _load_page_metadata(connection, search, where, values):
+    total = connection.execute(f"SELECT COUNT(*) FROM signals s WHERE {where}", values).fetchone()[
+        0
+    ]
+    total_pages = max(1, (total + search.page_size - 1) // search.page_size)
+    return {
+        "total": total,
+        "page": min(search.page, total_pages),
+        "page_size": search.page_size,
+        "total_pages": total_pages,
+    }
+
+
+def _load_signals_with_outcomes(connection, where, values, page):
+    # A signal may have multiple trades; show the newest within its exact provenance.
+    rows = connection.execute(
+        f"""SELECT s.*, (
+            SELECT t.outcome FROM trades t
+            WHERE t.signal_id = s.id AND t.source IS s.source
+              AND t.backend IS s.backend AND t.account IS s.account
+            ORDER BY t.id DESC LIMIT 1
+        ) AS outcome
+        FROM signals s WHERE {where}
+        ORDER BY s.id DESC LIMIT ? OFFSET ?""",
+        [*values, page["page_size"], (page["page"] - 1) * page["page_size"]],
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def _load_signal_page(connection, search, snapshot_id):
+    clauses, values = _filter_clauses(search)
+    clauses.append("s.id <= ?")
+    values.append(snapshot_id)
+    hidden_wait_count = _count_hidden_wait_signals(connection, search, clauses, values)
+    if not search.include_wait and not search.direction:
+        clauses.append("s.direction != 'WAIT'")
+    where = " AND ".join(clauses)
+    page = _load_page_metadata(connection, search, where, values)
+    items = _load_signals_with_outcomes(connection, where, values, page)
+    return {**page, "items": items, "hidden_wait_count": hidden_wait_count}
+
+
+def search_signals(db_path: str, search: SignalSearch) -> dict:
+    with _signal_read_snapshot(db_path) as connection:
+        snapshot_id = _resolve_snapshot_id(connection, search.snapshot_id)
+        scope_summary = _load_scope_summary(connection, search.source, snapshot_id)
+        page = _load_signal_page(connection, search, snapshot_id)
+        return {**scope_summary, **page, "snapshot_id": snapshot_id}
