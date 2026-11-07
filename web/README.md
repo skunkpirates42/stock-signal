@@ -21,3 +21,20 @@ Logic lives in `src/lib/` with tests alongside, components in `src/components/`,
 design tokens in `src/styles/tokens.css`. `/system` shows every shared component in each
 of its states. See the [main README](../README.md) for the pages, the design-system checks
 and how to run the API with sample data.
+
+## Browser smoke test
+
+With the root `.venv` dependencies installed as described in the main README:
+
+```bash
+pnpm exec playwright install chromium
+pnpm build
+pnpm test:smoke
+```
+
+Playwright starts the production app on port 13000 and a Flask API on port 18000.
+Both ports must be free. The API replays the bundled synthetic fixture into temporary
+storage; it does not use your dashboard database or start a trading engine.
+The six top-level pages must return 200, display their page title, and produce no
+browser errors or error boundary. Failed tests retain traces in `test-results/`;
+CI uploads them as `playwright-traces`.
