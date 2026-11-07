@@ -31,6 +31,19 @@ use shared contracts/helpers, local API routes, or the explicit Server Actions i
 `src/lib/actions.ts`. Vitest aliases the marker only for server unit tests; Next builds
 enforce the real boundary.
 
+Flask responses are consumed through explicit `Read<T>` readers at each JSON boundary.
+Lint requires `read…(await response.json(), path)` (including composed readers); server
+proxies may forward JSON through `Response.json` without consuming it. Demo readers
+retain the backend schema-validation contract for nested saved records. Browser replay
+mutations validate the run ID or error code they consume without deepening that contract.
+
+Submission and cancellation have a 35-second browser deadline, including reading the
+response body, allowing the local proxy's 30-second upstream budget to finish first.
+Timeout and unreadable/network outcomes do not prove that a submission failed: retrying
+unchanged choices reuses the same idempotency key to look up the accepted run. Changing
+choices or receiving a validated idempotency conflict starts a new key. Cancellation
+failures restore the control and ask the user to check the run's refreshed status.
+
 ## Interaction tests and production smoke
 
 `pnpm test` keeps pure logic and static rendering tests in Node. Tests marked
