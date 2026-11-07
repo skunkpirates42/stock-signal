@@ -28,7 +28,9 @@ export default function PositionsView() {
           : "Loading position state…"}
       </p>
     );
-  const selected = account || data.accounts[0]?.account;
+  const selected = data.accounts.some((item) => item.account === account)
+    ? account
+    : data.accounts[0]?.account;
   const scope = data.accounts.find((item) => item.account === selected);
   const current = !failed && observationFresh(data.fetched_at, now, data.stale_seconds);
   const brokerCurrent =
