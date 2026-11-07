@@ -120,10 +120,11 @@ in `.env`, launch the live stack from one terminal:
 ./start-live.sh
 ```
 
-This starts the signal and paper-trading engines together (`run_live.py`), the Flask API,
+This starts the signal and paper-trading engines together (`run_live.py`), the Flask API on Waitress,
 and the frontend at http://127.0.0.1:3000. It uses your existing `BROKER` setting
 (`local` by default; `alpaca` submits to the Alpaca paper account) and `DB_PATH`.
 `DASHBOARD_PORT` is read from configuration and passed to the frontend automatically.
+The API binds to `127.0.0.1`; request methods, paths and status codes go to `api.log`.
 The engine idles outside market hours. Logs are saved per launch under `.live-logs/`;
 Ctrl-C or a service exit stops the whole stack. Each process also appends a rotating
 event log, `.live-logs/live.log` (and `dashboard.log`, `demo-worker.log`), with one
