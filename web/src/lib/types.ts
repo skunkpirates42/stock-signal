@@ -59,6 +59,18 @@ export interface Trade {
   source: Source | null;
 }
 
+export interface SignalSearchResult {
+  items: (Signal & { outcome: Trade["outcome"] | null })[];
+  total: number;
+  scope_total: number;
+  hidden_wait_count: number;
+  tickers: string[];
+  page: number;
+  page_size: number;
+  total_pages: number;
+  snapshot_id: number;
+}
+
 export interface Breakdown {
   n: number;
   wins: number;
@@ -137,6 +149,30 @@ export const readSignal: Read<Signal> = (value, path) => {
     synthesis_source: field("synthesis_source", readNullableString),
     reasoning: field("reasoning", readNullableString),
     indicators_json: field("indicators_json", readNullableString),
+  };
+};
+
+export const readSignalSearchResult: Read<SignalSearchResult> = (value, path) => {
+  const field = readFields(value, path);
+  return {
+    items: field(
+      "items",
+      readArrayOf((item, itemPath) => ({
+        ...readSignal(item, itemPath),
+        outcome: readFields(item, itemPath)(
+          "outcome",
+          readNullable(readLiteral("OPEN", "WIN", "LOSS", "BREAKEVEN")),
+        ),
+      })),
+    ),
+    total: field("total", readNumber),
+    scope_total: field("scope_total", readNumber),
+    hidden_wait_count: field("hidden_wait_count", readNumber),
+    tickers: field("tickers", readArrayOf(readString)),
+    page: field("page", readNumber),
+    page_size: field("page_size", readNumber),
+    total_pages: field("total_pages", readNumber),
+    snapshot_id: field("snapshot_id", readNumber),
   };
 };
 

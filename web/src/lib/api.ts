@@ -1,4 +1,5 @@
-import { readMetrics, readSignal, readTrade } from "@/lib/types";
+import { readMetrics, readSignal, readSignalSearchResult, readTrade } from "@/lib/types";
+import { signalQueryParams, type SignalQuery } from "@/lib/signalSearch";
 import { dateRangeQuery, type DateRange } from "@/lib/dateRange";
 import { readArrayOf, type Read } from "@/lib/parse";
 
@@ -28,6 +29,10 @@ export function getSignals(opts: { source?: string; limit?: number } = {}) {
   if (opts.source) params.set("source", opts.source);
   params.set("limit", String(opts.limit ?? 500));
   return get(`/api/signals?${params}`, readArrayOf(readSignal));
+}
+
+export function searchSignals(query: SignalQuery) {
+  return get(`/api/signals/search?${signalQueryParams(query)}`, readSignalSearchResult);
 }
 
 export function getTrades(opts: { source?: string; limit?: number } = {}) {

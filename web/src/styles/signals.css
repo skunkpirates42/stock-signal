@@ -52,6 +52,21 @@
 
 /* SignalList */
 
+.signal-filter-fields {
+  border: 0;
+  padding: 0;
+  margin: 0 0 calc(var(--space) * 2);
+  min-width: 0;
+}
+
+.signal-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--space) * 2);
+  margin-top: calc(var(--space) * 3);
+}
+
 .signal-list-count {
   color: var(--muted);
   font-size: var(--text-body);

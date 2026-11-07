@@ -16,7 +16,16 @@ const LINKS = [
 
 export default function SideRail() {
   const pathname = usePathname();
-  const scope = useSearchParams().get("source") === "all" ? "all" : "live";
+  const searchParams = useSearchParams();
+  const scope = searchParams.get("source") === "all" ? "all" : "live";
+  const scopeHref = (source: "live" | "all") => {
+    const params = new URLSearchParams(pathname === "/signals" ? searchParams.toString() : "");
+    params.delete("page");
+    params.delete("snapshot_id");
+    if (source === "all") params.set("source", "all");
+    else params.delete("source");
+    return params.size ? `${pathname}?${params}` : pathname;
+  };
   const keepScope = (href: string) =>
     scope === "all" && ["/", "/signals", "/positions"].includes(href) ? `${href}?source=all` : href;
 
@@ -43,14 +52,14 @@ export default function SideRail() {
         <span className="micro">Scope</span>
         <div className="segmented">
           <Link
-            href={pathname}
+            href={scopeHref("live")}
             className={`segmented-option${scope === "live" ? " segmented-option-active" : ""}`}
             aria-current={scope === "live" ? "true" : undefined}
           >
             Live
           </Link>
           <Link
-            href={`${pathname}?source=all`}
+            href={scopeHref("all")}
             className={`segmented-option${scope === "all" ? " segmented-option-active" : ""}`}
             aria-current={scope === "all" ? "true" : undefined}
           >
