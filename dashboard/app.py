@@ -20,6 +20,7 @@ from alerts.feed import build_alert_events
 from analytics.metrics import compute_metrics, equity_curve, load_closed_trades
 from dashboard.position_state import position_state
 from dashboard.prices import MarketStatus, PositionPrices
+from dashboard.signal_search import SignalSearch, search_signals
 from db.logger import _connect, init_db, load_open_positions, scope_sql
 from demo.jobs import IdempotencyConflict, InvalidPageRequest, JobStore
 from demo.read_service import (
@@ -151,6 +152,18 @@ def create_app(
     def api_signals():
         limit, source = _query_params(100)
         return jsonify(_recent("signals", limit, source))
+
+    @app.route("/api/signals/search")
+    def api_signal_search():
+        if any(len(request.args.getlist(name)) > 1 for name in request.args):
+            return jsonify(error="Search parameters must not be repeated"), 400
+        try:
+            search = SignalSearch.from_params(request.args)
+        except ValueError as error:
+            return jsonify(error=str(error)), 400
+        response = jsonify(search_signals(_db(), search))
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
     @app.route("/api/open")
     def api_open():

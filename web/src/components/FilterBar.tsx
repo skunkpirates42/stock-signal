@@ -47,7 +47,8 @@ export default function FilterBar({ criteria, tickers, onChange }: FilterBarProp
         <span className="filter-toggle">
           <input
             type="checkbox"
-            checked={!criteria.hideWait}
+            checked={criteria.direction === "WAIT" || !criteria.hideWait}
+            disabled={!!criteria.direction}
             onChange={(e) => onChange({ ...criteria, hideWait: !e.target.checked })}
           />
           Include WAIT
@@ -67,7 +68,7 @@ export default function FilterBar({ criteria, tickers, onChange }: FilterBarProp
       </label>
 
       <label className="filter-field">
-        <span className="micro">From</span>
+        <span className="micro">From (UTC, inclusive)</span>
         <input
           type="date"
           value={criteria.from ?? ""}
@@ -76,7 +77,7 @@ export default function FilterBar({ criteria, tickers, onChange }: FilterBarProp
       </label>
 
       <label className="filter-field">
-        <span className="micro">To</span>
+        <span className="micro">To (UTC, inclusive)</span>
         <input
           type="date"
           value={criteria.to ?? ""}

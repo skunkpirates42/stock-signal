@@ -1,11 +1,27 @@
 import os
 import runpy
+import sqlite3
 import subprocess
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+
+
+def seed_signal_search(database_path: Path) -> None:
+    with sqlite3.connect(database_path) as connection:
+        rows = [
+            ("DEEP", "SHORT", 0.95, "2026-06-10T23:59:59.999999Z", "live"),
+            ("DEEP", "WAIT", 0.2, "2026-06-10T00:00:00Z", "live"),
+            ("REPLAY_ONLY", "LONG", 0.9, "2026-06-10T12:00:00Z", "backtest"),
+            *[("PAGE", "LONG", 0.8, "2026-07-15T12:00:00Z", "live")] * 551,
+        ]
+        connection.executemany(
+            """INSERT INTO signals (ticker, direction, confidence, bar_timestamp,
+               created_at, source) VALUES (?, ?, ?, ?, '2026-08-01T12:00:00Z', ?)""",
+            rows,
+        )
 
 
 def main() -> None:
@@ -32,12 +48,14 @@ def main() -> None:
             cwd=REPOSITORY_ROOT,
             check=True,
         )
-        create_app(
+        app = create_app(
             db_path=str(database_path),
             demo_db_path=str(sample_directory / "demo-artifacts.db"),
             demo_job_db_path=str(sample_directory / "demo-jobs.db"),
             demo_owner_id="smoke-test",
-        ).run(host="127.0.0.1", port=18000, debug=False)
+        )
+        seed_signal_search(database_path)
+        app.run(host="127.0.0.1", port=18000, debug=False)
 
 
 if __name__ == "__main__":

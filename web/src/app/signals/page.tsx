@@ -1,5 +1,6 @@
-import { getSignals, getTrades } from "@/lib/api";
-import type { Trade } from "@/lib/types";
+import Link from "next/link";
+import { searchSignals } from "@/lib/api";
+import { parseSignalQuery, signalQueryParams, type SignalSearchParams } from "@/lib/signalSearch";
 import SignalList from "@/components/SignalList";
 import ScopeNote from "@/components/ScopeNote";
 import PageHeader from "@/components/PageHeader";
@@ -8,34 +9,44 @@ import Page from "@/components/Page";
 export default async function SignalsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ source?: string }>;
+  searchParams: Promise<SignalSearchParams>;
 }) {
-  const { source } = await searchParams;
-  const scope = source === "all" ? undefined : "live";
-
-  // Live volume today is 269 signals. Filtering client-side after a single fetch is the
-  // right call at this scale; it stops being right somewhere around a few thousand rows,
-  // at which point ticker/direction/confidence/date filtering belongs in the Flask query
-  // instead of in the browser.
-  const signals = await getSignals({ source: scope, limit: 500 });
-  const trades = await getTrades({ source: scope, limit: 500 });
-
-  const outcomeBySignalId: Record<number, Trade["outcome"]> = {};
-  for (const trade of trades) {
-    if (trade.signal_id !== null) {
-      outcomeBySignalId[trade.signal_id] = trade.outcome;
-    }
+  const params = await searchParams;
+  let query;
+  try {
+    query = parseSignalQuery(params);
+  } catch (error) {
+    return (
+      <Page>
+        <PageHeader title="Signals" />
+        <p role="alert">
+          Invalid signal filters. {error instanceof Error ? error.message : "Check the URL."}
+        </p>
+        <Link href={params.source === "all" ? "/signals?source=all" : "/signals"}>
+          Reset filters
+        </Link>
+      </Page>
+    );
   }
+  const result = await searchSignals(query);
 
   return (
     <Page>
-      <PageHeader title="Signals" aside={<span className="micro">{signals.length} signals</span>} />
+      <PageHeader
+        title="Signals"
+        aside={<span className="micro">{result.total} matching signals</span>}
+      />
       <ScopeNote>
-        {scope === "live"
-          ? `Showing ${signals.length} live signals. Backtest replay signals are excluded from this view.`
-          : `Showing ${signals.length} signals, live and backtest replay combined. Replay signals come from a different period.`}
+        Searching all {result.scope_total} {query.source === "live" ? "live" : "journal"} signals in
+        this view.
+        {query.source === "live"
+          ? " Backtest replay and unknown-source signals are excluded."
+          : " All recorded sources are included; replay signals may come from a different period."}
+        {
+          " Dates use UTC signal-bar time, or the recorded time when no bar time is available. Both selected dates are included."
+        }
       </ScopeNote>
-      <SignalList signals={signals} outcomeBySignalId={outcomeBySignalId} />
+      <SignalList key={signalQueryParams(query).toString()} result={result} query={query} />
     </Page>
   );
 }
