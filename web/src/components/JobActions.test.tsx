@@ -3,6 +3,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { JobDetail as Detail, JobStatus } from "@/lib/jobs/contracts";
+import { RUN_REQUEST_TIMEOUT_MS } from "@/lib/runRequests";
 import JobActions from "./JobActions";
 import JobDetail from "./JobDetail";
 
@@ -147,7 +148,7 @@ it("retries failed cancellation, disables duplicate requests, and refreshes afte
   fireEvent.click(cancelButton);
   expect(fetchResponse).toHaveBeenCalledTimes(2);
   const refreshesBeforeCancel = navigation.refresh.mock.calls.length;
-  await act(async () => finishCancel?.(Response.json({})));
+  await act(async () => finishCancel?.(Response.json({ data: { status: { run_id: runId } } })));
   expect(fetchResponse).toHaveBeenLastCalledWith(
     `/api/demo/v1/runs/${runId}/cancel`,
     expect.objectContaining({ method: "POST", body: "{}" }),
@@ -156,6 +157,27 @@ it("retries failed cancellation, disables duplicate requests, and refreshes afte
   view.rerender(<JobActions status={status("cancel_requested")} />);
   expect(screen.queryByRole("button", { name: "Cancel run" })).toBeNull();
   expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("recovers cancellation controls after a stalled body and confirms a retry", async () => {
+  fetchResponse.mockResolvedValueOnce(new Response(new ReadableStream()));
+  render(<JobActions status={status("running")} />);
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Cancel run" })));
+  expect(screen.getByRole<HTMLButtonElement>("button", { name: "Cancelling…" }).disabled).toBe(
+    true,
+  );
+  await advanceTime(RUN_REQUEST_TIMEOUT_MS);
+  expect(screen.getByRole("alert").textContent).toContain("Check the run status");
+  expect(screen.getByRole<HTMLButtonElement>("button", { name: "Cancel run" }).disabled).toBe(
+    false,
+  );
+  expect(fetchResponse.mock.calls[0][1]?.signal?.aborted).toBe(true);
+
+  fetchResponse.mockResolvedValueOnce(Response.json({ data: { status: { run_id: runId } } }));
+  const refreshesBeforeRetry = navigation.refresh.mock.calls.length;
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Cancel run" })));
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(navigation.refresh).toHaveBeenCalledTimes(refreshesBeforeRetry + 1);
 });
 
 it("pauses refresh while hidden, resumes on visibility, and removes listeners on unmount", async () => {

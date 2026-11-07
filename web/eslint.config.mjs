@@ -1,6 +1,7 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+import requireResponseReader from "./eslint-rules/require-response-reader.mjs";
 
 const unparsedResponseBody = [
   {
@@ -18,6 +19,12 @@ const unparsedResponseBody = [
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["**/*.test.{ts,tsx}"],
+    plugins: { responses: { rules: { "require-reader": requireResponseReader } } },
+    rules: { "responses/require-reader": "error" },
+  },
   {
     files: ["src/components/**/*.{ts,tsx}", "src/app/**/*.{ts,tsx}"],
     ignores: ["**/*.test.ts"],

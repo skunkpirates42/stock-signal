@@ -3,7 +3,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ReplayCatalog } from "@/lib/jobs/contracts";
-import type { ReplayChoices } from "@/lib/runRequests";
+import { RUN_REQUEST_TIMEOUT_MS, type ReplayChoices } from "@/lib/runRequests";
 import RunForm from "./RunForm";
 
 const navigation = vi.hoisted(() => ({ push: vi.fn() }));
@@ -34,6 +34,7 @@ const catalog: ReplayCatalog = {
 };
 
 const fetchResponse = vi.fn<typeof fetch>();
+const RUN_ID = "123e4567-e89b-12d3-a456-426614174000";
 
 beforeEach(() => {
   fetchResponse.mockReset();
@@ -44,6 +45,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 async function submit() {
@@ -73,10 +75,40 @@ it("disables pending submissions and retries unreadable responses with the same 
   expect(screen.getByRole("alert").textContent).toContain("Retry to look up the same run");
   expect(navigation.push).not.toHaveBeenCalled();
 
-  fetchResponse.mockResolvedValueOnce(Response.json({ data: { status: { run_id: "queued-id" } } }));
+  fetchResponse.mockResolvedValueOnce(Response.json({ data: { status: { run_id: RUN_ID } } }));
   await submit();
   expect(submittedChoices(1)).toEqual(submittedChoices(0));
-  expect(navigation.push).toHaveBeenCalledExactlyOnceWith("/runs/queued-id");
+  expect(navigation.push).toHaveBeenCalledExactlyOnceWith(`/runs/${RUN_ID}`);
+});
+
+it("recovers controls after a timeout and looks up the accepted run with the same key", async () => {
+  vi.useFakeTimers();
+  let finishOriginalRequest: ((response: Response) => void) | undefined;
+  fetchResponse.mockImplementationOnce(
+    () => new Promise((resolve) => (finishOriginalRequest = resolve)),
+  );
+  render(<RunForm catalog={catalog} />);
+  await submit();
+  await act(async () => vi.advanceTimersByTimeAsync(RUN_REQUEST_TIMEOUT_MS));
+  expect(screen.getByRole("alert").textContent).toContain("run may still have been queued");
+  expect(
+    screen.getByRole<HTMLButtonElement>("button", { name: "Queue historical replay" }).disabled,
+  ).toBe(false);
+  expect(screen.getByLabelText<HTMLSelectElement>("Cost scenario").disabled).toBe(false);
+  expect(navigation.push).not.toHaveBeenCalled();
+
+  fetchResponse.mockResolvedValueOnce(
+    Response.json({ data: { status: { run_id: RUN_ID } } }, { status: 202 }),
+  );
+  await submit();
+  expect(submittedChoices(1)).toEqual(submittedChoices(0));
+  expect(navigation.push).toHaveBeenCalledExactlyOnceWith(`/runs/${RUN_ID}`);
+
+  await act(async () =>
+    finishOriginalRequest?.(Response.json({ data: { status: { run_id: RUN_ID } } })),
+  );
+  expect(navigation.push).toHaveBeenCalledTimes(1);
+  expect(vi.getTimerCount()).toBe(0);
 });
 
 it("creates a new key when choices change and when the server rejects a conflicting key", async () => {
@@ -92,10 +124,10 @@ it("creates a new key when choices change and when the server rejects a conflict
   expect(submittedChoices(1)).toMatchObject({ cost_profile_id: "adverse-v2" });
   expect(submittedChoices(1).idempotency_key).not.toBe(submittedChoices(0).idempotency_key);
   expect(screen.getByRole("alert").textContent).toContain("submission key was already used");
-  fetchResponse.mockResolvedValueOnce(Response.json({ data: { status: { run_id: "new-id" } } }));
+  fetchResponse.mockResolvedValueOnce(Response.json({ data: { status: { run_id: RUN_ID } } }));
   await submit();
   expect(submittedChoices(2).idempotency_key).not.toBe(submittedChoices(1).idempotency_key);
-  expect(navigation.push).toHaveBeenCalledWith("/runs/new-id");
+  expect(navigation.push).toHaveBeenCalledWith(`/runs/${RUN_ID}`);
 });
 
 it("prevents submission when no approved local dataset is available", () => {
