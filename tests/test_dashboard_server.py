@@ -34,7 +34,9 @@ def test_waitress_serves_configured_loopback_port(monkeypatch, tmp_path, request
 def test_request_log_stays_on_console_without_query_or_headers(request_logger, capsys, caplog):
     app = Flask(__name__)
     run_dashboard.keep_request_log_on_console(app)
-    app.test_client().get("/missing?token=private-query", headers={"Authorization": "private-header"})
+    app.test_client().get(
+        "/missing?token=private-query", headers={"Authorization": "private-header"}
+    )
 
     console = capsys.readouterr().err
     assert "GET '/missing' 404" in console
