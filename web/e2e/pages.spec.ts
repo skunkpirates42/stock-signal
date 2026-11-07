@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 const pages = [
   { path: "/", title: "Closed-trade net P&L" },
