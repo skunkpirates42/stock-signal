@@ -149,7 +149,13 @@ export default function SystemPage() {
           <Button>Default</Button>
           <Button disabled>Disabled</Button>
           <Button inline>Inline</Button>
+          <Button inline disabled>
+            Inline disabled
+          </Button>
           <Button href="/system">Link</Button>
+          <Button inline href="/system">
+            Inline link
+          </Button>
         </div>
       </Card>
 

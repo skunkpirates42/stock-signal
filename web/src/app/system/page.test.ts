@@ -37,7 +37,11 @@ describe("system page", () => {
     expect(html).toContain('<button type="button" class="button">Default</button>');
     expect(html).toContain('<button type="button" class="button" disabled="">Disabled</button>');
     expect(html).toContain('<button type="button" class="button button-inline">Inline</button>');
+    expect(html).toContain(
+      '<button type="button" class="button button-inline" disabled="">Inline disabled</button>',
+    );
     expect(html).toContain('<a class="button" href="/system">Link</a>');
+    expect(html).toContain('<a class="button button-inline" href="/system">Inline link</a>');
   });
 
   it("shows a table's empty state", () => {
