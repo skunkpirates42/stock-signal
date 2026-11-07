@@ -1,4 +1,4 @@
-import type { Accounting, Result } from "@/lib/demo";
+import type { Accounting, Result } from "@/lib/demo/contracts";
 import { formatTimestamp, type Tone } from "@/lib/format";
 import { describeObservation } from "@/lib/observation";
 

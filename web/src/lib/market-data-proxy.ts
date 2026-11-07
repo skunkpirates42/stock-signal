@@ -1,4 +1,6 @@
-import { API_BASE } from "@/lib/api";
+import "server-only";
+
+import { API_BASE } from "@/lib/backend";
 import { logUpstreamError, logUpstreamStatus } from "@/lib/log";
 
 /** Fixed read-only endpoints; browser input cannot choose the upstream URL. */

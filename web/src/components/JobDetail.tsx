@@ -1,8 +1,10 @@
 import AvailableValue from "@/components/AvailableValue";
 import Card from "@/components/Card";
 import JobActions from "@/components/JobActions";
-import { availabilityText, type Availability } from "@/lib/demo";
-import { phaseLabel, type JobDetail as Detail } from "@/lib/jobs";
+import type { Availability } from "@/lib/demo/contracts";
+import { availabilityText } from "@/lib/demo/presentation";
+import type { JobDetail as Detail } from "@/lib/jobs/contracts";
+import { phaseLabel } from "@/lib/jobs/presentation";
 import { formatTimestamp, labelFromKey } from "@/lib/format";
 import { describeObservation } from "@/lib/observation";
 import PageHeader from "@/components/PageHeader";

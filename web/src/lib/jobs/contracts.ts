@@ -1,7 +1,4 @@
 import {
-  demoGet,
-  DemoNotFound,
-  isOpaqueDemoId,
   readArtifact,
   readContractRecord,
   readNextCursor,
@@ -11,7 +8,7 @@ import {
   type Availability,
   type NormalizedRun,
   type Result,
-} from "@/lib/demo";
+} from "@/lib/demo/contracts";
 import {
   readArrayOf,
   readBoolean,
@@ -71,12 +68,6 @@ export interface JobDetail {
   artifacts: Artifact[];
 }
 
-const ENDED_STATES: ReadonlySet<JobStatus["state"]> = new Set(["completed", "failed", "cancelled"]);
-
-export function phaseLabel(state: JobStatus["state"]): string {
-  return ENDED_STATES.has(state) ? "Last phase" : "Phase";
-}
-
 const readJobStatus = readContractRecord<JobStatus>("status");
 
 const readCatalogWindow: Read<ReplayCatalog["datasets"][number]["windows"][number]> = (
@@ -129,7 +120,7 @@ const readCatalogStrategy: Read<ReplayCatalog["strategy"]> = (value, path) => {
   };
 };
 
-const readReplayCatalog: Read<ReplayCatalog> = (value, path) => {
+export const readReplayCatalog: Read<ReplayCatalog> = (value, path) => {
   const field = readFields(value, path);
   return {
     strategy: field("strategy", readCatalogStrategy),
@@ -138,7 +129,10 @@ const readReplayCatalog: Read<ReplayCatalog> = (value, path) => {
   };
 };
 
-const readJobsPage: Read<{ runs: JobStatus[]; next_cursor: string | null }> = (value, path) => {
+export const readJobsPage: Read<{ runs: JobStatus[]; next_cursor: string | null }> = (
+  value,
+  path,
+) => {
   const field = readFields(value, path);
   return {
     runs: field("runs", readArrayOf(readJobStatus)),
@@ -146,7 +140,7 @@ const readJobsPage: Read<{ runs: JobStatus[]; next_cursor: string | null }> = (v
   };
 };
 
-const readJobDetail: Read<JobDetail> = (value, path) => {
+export const readJobDetail: Read<JobDetail> = (value, path) => {
   const field = readFields(value, path);
   return {
     run: field("run", readNormalizedRun),
@@ -155,20 +149,3 @@ const readJobDetail: Read<JobDetail> = (value, path) => {
     artifacts: field("artifacts", readArrayOf(readArtifact)),
   };
 };
-
-export function getReplayCatalog() {
-  return demoGet("/replay-catalog", readReplayCatalog);
-}
-
-export function getJobs(cursor?: string) {
-  if (cursor !== undefined && !isOpaqueDemoId(cursor))
-    throw new DemoNotFound("Demo cursor was not found");
-  const query = new URLSearchParams({ limit: "25" });
-  if (cursor) query.set("cursor", cursor);
-  return demoGet(`/runs?${query}`, readJobsPage);
-}
-
-export function getJob(runId: string) {
-  if (!isOpaqueDemoId(runId)) throw new DemoNotFound("Demo job was not found");
-  return demoGet(`/runs/${encodeURIComponent(runId)}`, readJobDetail);
-}

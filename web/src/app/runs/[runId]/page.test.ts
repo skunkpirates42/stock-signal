@@ -2,15 +2,15 @@ import { describe, expect, it, vi } from "vitest";
 
 const notFoundError = () => Object.assign(new Error("missing"), { name: "DemoNotFound" });
 
-vi.mock("@/lib/jobs", () => ({ getJob: vi.fn() }));
-vi.mock("@/lib/demo", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/demo")>()),
+vi.mock("@/lib/jobs/server", () => ({ getJob: vi.fn() }));
+vi.mock("@/lib/demo/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/demo/server")>()),
   savedResultExists: vi.fn(),
 }));
 
 import Page from "./page";
-import { getJob } from "@/lib/jobs";
-import { savedResultExists } from "@/lib/demo";
+import { getJob } from "@/lib/jobs/server";
+import { savedResultExists } from "@/lib/demo/server";
 
 const params = (runId: string) => ({ params: Promise.resolve({ runId }) });
 

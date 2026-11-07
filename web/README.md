@@ -22,6 +22,15 @@ design tokens in `src/styles/tokens.css`. `/system` shows every shared component
 of its states. See the [main README](../README.md) for the pages, the design-system checks
 and how to run the API with sample data.
 
+Demo results and replay jobs live in `src/lib/demo/` and `src/lib/jobs/`. Each feature's
+`contracts.ts` contains browser-safe types and response readers, `presentation.ts` contains
+browser-safe display helpers, and `server.ts` fetches from Flask. `src/lib/backend.ts`
+owns the backend URL and read timeout. Backend access modules import `server-only`, so
+Next rejects accidental Client Component imports during compilation. Client Components
+use shared contracts/helpers, local API routes, or the explicit Server Actions in
+`src/lib/actions.ts`. Vitest aliases the marker only for server unit tests; Next builds
+enforce the real boundary.
+
 ## Interaction tests and production smoke
 
 `pnpm test` keeps pure logic and static rendering tests in Node. Tests marked

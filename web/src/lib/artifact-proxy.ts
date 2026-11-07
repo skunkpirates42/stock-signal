@@ -1,4 +1,6 @@
-import { API_BASE, READ_TIMEOUT_MS } from "@/lib/api";
+import "server-only";
+
+import { API_BASE, READ_TIMEOUT_MS } from "@/lib/backend";
 import { logUpstreamError, logUpstreamStatus } from "@/lib/log";
 
 const MAX_ARTIFACT_BYTES = 1024 * 1024;

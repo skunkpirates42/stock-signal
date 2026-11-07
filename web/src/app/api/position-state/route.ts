@@ -1,4 +1,6 @@
-import { API_BASE } from "@/lib/api";
+import "server-only";
+
+import { API_BASE } from "@/lib/backend";
 import { logUpstreamError, logUpstreamStatus } from "@/lib/log";
 
 const POSITION_STATE_PATH = "/api/position-state";

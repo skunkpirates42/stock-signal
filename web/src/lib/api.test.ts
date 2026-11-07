@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { getMetrics, READ_TIMEOUT_MS } from "./api";
+import { getMetrics } from "./api";
+import { READ_TIMEOUT_MS } from "./backend";
 
 afterEach(() => {
   vi.restoreAllMocks();

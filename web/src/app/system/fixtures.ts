@@ -1,5 +1,5 @@
 import type { StatTileProps } from "@/components/StatTile";
-import type { Metric } from "@/lib/demo";
+import type { Metric } from "@/lib/demo/contracts";
 
 export const COLOR_TOKENS = [
   "--ground",

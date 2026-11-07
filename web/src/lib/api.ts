@@ -1,10 +1,10 @@
+import "server-only";
+
+import { API_BASE, READ_TIMEOUT_MS } from "@/lib/backend";
 import { readMetrics, readSignal, readSignalSearchResult, readTrade } from "@/lib/types";
 import { signalQueryParams, type SignalQuery } from "@/lib/signalSearch";
 import { dateRangeQuery, type DateRange } from "@/lib/dateRange";
 import { readArrayOf, type Read } from "@/lib/parse";
-
-export const API_BASE = process.env.FLASK_API_URL ?? "http://127.0.0.1:8000";
-export const READ_TIMEOUT_MS = 10_000;
 
 async function get<T>(path: string, read: Read<T>): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {

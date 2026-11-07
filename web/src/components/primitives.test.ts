@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import AvailableValue from "@/components/AvailableValue";
 import DataTable from "@/components/DataTable";
 import StatTile from "@/components/StatTile";
-import type { Metric } from "@/lib/demo";
+import type { Metric } from "@/lib/demo/contracts";
 import { describeObservation } from "@/lib/observation";
 import { headlineFigures, savedMetricGroups } from "@/lib/savedResult";
 

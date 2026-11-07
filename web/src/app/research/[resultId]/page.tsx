@@ -2,14 +2,9 @@ import AvailableValue from "@/components/AvailableValue";
 import Card from "@/components/Card";
 import Disclosure from "@/components/Disclosure";
 import StatTile from "@/components/StatTile";
-import {
-  artifactHref,
-  availabilityText,
-  getSavedDiagnostics,
-  getSavedResult,
-  type Artifact,
-  type Availability,
-} from "@/lib/demo";
+import type { Artifact, Availability } from "@/lib/demo/contracts";
+import { artifactHref, availabilityText } from "@/lib/demo/presentation";
+import { getSavedDiagnostics, getSavedResult } from "@/lib/demo/server";
 import { formatTimestamp, labelFromKey } from "@/lib/format";
 import {
   groupArtifactsByKind,

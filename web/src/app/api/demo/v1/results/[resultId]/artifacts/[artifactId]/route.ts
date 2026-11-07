@@ -1,4 +1,4 @@
-import { isOpaqueDemoId } from "@/lib/demo";
+import { isOpaqueDemoId } from "@/lib/demo/contracts";
 import { proxyArtifact } from "@/lib/artifact-proxy";
 
 export const dynamic = "force-dynamic";

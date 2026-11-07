@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildComparisonTable, formatWindowDates } from "./research-comparison";
-import type { Result } from "./demo";
+import type { Result } from "@/lib/demo/contracts";
 
 const DEVELOPMENT = {
   name: "development",

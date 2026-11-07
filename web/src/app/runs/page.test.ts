@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Children, isValidElement, type ReactNode } from "react";
 
 const RUN_ID = "123e4567-e89b-12d3-a456-426614174000";
-vi.mock("@/lib/jobs", () => ({
+vi.mock("@/lib/jobs/server", () => ({
   getJobs: vi.fn(async () => ({
     data: {
       runs: [

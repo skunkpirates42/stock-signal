@@ -1,4 +1,4 @@
-import type { Metric } from "@/lib/demo";
+import type { Metric } from "@/lib/demo/contracts";
 import { toneForSign, type Tone } from "@/lib/format";
 import { formatMetricAmount, isUnsignedAmount } from "@/lib/metrics";
 

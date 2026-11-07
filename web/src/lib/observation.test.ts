@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Metric } from "@/lib/demo";
+import type { Metric } from "@/lib/demo/contracts";
 import { describeObservation } from "@/lib/observation";
 
 const saved = (value: number, unit = "USD"): Metric => ({
