@@ -1,4 +1,5 @@
 import os
+import runpy
 import subprocess
 import sys
 from pathlib import Path
@@ -9,6 +10,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 def main() -> None:
     os.environ["PYTHON_DOTENV_DISABLED"] = "1"
+    runpy.run_path(str(REPOSITORY_ROOT / "tests/conftest.py"))
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
     from dashboard.app import create_app
