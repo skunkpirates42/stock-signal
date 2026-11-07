@@ -3,6 +3,12 @@
 The stock-signal dashboard: Next.js 16, React 19 and TypeScript. It reads from the Flask
 API in `../dashboard` (`FLASK_API_URL`, default `http://127.0.0.1:8000`).
 
+Use the Node version in the root [`.nvmrc`](../.nvmrc), which CI also reads.
+Run `nvm install` and `nvm use` from the repository root before working here.
+The package requires Node 26 or newer; `.npmrc` enables `engine-strict`, so pnpm
+fails installation on an incompatible Node version. Use the pnpm version declared
+in `package.json`.
+
 ```bash
 pnpm install
 pnpm dev     # http://localhost:3000
