@@ -1,5 +1,7 @@
-import { API_BASE } from "@/lib/api";
-import { isOpaqueDemoId } from "@/lib/demo";
+import "server-only";
+
+import { API_BASE } from "@/lib/backend";
+import { isOpaqueDemoId } from "@/lib/demo/contracts";
 import { logUpstreamError, logUpstreamStatus } from "@/lib/log";
 
 const MAX_BODY_BYTES = 4096;

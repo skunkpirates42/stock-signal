@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getSavedDiagnostics, savedResultExists, type Artifact } from "@/lib/demo";
+import { getSavedDiagnostics, savedResultExists } from "@/lib/demo/server";
+import type { Artifact } from "@/lib/demo/contracts";
 
 const RESULT_ID = "123e4567-e89b-12d3-a456-426614174000";
 const ARTIFACT_ID = "123e4567-e89b-12d3-a456-426614174001";

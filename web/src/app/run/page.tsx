@@ -1,5 +1,5 @@
 import RunForm from "@/components/RunForm";
-import { getReplayCatalog } from "@/lib/jobs";
+import { getReplayCatalog } from "@/lib/jobs/server";
 import PageHeader from "@/components/PageHeader";
 import ScopeNote from "@/components/ScopeNote";
 import Page from "@/components/Page";

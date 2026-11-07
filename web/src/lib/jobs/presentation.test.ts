@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { phaseLabel } from "@/lib/jobs";
+import { phaseLabel } from "@/lib/jobs/presentation";
 
 describe("phaseLabel", () => {
   it("names the current phase while the worker is still on the job", () => {

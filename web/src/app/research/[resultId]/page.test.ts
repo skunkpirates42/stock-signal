@@ -214,8 +214,8 @@ const validDetail = {
   status: { origin: "saved_artifact", state: "completed", run_id: "saved-run-uuid" },
 };
 
-vi.mock("@/lib/demo", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/demo")>();
+vi.mock("@/lib/demo/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/demo/server")>();
   return {
     ...actual,
     getSavedResult: vi.fn(async () => ({ data: validDetail, warnings: ["Saved result only."] })),
@@ -232,7 +232,7 @@ vi.mock("@/lib/demo", async (importOriginal) => {
 });
 
 import Page from "./page";
-import { getSavedDiagnostics, getSavedResult } from "@/lib/demo";
+import { getSavedDiagnostics, getSavedResult } from "@/lib/demo/server";
 
 const PRIMITIVES: unknown[] = [AvailableValue, Card, Disclosure];
 

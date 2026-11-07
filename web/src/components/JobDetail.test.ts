@@ -4,7 +4,7 @@ import AvailableValue from "./AvailableValue";
 import Card from "./Card";
 import Disclosure from "./Disclosure";
 import JobDetail from "./JobDetail";
-import type { JobDetail as Detail } from "@/lib/jobs";
+import type { JobDetail as Detail } from "@/lib/jobs/contracts";
 
 const available = <T>(value: T) => ({
   availability: "available" as const,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Artifact, Metric } from "@/lib/demo";
+import type { Artifact, Metric } from "@/lib/demo/contracts";
 import {
   groupArtifactsByKind,
   headlineFigures,

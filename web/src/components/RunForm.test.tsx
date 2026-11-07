@@ -2,7 +2,7 @@
 
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { ReplayCatalog } from "@/lib/jobs";
+import type { ReplayCatalog } from "@/lib/jobs/contracts";
 import type { ReplayChoices } from "@/lib/runRequests";
 import RunForm from "./RunForm";
 

@@ -2,7 +2,7 @@
 
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { JobDetail as Detail, JobStatus } from "@/lib/jobs";
+import type { JobDetail as Detail, JobStatus } from "@/lib/jobs/contracts";
 import JobActions from "./JobActions";
 import JobDetail from "./JobDetail";
 

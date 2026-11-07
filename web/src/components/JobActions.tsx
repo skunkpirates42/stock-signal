@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { JobStatus } from "@/lib/jobs";
+import type { JobStatus } from "@/lib/jobs/contracts";
 import { startVisiblePolling } from "@/lib/polling";
 import { requestRunCancel } from "@/lib/runRequests";
 import Button from "@/components/Button";

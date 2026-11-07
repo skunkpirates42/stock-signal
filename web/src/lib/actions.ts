@@ -1,6 +1,6 @@
 "use server";
 
-import { API_BASE } from "@/lib/api";
+import { API_BASE } from "@/lib/backend";
 import { readOperationalStatus, type OperationalStatus } from "@/lib/health";
 import { readExplainResult, type ExplainResult } from "@/lib/types";
 

@@ -46,8 +46,7 @@ function savedResult(
   };
 }
 
-vi.mock("@/lib/demo", () => ({
-  isOpaqueDemoId: vi.fn(() => true),
+vi.mock("@/lib/demo/server", () => ({
   getResearchResults: vi.fn(async () => ({
     data: {
       results: [
@@ -74,7 +73,7 @@ vi.mock("@/lib/demo", () => ({
 }));
 
 import Page from "./page";
-import { getResearchResults, isOpaqueDemoId } from "@/lib/demo";
+import { getResearchResults } from "@/lib/demo/server";
 
 function rendered(node: unknown): unknown {
   if (!isValidElement<{ children?: unknown }>(node)) return node;
@@ -153,7 +152,6 @@ describe("research page", () => {
   });
 
   it("treats an empty cursor as an unknown research page", async () => {
-    vi.mocked(isOpaqueDemoId).mockReturnValueOnce(false);
     await expect(Page({ searchParams: Promise.resolve({ cursor: "" }) })).rejects.toMatchObject({
       digest: "NEXT_HTTP_ERROR_FALLBACK;404",
     });

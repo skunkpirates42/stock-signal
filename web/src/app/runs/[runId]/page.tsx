@@ -1,6 +1,6 @@
 import JobDetail from "@/components/JobDetail";
-import { getJob } from "@/lib/jobs";
-import { savedResultExists } from "@/lib/demo";
+import { getJob } from "@/lib/jobs/server";
+import { savedResultExists } from "@/lib/demo/server";
 import { notFound, redirect } from "next/navigation";
 
 export default async function RunPage({ params }: { params: Promise<{ runId: string }> }) {

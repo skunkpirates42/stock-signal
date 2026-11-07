@@ -1,4 +1,4 @@
-import type { Artifact, Metric } from "@/lib/demo";
+import type { Artifact, Metric } from "@/lib/demo/contracts";
 import { labelFromKey, type Tone } from "@/lib/format";
 import { describeObservation, type ObservedValue } from "@/lib/observation";
 

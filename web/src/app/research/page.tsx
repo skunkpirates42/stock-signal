@@ -1,5 +1,6 @@
 import ResearchComparisonTable from "@/components/ResearchComparisonTable";
-import { getResearchResults, isOpaqueDemoId } from "@/lib/demo";
+import { getResearchResults } from "@/lib/demo/server";
+import { isOpaqueDemoId } from "@/lib/demo/contracts";
 import { warningsBeyondScopeNote } from "@/lib/research";
 import { buildComparisonTable } from "@/lib/research-comparison";
 import { notFound } from "next/navigation";

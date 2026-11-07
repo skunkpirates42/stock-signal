@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { ReplayCatalog } from "@/lib/jobs";
+import type { ReplayCatalog } from "@/lib/jobs/contracts";
 import { queueReplayRun } from "@/lib/runRequests";
 import Button from "@/components/Button";
 

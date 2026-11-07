@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { formatTimestamp, labelFromKey } from "@/lib/format";
-import { getJobs } from "@/lib/jobs";
-import { isOpaqueDemoId } from "@/lib/demo";
+import { getJobs } from "@/lib/jobs/server";
+import { isOpaqueDemoId } from "@/lib/demo/contracts";
 import PageHeader from "@/components/PageHeader";
 import ScopeNote from "@/components/ScopeNote";
 import Page from "@/components/Page";
