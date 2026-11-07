@@ -50,10 +50,12 @@ const livePosition: Trade = {
   source: "live",
 };
 const now = new Date("2026-10-29T14:00:00Z");
-const render = () => {
+const render = (currentTime = now) => {
   harness.index = 0;
   harness.effects = [];
-  return renderToStaticMarkup(createElement(OpenPositions, { positions: [livePosition], now }));
+  return renderToStaticMarkup(
+    createElement(OpenPositions, { positions: [livePosition], now: currentTime }),
+  );
 };
 const pollWith = async (body: unknown) => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(body)));
@@ -62,6 +64,7 @@ const pollWith = async (body: unknown) => {
 
 afterEach(() => {
   harness.states = [];
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -97,4 +100,22 @@ it("keeps the last good price, marked stale, when a later response is malformed"
   expect(html).toContain("Price service unavailable");
   expect(html).toContain("Last known price");
   expect(html).toContain("101.25");
+});
+
+it("ages the last received mark against the visible clock after polling completes", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-10-29T14:00:00Z"));
+  vi.stubGlobal("document", {});
+  render();
+  harness.effects.forEach((effect) => effect());
+  await pollWith({
+    feed: "iex",
+    checked_at: "2026-10-29T14:00:00Z",
+    prices: { SPY: { price: 101.25, timestamp: "2026-10-29T14:00:00Z" } },
+  });
+  expect(render()).not.toContain("STALE PRICE");
+
+  const visibleTimeAfterThreshold = new Date("2026-10-29T14:01:01Z");
+  expect(render(visibleTimeAfterThreshold)).toContain("STALE PRICE");
+  expect(render(visibleTimeAfterThreshold)).toContain("101.25");
 });

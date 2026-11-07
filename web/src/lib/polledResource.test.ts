@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { startPolledResource, type PolledResource } from "./polledResource";
+import { newerOf, startPolledResource, type PolledResource } from "./polledResource";
 import { readPositionPrices, type PositionPrices } from "./prices";
 
 const visibleDoc = {
@@ -21,6 +21,15 @@ const serve = (...bodies: unknown[]) => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+});
+
+it("uses the later of the visible clock and the latest poll completion", () => {
+  const clock = new Date("2026-10-29T14:00:00Z");
+  const pollCompletion = new Date("2026-10-29T14:00:01Z");
+
+  expect(newerOf(clock, null)).toBe(clock);
+  expect(newerOf(clock, pollCompletion)).toBe(pollCompletion);
+  expect(newerOf(pollCompletion, clock)).toBe(pollCompletion);
 });
 
 function pollPrices() {

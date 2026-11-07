@@ -4,6 +4,7 @@ import { usePolledResource } from "@/hooks/usePolledResource";
 import { readPositionPrices } from "@/lib/prices";
 import type { Trade } from "@/lib/types";
 import { isStale } from "@/lib/positions";
+import { newerOf } from "@/lib/polledResource";
 import PositionCard from "@/components/PositionCard";
 
 export interface OpenPositionsProps {
@@ -40,7 +41,7 @@ export default function OpenPositions({ positions, now }: OpenPositionsProps) {
               key={position.id}
               position={position}
               mark={position.source === "live" ? prices?.prices[position.ticker] : undefined}
-              now={checkedAt ?? now}
+              now={newerOf(now, checkedAt)}
               priceFailed={failed}
               stale={isStale(position.entry_at ?? position.created_at, now)}
             />
