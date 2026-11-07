@@ -32,6 +32,11 @@ for port in "$API_PORT" 3000; do
 done
 [[ "$API_PORT" != 3000 ]] || { echo "DASHBOARD_PORT must differ from frontend port 3000." >&2; exit 1; }
 export FLASK_API_URL="http://127.0.0.1:$API_PORT"
+echo "Building production dashboard..."
+if ! (cd web && pnpm build); then
+  echo "Dashboard build failed; no services were started." >&2
+  exit 1
+fi
 mkdir -p "$REPO/.live-logs"
 LOGS="$(mktemp -d "$REPO/.live-logs/run.XXXXXX")"
 pids=()
@@ -96,7 +101,7 @@ wait_for() {
 
 start api "$PYTHON" -u run_dashboard.py
 start engine "$PYTHON" -u run_live.py
-start web bash -c 'cd web && exec pnpm dev --hostname 127.0.0.1 --port 3000'
+start web bash -c 'cd web && exec pnpm start --hostname 127.0.0.1 --port 3000'
 wait_for API "$FLASK_API_URL/api/status"
 wait_for Dashboard "http://127.0.0.1:3000/"
 echo "Engine process running; see engine.log for feed connection and market status."
