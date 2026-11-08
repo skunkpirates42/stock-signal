@@ -24,6 +24,15 @@ export function formatWholeDollars(value: number | null | undefined): string {
   return `$${Math.round(Math.abs(value)).toLocaleString("en-US")}`;
 }
 
+export function formatBalance(value: number | null | undefined): string {
+  return formatCurrency(value).replace(/^\+/, "");
+}
+
+export function formatWholeDollarBalance(value: number | null | undefined): string {
+  const sign = value !== null && value !== undefined && value < 0 ? "-" : "";
+  return `${sign}${formatWholeDollars(value)}`;
+}
+
 export function labelFromKey(key: string): string {
   return key.replaceAll("_", " ");
 }

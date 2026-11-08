@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatBalance,
+  formatWholeDollarBalance,
   formatCurrency,
   formatDate,
   formatMultiplier,
@@ -90,4 +92,17 @@ describe("formatTimestamp", () => {
     expect(formatTimestamp("start")).toBe("start");
   });
   it("renders null as a dash", () => expect(formatTimestamp(null)).toBe("—"));
+});
+
+describe("balance formatting", () => {
+  it.each([
+    [-125.5, "-$125.50", "-$126"],
+    [125.5, "$125.50", "$126"],
+    [0, "$0.00", "$0"],
+    [null, "—", "—"],
+    [undefined, "—", "—"],
+  ])("preserves the sign of balance %s at both display precisions", (value, precise, whole) => {
+    expect(formatBalance(value)).toBe(precise);
+    expect(formatWholeDollarBalance(value)).toBe(whole);
+  });
 });

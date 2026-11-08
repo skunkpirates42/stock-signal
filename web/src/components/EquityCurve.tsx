@@ -13,7 +13,7 @@ import DataTable from "@/components/DataTable";
 import Disclosure from "@/components/Disclosure";
 import Card from "@/components/Card";
 import type { EquityPoint } from "@/lib/types";
-import { formatDate, formatPrice, formatTimestamp, formatWholeDollars } from "@/lib/format";
+import { formatDate, formatBalance, formatTimestamp, formatWholeDollarBalance } from "@/lib/format";
 import { summarizeEquityCurve } from "@/lib/equity";
 
 export interface EquityCurveProps {
@@ -49,14 +49,14 @@ export default function EquityCurve({ points }: EquityCurveProps) {
           <XAxis dataKey="label" tickFormatter={formatDate} stroke="var(--faint)" fontSize={11} />
           <YAxis
             domain={["auto", "auto"]}
-            tickFormatter={formatWholeDollars}
+            tickFormatter={formatWholeDollarBalance}
             width="auto"
             stroke="var(--faint)"
             fontSize={11}
           />
           <Tooltip
             labelFormatter={(label) => formatDate(String(label))}
-            formatter={(value) => formatPrice(typeof value === "number" ? value : undefined)}
+            formatter={(value) => formatBalance(typeof value === "number" ? value : undefined)}
             isAnimationActive="auto"
             contentStyle={{
               background: "var(--ground)",
@@ -90,7 +90,7 @@ export default function EquityCurve({ points }: EquityCurveProps) {
             {points.map((point, index) => (
               <tr key={`${point.label}-${index}`}>
                 <td>{formatTimestamp(point.label)}</td>
-                <td className="num">{formatPrice(point.equity)}</td>
+                <td className="num">{formatBalance(point.equity)}</td>
               </tr>
             ))}
           </tbody>
