@@ -3,177 +3,38 @@
 import { useState } from "react";
 import { usePolledResource } from "@/hooks/usePolledResource";
 import { useVisibleClock } from "@/hooks/useVisibleClock";
+import { deriveAccountPositionView } from "@/lib/accountPositionView";
 import { newerOf } from "@/lib/polledResource";
-import { observationFresh, readPositionState } from "@/lib/execution";
-import { formatPrice, formatTimestamp } from "@/lib/format";
+import { readPositionState } from "@/lib/execution";
 import OpenPositions from "./OpenPositions";
 import FillsTable from "./FillsTable";
-import PositionExecution from "./PositionExecution";
-import Disclosure from "./Disclosure";
+import PaperAccountStatus from "./PaperAccountStatus";
+import ExitFills from "./ExitFills";
 
 export default function PositionsView() {
-  const { data, failed, checkedAt } = usePolledResource(
-    "/api/position-state",
-    readPositionState,
-    5000,
-  );
+  const {
+    data: positionState,
+    failed: pollFailed,
+    checkedAt,
+  } = usePolledResource("/api/position-state", readPositionState, 5000);
   // A response can land between one-second clock ticks; judge freshness from whichever is later.
   const now = newerOf(useVisibleClock(1000), checkedAt);
-  const [account, setAccount] = useState("");
-  if (!data)
+  const [requestedAccount, setRequestedAccount] = useState("");
+  if (!positionState)
     return (
       <p role="status">
-        {failed
+        {pollFailed
           ? "Position state unavailable. Account holdings are unknown."
           : "Loading position state…"}
       </p>
     );
-  const selected = data.accounts.some((item) => item.account === account)
-    ? account
-    : data.accounts[0]?.account;
-  const scope = data.accounts.find((item) => item.account === selected);
-  const current = !failed && observationFresh(data.fetched_at, now, data.stale_seconds);
-  const brokerCurrent =
-    current && !!scope && observationFresh(scope.observed_at, now, data.stale_seconds);
-  const positions = data.positions.filter(
-    (p) => p.provenance !== "Alpaca paper" || p.account === selected,
-  );
+  const view = deriveAccountPositionView({ positionState, requestedAccount, pollFailed, now });
   return (
     <div className="stack stack-section">
-      <aside className="status-line" aria-label="Paper account status">
-        <Disclosure
-          summary={
-            <>
-              <span>Alpaca paper account</span>
-              <span
-                role="status"
-                className={!current || scope?.mismatch ? "status-attention" : undefined}
-              >
-                {failed
-                  ? "Position service unavailable"
-                  : !current
-                    ? "Position data is stale"
-                    : scope
-                      ? brokerCurrent
-                        ? scope.status
-                        : "Broker observation stale / unavailable"
-                      : "No account observed"}
-              </span>
-            </>
-          }
-        >
-          <div className="status-detail stack stack-detail">
-            {failed ? (
-              <p>Showing last-known data; current holdings and protection are unconfirmed.</p>
-            ) : !current ? (
-              <p>Current protection is unconfirmed.</p>
-            ) : null}
-            <p>
-              Endpoint fetched: {formatTimestamp(data.fetched_at)}. Broker observations and IEX
-              price times are separate.
-            </p>
-            {data.accounts.length > 0 ? (
-              <label>
-                Selected account{" "}
-                <select value={selected} onChange={(event) => setAccount(event.target.value)}>
-                  {data.accounts.map((item) => (
-                    <option key={item.account} value={item.account}>
-                      {item.account}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <p>
-                No observed paper account. Broker holdings unavailable; this does not confirm an
-                empty account.
-              </p>
-            )}
-            {scope && (
-              <div className="stack stack-detail">
-                <p role="status">
-                  Account: {brokerCurrent ? scope.status : "stale / unavailable"} · observation
-                  result: {scope.observation_status}
-                </p>
-                <p>
-                  Last broker observation: {formatTimestamp(scope.observed_at)} · last successful
-                  reconciliation: {formatTimestamp(scope.reconciled_at)}
-                </p>
-                <p>
-                  Worker heartbeat: {formatTimestamp(scope.heartbeat_at)} ·{" "}
-                  {observationFresh(scope.heartbeat_at, now, data.stale_seconds)
-                    ? scope.worker_status
-                    : "stale / unknown"}
-                </p>
-                {scope.mismatch && (
-                  <p role="status">
-                    Journal/broker mismatch. Broker: {JSON.stringify(scope.broker_positions)};
-                    journal: {JSON.stringify(scope.journal_positions)}. No repair is performed here.
-                  </p>
-                )}
-              </div>
-            )}
-            <section className="stack" aria-label="Paper execution status">
-              {data.pending_entries
-                .filter((entry) => entry.account === selected)
-                .map((entry) => (
-                  <div className="card stack stack-detail" key={entry.id}>
-                    <p>
-                      {entry.ticker} · pending Alpaca paper entry · {entry.state}
-                    </p>
-                    <p>
-                      Requested {entry.requested_qty} · filled {entry.filled_qty} · actual average{" "}
-                      {formatPrice(entry.fill_price)} · protection awaiting entry fill
-                    </p>
-                    {entry.pending_exit && <p>Pending exit: {entry.pending_exit}</p>}
-                    {Object.entries(entry.execution?.legs ?? {}).map(([kind, leg]) => (
-                      <p key={kind}>
-                        {kind === "stop" ? "Stop" : "Target"}{" "}
-                        {formatPrice(kind === "stop" ? entry.stop : entry.target)} · {leg.state}
-                        {leg.state === "held" ? " · awaiting activation" : ""}
-                        {" · not confirmed active"}
-                        {!brokerCurrent || !observationFresh(leg.updated_at ?? null, now)
-                          ? " · observation stale/unknown"
-                          : ""}
-                      </p>
-                    ))}
-                  </div>
-                ))}
-              {positions
-                .filter((p) => p.execution)
-                .map((p) => (
-                  <PositionExecution
-                    key={p.id}
-                    position={p}
-                    current={brokerCurrent && !scope?.mismatch}
-                    now={now}
-                  />
-                ))}
-            </section>
-          </div>
-        </Disclosure>
-      </aside>
-      <OpenPositions positions={positions} now={now} />
-      <section className="stack" aria-label="Actual broker exit fills">
-        <h2>Actual broker exit fills</h2>
-        <p className="micro">
-          Confirmed cumulative fills from the journal; prices below are broker fills, not IEX
-          estimates.
-        </p>
-        {data.exit_fills
-          .filter((fill) => fill.account === selected)
-          .map((fill) => (
-            <p key={fill.id}>
-              {fill.ticker} · {fill.reason ?? "exit"} · {fill.state} · {fill.filled_qty} shares at{" "}
-              {formatPrice(fill.fill_price)} · recorded {formatTimestamp(fill.updated_at)}
-            </p>
-          ))}
-      </section>
-      <FillsTable
-        trades={data.closed_trades.filter(
-          (trade) => trade.backend !== "alpaca" || trade.account === selected,
-        )}
-      />
+      <PaperAccountStatus view={view} onAccountChange={setRequestedAccount} now={now} />
+      <OpenPositions positions={view.positions} now={now} />
+      <ExitFills fills={view.exitFills} />
+      <FillsTable trades={view.closedTrades} />
     </div>
   );
 }
