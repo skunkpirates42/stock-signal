@@ -4,6 +4,19 @@ import { summarizeEquityCurve } from "@/lib/equity";
 const point = (label: string, equity: number) => ({ label, equity, pnl: 0 });
 
 describe("summarizeEquityCurve", () => {
+  it("preserves negative start, end and range values", () => {
+    expect(
+      summarizeEquityCurve([
+        point("start", -125.5),
+        point("2026-10-01T14:30:00", 10),
+        point("2026-10-02T15:00:00", -200.75),
+      ]),
+    ).toBe(
+      "Equity went from -$125.50 at start to -$200.75 at 2026-10-02 15:00 UTC, " +
+        "with a low of -$200.75 and a high of $10.00 across 3 points.",
+    );
+  });
+
   it("states the start, end, low and high in words a screen reader can read", () => {
     const summary = summarizeEquityCurve([
       point("start", 100000),

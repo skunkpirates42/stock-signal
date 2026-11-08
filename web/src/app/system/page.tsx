@@ -15,7 +15,10 @@ import Page from "@/components/Page";
 
 function sampleTable(rows: typeof TABLE_ROWS, compact = false) {
   return (
-    <DataTable compact={compact}>
+    <DataTable
+      caption={rows.length === 0 ? "Empty sample" : compact ? "Compact sample" : "Sample trades"}
+      compact={compact}
+    >
       <thead>
         <tr>
           <th>Symbol</th>
@@ -100,7 +103,7 @@ export default function SystemPage() {
         title="AvailableValue"
         note="An unavailable value shows its reason beneath it. Unavailable never renders as zero."
       >
-        <DataTable>
+        <DataTable caption="Available value states">
           <thead>
             <tr>
               <th>State</th>

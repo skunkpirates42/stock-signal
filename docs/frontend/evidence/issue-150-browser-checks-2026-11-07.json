@@ -1,0 +1,330 @@
+{
+  "issue": 150,
+  "execution_mode": "Local production Next build and isolated sample API, scripted Playwright headless browsers",
+  "started_at": "2026-11-08T03:17:56.715Z",
+  "stats": {
+    "startTime": "2026-11-08T03:17:56.715Z",
+    "duration": 88846.761,
+    "expected": 62,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "projects": {
+    "chromium": {
+      "test_count": 30,
+      "passed": 30,
+      "browser_versions": ["158.0.8127.18"],
+      "route_scans": [
+        {
+          "title": "accessibility scan /",
+          "violations": 0,
+          "incomplete_rules": ["color-contrast"]
+        },
+        {
+          "title": "accessibility scan /?source=all",
+          "violations": 0,
+          "incomplete_rules": ["color-contrast"]
+        },
+        {
+          "title": "accessibility scan /signals",
+          "violations": 0,
+          "incomplete_rules": []
+        },
+        {
+          "title": "accessibility scan /positions",
+          "violations": 0,
+          "incomplete_rules": ["color-contrast"]
+        },
+        {
+          "title": "accessibility scan /run",
+          "violations": 0,
+          "incomplete_rules": ["color-contrast"]
+        },
+        {
+          "title": "accessibility scan /runs",
+          "violations": 0,
+          "incomplete_rules": []
+        },
+        {
+          "title": "accessibility scan /research",
+          "violations": 0,
+          "incomplete_rules": []
+        },
+        {
+          "title": "accessibility scan /system",
+          "violations": 0,
+          "incomplete_rules": ["color-contrast"]
+        }
+      ],
+      "motion": [
+        {
+          "preference": "reduce",
+          "widthChanges": 0
+        },
+        {
+          "preference": "no-preference",
+          "widthChanges": 90
+        }
+      ],
+      "rendered_contrast": [
+        {
+          "surface": ".rail-link-active",
+          "foreground": "rgb(233, 239, 250)",
+          "minimumRatio": 13.347532395435907
+        },
+        {
+          "surface": ".stat-tile-label",
+          "foreground": "rgb(119, 133, 159)",
+          "minimumRatio": 4.990176046583068
+        },
+        {
+          "surface": ".card-note",
+          "foreground": "rgb(145, 160, 186)",
+          "minimumRatio": 6.35749206257019
+        },
+        {
+          "surface": ".data-table thead th",
+          "foreground": "rgb(119, 133, 159)",
+          "minimumRatio": 4.948115891748338
+        },
+        {
+          "surface": ".tone-positive",
+          "foreground": "rgb(74, 222, 128)",
+          "minimumRatio": 11.299683654672743
+        },
+        {
+          "surface": ".signal-row-timestamp",
+          "foreground": "rgb(119, 133, 159)",
+          "minimumRatio": 5.144452032138808
+        },
+        {
+          "surface": ".filter-field .micro",
+          "foreground": "rgb(119, 133, 159)",
+          "minimumRatio": 5.106793154733128
+        },
+        {
+          "surface": ".segmented-option-active",
+          "foreground": "rgb(233, 239, 250)",
+          "minimumRatio": 16.067500935632715
+        }
+      ],
+      "browser_zoom": {
+        "initial": {
+          "width": 1280,
+          "pixelRatio": 1
+        },
+        "zoomMeasurements": [
+          {
+            "factor": 2,
+            "width": 640,
+            "pixelRatio": 2
+          },
+          {
+            "factor": 4,
+            "width": 320,
+            "pixelRatio": 4
+          }
+        ]
+      }
+    },
+    "mobile-chromium": {
+      "test_count": 16,
+      "passed": 16,
+      "browser_versions": ["158.0.8127.18"],
+      "route_scans": [
+        {
+          "title": "accessibility scan /",
+          "violations": 0,
+          "incomplete_rules": ["color-contrast"]
+        },
+        {
+          "title": "accessibility scan /?source=all",
+          "violations": 0,
+          "incomplete_rules": ["color-contrast"]
+        },
+        {
+          "title": "accessibility scan /signals",
+          "violations": 0,
+          "incomplete_rules": []
+        },
+        {
+          "title": "accessibility scan /positions",
+          "violations": 0,
+          "incomplete_rules": ["color-contrast"]
+        },
+        {
+          "title": "accessibility scan /run",
+          "violations": 0,
+          "incomplete_rules": ["color-contrast"]
+        },
+        {
+          "title": "accessibility scan /runs",
+          "violations": 0,
+          "incomplete_rules": ["color-contrast"]
+        },
+        {
+          "title": "accessibility scan /research",
+          "violations": 0,
+          "incomplete_rules": []
+        },
+        {
+          "title": "accessibility scan /system",
+          "violations": 0,
+          "incomplete_rules": ["color-contrast"]
+        }
+      ],
+      "motion": [
+        {
+          "preference": "reduce",
+          "widthChanges": 0
+        },
+        {
+          "preference": "no-preference",
+          "widthChanges": 90
+        }
+      ],
+      "rendered_contrast": [
+        {
+          "surface": ".rail-link-active",
+          "foreground": "rgb(233, 239, 250)",
+          "minimumRatio": 12.478400887425128
+        },
+        {
+          "surface": ".stat-tile-label",
+          "foreground": "rgb(119, 133, 159)",
+          "minimumRatio": 4.990176046583068
+        },
+        {
+          "surface": ".card-note",
+          "foreground": "rgb(145, 160, 186)",
+          "minimumRatio": 6.9775904633574335
+        },
+        {
+          "surface": ".data-table thead th",
+          "foreground": "rgb(119, 133, 159)",
+          "minimumRatio": 4.948115891748338
+        },
+        {
+          "surface": ".tone-positive",
+          "foreground": "rgb(74, 222, 128)",
+          "minimumRatio": 11.63210655667407
+        },
+        {
+          "surface": ".signal-row-timestamp",
+          "foreground": "rgb(119, 133, 159)",
+          "minimumRatio": 4.969741964953216
+        },
+        {
+          "surface": ".filter-field .micro",
+          "foreground": "rgb(119, 133, 159)",
+          "minimumRatio": 5.144452032138808
+        },
+        {
+          "surface": ".segmented-option-active",
+          "foreground": "rgb(233, 239, 250)",
+          "minimumRatio": 16.067500935632715
+        }
+      ]
+    },
+    "firefox": {
+      "test_count": 16,
+      "passed": 16,
+      "browser_versions": ["159.0"],
+      "route_scans": [
+        {
+          "title": "accessibility scan /",
+          "violations": 0,
+          "incomplete_rules": ["color-contrast"]
+        },
+        {
+          "title": "accessibility scan /?source=all",
+          "violations": 0,
+          "incomplete_rules": ["color-contrast"]
+        },
+        {
+          "title": "accessibility scan /signals",
+          "violations": 0,
+          "incomplete_rules": []
+        },
+        {
+          "title": "accessibility scan /positions",
+          "violations": 0,
+          "incomplete_rules": ["color-contrast"]
+        },
+        {
+          "title": "accessibility scan /run",
+          "violations": 0,
+          "incomplete_rules": ["color-contrast"]
+        },
+        {
+          "title": "accessibility scan /runs",
+          "violations": 0,
+          "incomplete_rules": ["color-contrast"]
+        },
+        {
+          "title": "accessibility scan /research",
+          "violations": 0,
+          "incomplete_rules": []
+        },
+        {
+          "title": "accessibility scan /system",
+          "violations": 0,
+          "incomplete_rules": ["color-contrast"]
+        }
+      ],
+      "motion": [
+        {
+          "preference": "reduce",
+          "widthChanges": 0
+        },
+        {
+          "preference": "no-preference",
+          "widthChanges": 152
+        }
+      ],
+      "rendered_contrast": [
+        {
+          "surface": ".rail-link-active",
+          "foreground": "rgb(233, 239, 250)",
+          "minimumRatio": 13.497214982791803
+        },
+        {
+          "surface": ".stat-tile-label",
+          "foreground": "rgb(119, 133, 159)",
+          "minimumRatio": 4.990176046583068
+        },
+        {
+          "surface": ".card-note",
+          "foreground": "rgb(145, 160, 186)",
+          "minimumRatio": 7.020234365968663
+        },
+        {
+          "surface": ".data-table thead th",
+          "foreground": "rgb(119, 133, 159)",
+          "minimumRatio": 4.943753444057344
+        },
+        {
+          "surface": ".tone-positive",
+          "foreground": "rgb(74, 222, 128)",
+          "minimumRatio": 11.349912820264578
+        },
+        {
+          "surface": ".signal-row-timestamp",
+          "foreground": "rgb(119, 133, 159)",
+          "minimumRatio": 5.177117397678826
+        },
+        {
+          "surface": ".filter-field .micro",
+          "foreground": "rgb(119, 133, 159)",
+          "minimumRatio": 5.147202465129424
+        },
+        {
+          "surface": ".segmented-option-active",
+          "foreground": "rgb(233, 239, 250)",
+          "minimumRatio": 16.067500935632715
+        }
+      ]
+    }
+  }
+}

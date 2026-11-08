@@ -15,8 +15,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "git config core.hooksPath .githooks",
-    "test:smoke": "playwright test pages.spec.ts",
-    "test:interactions": "playwright test signals.spec.ts replay.spec.ts keyboard.spec.ts position-freshness.spec.ts"
+    "test:browser": "playwright test",
+    "test:smoke": "playwright test pages.spec.ts --project=chromium",
+    "test:interactions": "playwright test signals.spec.ts replay.spec.ts keyboard.spec.ts position-freshness.spec.ts --project=chromium",
+    "test:accessibility": "playwright test accessibility.spec.ts keyboard.spec.ts browser-zoom.spec.ts"
   },
   "dependencies": {
     "next": "16.3.3",
@@ -25,15 +27,18 @@
     "recharts": "^3.10.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@playwright/test": "^1.65.0",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^26",
+    "@types/pngjs": "^6.0.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
     "jsdom": "^31.0.0",
+    "pngjs": "^7.0.0",
     "prettier": "3.9.10",
     "typescript": "^5",
     "vitest": "^4.1.11"

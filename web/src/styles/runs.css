@@ -1,6 +1,7 @@
 .run-form,
 .run-actions {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: calc(var(--space) * 2);
 }
 .run-fields {

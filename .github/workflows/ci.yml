@@ -64,14 +64,14 @@ jobs:
       - run: |
           python -m venv ../.venv
           ../.venv/bin/python -m pip install -r ../requirements.txt -c ../constraints.txt
-      - run: pnpm exec playwright install --with-deps chromium
-      - name: Production page smoke
-        run: pnpm test:smoke
-      - name: Browser interaction flows
-        run: pnpm test:interactions
+      - run: pnpm exec playwright install --with-deps chromium firefox
+      - name: Production browser, accessibility and responsive flows
+        run: pnpm test:browser
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
-          name: playwright-traces
-          path: web/test-results/
+          name: playwright-results
+          path: |
+            web/test-results/
+            web/playwright-report/
           retention-days: 7

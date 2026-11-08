@@ -14,7 +14,7 @@ export default function BreakdownTable({ title, rows }: BreakdownTableProps) {
   return (
     <section className="breakdown-table">
       <h2 className="micro">{title}</h2>
-      <DataTable>
+      <DataTable caption={title}>
         <thead>
           <tr>
             <th>Name</th>

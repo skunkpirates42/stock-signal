@@ -167,6 +167,7 @@
   .rail {
     position: static;
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
     width: 100%;
     flex-basis: auto;
@@ -178,6 +179,7 @@
 
   .rail-nav {
     flex-direction: row;
+    flex-wrap: wrap;
   }
 
   .rail-scope {

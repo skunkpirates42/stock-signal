@@ -1,8 +1,9 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "./fixtures";
 
 test("opens metric definitions with keyboard focus and dismisses with Escape, blur and outside pointer", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.goto("/");
   const term = page.getByRole("button", { name: "Profit factor", exact: true });
   await expect(term).toHaveAttribute("aria-expanded", "false");
@@ -18,6 +19,22 @@ test("opens metric definitions with keyboard focus and dismisses with Escape, bl
   await expect(panel).toContainText(
     "total $ won by winning trades ÷ total $ lost by losing trades",
   );
+  await page.evaluate(() => window.scrollBy(0, 32));
+  await expect(panel).toBeVisible();
+  const panelBounds = await panel.boundingBox();
+  expect(panelBounds!.x).toBeGreaterThanOrEqual(16);
+  expect(panelBounds!.x + panelBounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width - 15);
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+  await testInfo.attach("focused-metric-definition", {
+    body: await page.screenshot(),
+    contentType: "image/png",
+  });
   await page.keyboard.press("Escape");
   await expect(term).toHaveAttribute("aria-expanded", "false");
   await expect(panel).toBeHidden();

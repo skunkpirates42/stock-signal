@@ -5,13 +5,30 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 0,
+  reporter: [
+    ["list"],
+    ["html", { open: "never" }],
+    ["json", { outputFile: "test-results/results.json" }],
+  ],
   workers: 1,
   use: {
     baseURL: "http://127.0.0.1:13000",
     trace: "retain-on-failure",
     serviceWorkers: "block",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "mobile-chromium",
+      testMatch: /(?:accessibility|keyboard)\.spec\.ts/,
+      use: { ...devices["Pixel 7"] },
+    },
+    {
+      name: "firefox",
+      testMatch: /(?:accessibility|keyboard)\.spec\.ts/,
+      use: { ...devices["Desktop Firefox"] },
+    },
+  ],
   webServer: [
     {
       command: "../.venv/bin/python e2e/serve_sample_api.py",

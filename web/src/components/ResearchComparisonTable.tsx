@@ -9,8 +9,7 @@ export interface ResearchComparisonTableProps {
 export default function ResearchComparisonTable({ table }: ResearchComparisonTableProps) {
   return (
     <section className="research-comparison">
-      <DataTable>
-        <caption className="sr-only">Realized net P&amp;L by variant and window</caption>
+      <DataTable caption="Realized net P&L by variant and window">
         <thead>
           <tr>
             <th scope="col">Variant</th>

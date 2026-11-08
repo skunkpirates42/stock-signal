@@ -2,6 +2,7 @@
 
 .table-scroll {
   overflow-x: auto;
+  max-width: 100%;
 }
 
 .data-table {
