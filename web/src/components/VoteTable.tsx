@@ -17,7 +17,7 @@ export default function VoteTable({ rows }: VoteTableProps) {
   }
 
   return (
-    <DataTable compact>
+    <DataTable caption="Indicator votes" compact>
       <thead>
         <tr>
           <th>Indicator</th>

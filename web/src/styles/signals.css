@@ -365,3 +365,22 @@
   color: var(--loss);
   font-size: var(--text-small);
 }
+
+.signal-row-summary:focus-visible {
+  outline-offset: -3px;
+}
+
+.filter-field {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.filter-field select,
+.filter-field input:not([type="checkbox"]) {
+  max-width: 100%;
+}
+
+.signal-row-summary > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

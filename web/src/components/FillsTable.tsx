@@ -23,7 +23,7 @@ export default function FillsTable({ trades }: FillsTableProps) {
   return (
     <div className="fills-table stack">
       <h2>Recent fills</h2>
-      <DataTable>
+      <DataTable caption="Recent fills">
         <thead>
           <tr>
             <th>Ticker</th>

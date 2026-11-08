@@ -4,6 +4,16 @@ import { useEffect, useId, useLayoutEffect, useReducer, useRef } from "react";
 import type { MetricDefinition } from "@/lib/metricDefinitions";
 import { CLOSED, nextToggletipState, toggletipPosition } from "@/lib/toggletip";
 
+function positionDefinition(button: HTMLButtonElement, panel: HTMLSpanElement) {
+  const { top, left } = toggletipPosition(
+    button.getBoundingClientRect(),
+    panel.getBoundingClientRect(),
+    { width: window.innerWidth, height: window.innerHeight },
+  );
+  panel.style.top = `${top}px`;
+  panel.style.left = `${left}px`;
+}
+
 export default function MetricTerm({ term, meaning, formula }: MetricDefinition) {
   const [state, dispatch] = useReducer(nextToggletipState, CLOSED);
   const wrapperRef = useRef<HTMLSpanElement>(null);
@@ -21,13 +31,7 @@ export default function MetricTerm({ term, meaning, formula }: MetricDefinition)
       return;
     }
     if (!isShown) panel.showPopover();
-    const { top, left } = toggletipPosition(
-      button.getBoundingClientRect(),
-      panel.getBoundingClientRect(),
-      { width: window.innerWidth, height: window.innerHeight },
-    );
-    panel.style.top = `${top}px`;
-    panel.style.left = `${left}px`;
+    positionDefinition(button, panel);
   }, [state.open]);
 
   useEffect(() => {
@@ -39,15 +43,24 @@ export default function MetricTerm({ term, meaning, formula }: MetricDefinition)
     const dismissOnOutsidePointer = (event: PointerEvent) => {
       if (!wrapperRef.current?.contains(event.target as Node)) dismiss();
     };
+    const keepFocusedDefinitionVisible = () => {
+      const button = buttonRef.current;
+      const panel = panelRef.current;
+      if (button && panel && document.activeElement === button) positionDefinition(button, panel);
+      else dismiss();
+    };
     document.addEventListener("keydown", dismissOnEscape);
     document.addEventListener("pointerdown", dismissOnOutsidePointer);
-    window.addEventListener("scroll", dismiss, { capture: true, passive: true });
-    window.addEventListener("resize", dismiss);
+    window.addEventListener("scroll", keepFocusedDefinitionVisible, {
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener("resize", keepFocusedDefinitionVisible);
     return () => {
       document.removeEventListener("keydown", dismissOnEscape);
       document.removeEventListener("pointerdown", dismissOnOutsidePointer);
-      window.removeEventListener("scroll", dismiss, { capture: true });
-      window.removeEventListener("resize", dismiss);
+      window.removeEventListener("scroll", keepFocusedDefinitionVisible, { capture: true });
+      window.removeEventListener("resize", keepFocusedDefinitionVisible);
     };
   }, [state.open]);
 

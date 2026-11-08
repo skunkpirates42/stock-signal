@@ -2,3 +2,6 @@ pnpm-lock.yaml
 next-env.d.ts
 # Generated and re-added by `next dev`; reformatting it only churns the diff.
 AGENTS.md
+
+playwright-report/
+test-results/

@@ -60,6 +60,8 @@ describe("primitives with nothing to show", () => {
         createElement("td", { colSpan: 3, className: "data-table-empty" }, "No rows."),
       ),
     );
-    expect(visibleText(createElement(DataTable, null, emptyRow))).not.toMatch(/\d/);
+    expect(visibleText(createElement(DataTable, { caption: "Empty rows" }, emptyRow))).not.toMatch(
+      /\d/,
+    );
   });
 });
