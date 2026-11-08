@@ -1,3 +1,4 @@
+import researchStyles from "@/styles/research.module.css";
 import AvailableValue from "@/components/AvailableValue";
 import Card from "@/components/Card";
 import JobActions from "@/components/JobActions";
@@ -46,7 +47,7 @@ export default function JobDetail({
         strategy.
       </ScopeNote>
       {warnings.map((warning) => (
-        <p className="research-warning" key={warning}>
+        <p className={researchStyles["research-warning"]} key={warning}>
           {warning}
         </p>
       ))}
@@ -60,7 +61,7 @@ export default function JobDetail({
 function JobProgress({ status }: Pick<JobDetailRecord, "status">) {
   return (
     <Card title="Progress">
-      <dl className="config-grid">
+      <dl className={researchStyles["config-grid"]}>
         <div>
           <dt>State</dt>
           <dd>{labelFromKey(status.state)}</dd>
@@ -106,7 +107,7 @@ function JobProgress({ status }: Pick<JobDetailRecord, "status">) {
         <p className="card-note">This run was cancelled before a result was published.</p>
       )}
       {status.state === "failed" && (
-        <p role="alert" className="research-warning">
+        <p role="alert" className={researchStyles["research-warning"]}>
           {"code" in status.failure
             ? `${status.failure.code}: ${status.failure.summary}`
             : "The run failed without a recorded summary."}
@@ -120,7 +121,7 @@ function JobProgress({ status }: Pick<JobDetailRecord, "status">) {
 function QueuedConfiguration({ run }: Pick<JobDetailRecord, "run">) {
   return (
     <Card title="Exact queued configuration">
-      <dl className="config-grid">
+      <dl className={researchStyles["config-grid"]}>
         <div>
           <dt>Strategy</dt>
           <dd>
@@ -225,7 +226,7 @@ function JobResult({
           <p className="card-note">
             Python saved these metrics under its declared basis. Missing amounts remain unavailable.
           </p>
-          <dl className="metric-grid">
+          <dl className={researchStyles["metric-grid"]}>
             {Object.entries(result.metrics).map(([metricName, metric]) => (
               <div key={metricName}>
                 <dt>{labelFromKey(metricName)}</dt>
@@ -243,14 +244,14 @@ function JobResult({
             <span className="num">{result.id}</span>.
           </p>
           {result.limitations.length > 0 && (
-            <ul className="research-listing">
+            <ul className={researchStyles["research-listing"]}>
               {result.limitations.map((limitation) => (
                 <li key={limitation}>{limitation}</li>
               ))}
             </ul>
           )}
           <h3>Published artifacts</h3>
-          <ul className="artifact-list">
+          <ul className={researchStyles["artifact-list"]}>
             {artifacts.map((artifact) => (
               <li key={artifact.id}>
                 <a href={`/api/demo/v1/runs/${status.run_id}/artifacts/${artifact.id}`}>

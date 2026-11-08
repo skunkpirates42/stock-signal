@@ -1,3 +1,4 @@
+import researchStyles from "@/styles/research.module.css";
 import ServerDataRefresh from "@/components/ServerDataRefresh";
 import { notFound } from "next/navigation";
 import { formatTimestamp, labelFromKey } from "@/lib/format";
@@ -29,13 +30,13 @@ export default async function RunsPage({
         promote a strategy.
       </ScopeNote>
       {warnings.map((warning) => (
-        <p className="research-warning" key={warning}>
+        <p className={researchStyles["research-warning"]} key={warning}>
           {warning}
         </p>
       ))}
-      <div className="research-list">
+      <div className={researchStyles["research-list"]}>
         {data.runs.map((status) => (
-          <article className="card research-result" key={status.run_id}>
+          <article className={`card ${researchStyles["research-result"]}`} key={status.run_id}>
             <div>
               <p className="micro">
                 {labelFromKey(status.state)} · attempt{" "}
@@ -57,7 +58,7 @@ export default async function RunsPage({
         {data.runs.length === 0 && <ScopeNote>No runs queued yet.</ScopeNote>}
       </div>
       {data.next_cursor && isOpaqueDemoId(data.next_cursor) && (
-        <nav className="research-pagination" aria-label="Run history pages">
+        <nav className={researchStyles["research-pagination"]} aria-label="Run history pages">
           <Button href={`/runs?cursor=${encodeURIComponent(data.next_cursor)}`}>Older runs</Button>
         </nav>
       )}

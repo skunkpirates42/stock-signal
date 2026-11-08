@@ -33,8 +33,8 @@
 .run-fields input[readonly] {
   color: var(--muted);
 }
-.run-form .button,
-.run-actions .button {
+.run-form :global(.button),
+.run-actions :global(.button) {
   justify-self: start;
 }
 .run-actions {
@@ -44,34 +44,4 @@
   .run-fields {
     grid-template-columns: 1fr;
   }
-}
-
-/* Saved result */
-
-.metric-group {
-  margin-top: calc(var(--space) * 2);
-}
-.metric-group h3 {
-  font-size: var(--text-body);
-}
-.metric-group .metric-grid {
-  margin-top: var(--space);
-}
-.untracked-costs {
-  margin-top: calc(var(--space) * 2);
-  padding: var(--space);
-  border-left: 2px solid var(--caution);
-  color: var(--muted);
-  font-size: var(--text-body);
-}
-.reproducibility summary h2 {
-  display: inline;
-  margin: 0 calc(var(--space) * 1.5) 0 0;
-}
-.reproducibility h3 {
-  margin-top: calc(var(--space) * 2);
-  font-size: var(--text-body);
-}
-.artifact-groups h4 {
-  font-size: var(--text-body);
 }

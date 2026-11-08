@@ -1,3 +1,4 @@
+import json
 import os
 import runpy
 import sqlite3
@@ -24,6 +25,41 @@ def seed_signal_search(database_path: Path) -> None:
         )
 
 
+def seed_saved_research(sample_directory: Path) -> None:
+    from demo.artifacts import ArtifactIndex
+
+    fixture = json.loads(
+        (REPOSITORY_ROOT / "docs/engine-demo/fixtures/synthetic-source.json").read_text()
+    )
+    source = sample_directory / "synthetic-result"
+    digest = "a" * 64
+    protocol = dict(fixture["protocol"], synthetic=True, dataset_file_sha256=digest)
+    protocol["dataset_metadata"] = dict(protocol["dataset_metadata"], dataset_file_sha256=digest)
+    row = fixture["comparison"][0]
+    manifest = dict(
+        fixture["manifest"],
+        window=row["window"],
+        gate=row["variant"],
+        input_dataset_sha256=digest,
+        dataset_metadata={"dataset_file_sha256": digest},
+        settings={"SPREAD_BPS": 2.0, "SLIPPAGE_BPS": 1.0, "FEE_PER_SHARE": 0.0},
+    )
+    artifacts = {
+        "protocol.json": protocol,
+        "comparison.json": [row],
+        "fixture/baseline/manifest.json": manifest,
+        "fixture/baseline/metrics.json": row["metrics"],
+        "fixture/baseline/diagnostics.json": row["diagnostics"],
+    }
+    for name, value in artifacts.items():
+        path = source / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(value, sort_keys=True))
+    ArtifactIndex(sample_directory / "demo-artifacts.db").import_directory(
+        source, owner_id="smoke-test", synthetic=True
+    )
+
+
 def main() -> None:
     os.environ["PYTHON_DOTENV_DISABLED"] = "1"
     runpy.run_path(str(REPOSITORY_ROOT / "tests/conftest.py"))
@@ -48,6 +84,7 @@ def main() -> None:
             cwd=REPOSITORY_ROOT,
             check=True,
         )
+        seed_saved_research(sample_directory)
         app = create_app(
             db_path=str(database_path),
             demo_db_path=str(sample_directory / "demo-artifacts.db"),

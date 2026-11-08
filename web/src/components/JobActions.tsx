@@ -1,5 +1,8 @@
 "use client";
 
+import researchStyles from "@/styles/research.module.css";
+import runsStyles from "@/styles/runs.module.css";
+
 import { useState } from "react";
 import { useRouteRefresh } from "@/hooks/useRouteRefresh";
 import type { JobStatus } from "@/lib/jobs/contracts";
@@ -23,7 +26,7 @@ export default function JobActions({ status }: { status: JobStatus }) {
   }
 
   return (
-    <div className="run-actions">
+    <div className={runsStyles["run-actions"]}>
       {active && (
         <p className="note" aria-live="polite">
           Status refreshes every 3 seconds.
@@ -35,7 +38,7 @@ export default function JobActions({ status }: { status: JobStatus }) {
         </Button>
       )}
       {error && (
-        <p role="alert" className="research-warning">
+        <p role="alert" className={researchStyles["research-warning"]}>
           {error}
         </p>
       )}
