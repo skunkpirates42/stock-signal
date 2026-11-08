@@ -1,8 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { Children, isValidElement, type ReactNode } from "react";
-import AvailableValue from "./AvailableValue";
-import Card from "./Card";
-import Disclosure from "./Disclosure";
+import { describe, expect, it, vi } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import JobDetail from "./JobDetail";
 import type { JobDetail as Detail } from "@/lib/jobs/contracts";
 
@@ -20,19 +18,13 @@ const unavailable = (detail: string) => ({
 });
 const RUN_ID = "123e4567-e89b-12d3-a456-426614174000";
 
-const PRIMITIVES: unknown[] = [AvailableValue, Card, Disclosure];
+vi.mock("./JobActions", () => ({ default: () => null }));
 
-function content(node: unknown): string {
-  if (typeof node === "string" || typeof node === "number") return String(node);
-  if (!isValidElement<{ children?: unknown; href?: string }>(node)) return "";
-  if (PRIMITIVES.includes(node.type))
-    return content((node.type as (props: unknown) => ReactNode)(node.props));
-  return [node.props.href, ...Children.toArray(node.props.children as ReactNode)]
-    .map(content)
-    .join(" ");
+function renderDetail(jobDetail: Detail, warnings: string[] = []) {
+  return renderToStaticMarkup(createElement(JobDetail, { detail: jobDetail, warnings }));
 }
 
-function detail(state: "failed" | "completed"): Detail {
+function detail(state: Detail["status"]["state"]): Detail {
   return {
     run: {
       id: RUN_ID,
@@ -129,14 +121,14 @@ function detail(state: "failed" | "completed"): Detail {
 
 describe("historical job detail", () => {
   it("shows a lost worker failure and no unpublished result", () => {
-    const text = content(JobDetail({ detail: detail("failed"), warnings: [] }));
+    const text = renderDetail(detail("failed"));
     expect(text).toContain("worker_lost: The worker stopped reporting");
     expect(text).toContain("No result is published");
     expect(text).not.toContain("/artifacts/");
   });
 
   it("shows the saved Python metric basis and published artifact link", () => {
-    const text = content(JobDetail({ detail: detail("completed"), warnings: [] }));
+    const text = renderDetail(detail("completed"));
     expect(text).toContain("Last phase");
     expect(text).toContain("Saved Python result");
     expect(text).toContain("+$3.00/session");
@@ -144,5 +136,25 @@ describe("historical job detail", () => {
     expect(text).toContain("delayed bar");
     expect(text).toContain("Synthetic correctness only");
     expect(text).toContain(`/api/demo/v1/runs/${RUN_ID}/artifacts/artifact-id`);
+  });
+
+  it.each([
+    ["queued", "Waiting for the separate local worker"],
+    ["cancel_requested", "Cancellation requested. The worker is stopping"],
+    ["cancelled", "This run was cancelled before a result was published"],
+  ] as const)("preserves the %s progress explanation", (state, explanation) => {
+    const text = renderDetail(detail(state));
+    expect(text).toContain(explanation);
+    expect(text).toContain("No result is published for this job.");
+    expect(text).toContain("Unavailable: No heartbeat");
+  });
+
+  it("keeps unavailable legacy results and supplied provenance warnings explicit", () => {
+    const legacyDetail = { ...detail("completed"), result: null };
+    const text = renderDetail(legacyDetail, ["The recorded source is unknown."]);
+    expect(text).toContain("this completed legacy job has no published result record");
+    expect(text).toContain("The recorded source is unknown.");
+    expect(text).toContain("Paper-only replay.");
+    expect(text).not.toContain("/artifacts/");
   });
 });

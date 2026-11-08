@@ -183,6 +183,101 @@ it("recovers from an initial failure and filters holdings when the selected acco
   expect(screen.queryByText("QQQ")).toBeNull();
 });
 
+it("keeps reconciliation evidence, protection warnings and actual fills scoped through account changes", async () => {
+  const state = positionState();
+  state.stale_seconds = 60;
+  state.accounts[0] = {
+    ...state.accounts[0],
+    mismatch: true,
+    broker_positions: null,
+    journal_positions: { SPY: 10 },
+  };
+  const execution: NonNullable<ExecutionPosition["execution"]> = {
+    entry: null,
+    protection: "confirmed",
+    pending_exit: null,
+    legs: {
+      stop: {
+        state: "accepted",
+        coverage: true,
+        current: true,
+        quantity: 10,
+        updated_at: initialTime.toISOString(),
+      },
+    },
+  };
+  state.positions = state.positions.map((position) => ({ ...position, execution }));
+  const pendingEntries = ["paper-a", "paper-b"].map((account, index) => ({
+    id: `pending-${account}`,
+    account,
+    ticker: index === 0 ? "MSFT" : "AMZN",
+    state: "partially_filled",
+    requested_qty: 10,
+    filled_qty: 2,
+    fill_price: null,
+    updated_at: initialTime.toISOString(),
+    purpose: "entry",
+    pending_exit: "cancel_requested",
+    stop: 95,
+    target: 110,
+    execution: {
+      ...execution,
+      legs: {
+        stop: {
+          ...execution.legs.stop,
+          state: "held",
+          updated_at: new Date(initialTime.getTime() - 31_000).toISOString(),
+        },
+      },
+    },
+  }));
+  state.pending_entries = pendingEntries;
+  state.exit_fills = pendingEntries.map((entry) => ({
+    ...entry,
+    id: `exit-${entry.account}`,
+    purpose: "exit",
+    reason: null,
+    fill_price: entry.account === "paper-a" ? null : 101.25,
+  }));
+  state.closed_trades = state.positions.map((position, index) => ({
+    ...position,
+    id: 10 + index,
+    ticker: index === 0 ? "IWM" : "DIA",
+    outcome: "WIN",
+    exit_price: 110,
+    pnl: 100,
+  }));
+  fetchResponse.mockImplementation(async (url) =>
+    url === "/api/position-state" ? Response.json(state) : successfulResponse(url),
+  );
+  render(<PositionsView />);
+  await advanceTime(0);
+  const accountStatus = screen.getByLabelText("Paper account status");
+  fireEvent.click(within(accountStatus).getByText("Alpaca paper account"));
+  expect(accountStatus.textContent).toContain('Broker: null; journal: {"SPY":10}');
+  expect(accountStatus.textContent).toContain("current protection is not confirmed");
+  expect(accountStatus.textContent).toContain("MSFT · pending Alpaca paper entry");
+  expect(accountStatus.textContent).not.toContain("AMZN");
+  const exitFills = screen.getByLabelText("Actual broker exit fills");
+  expect(exitFills.textContent).toContain("MSFT · exit · partially_filled · 2 shares at —");
+  expect(screen.getByText("IWM")).toBeDefined();
+  expect(screen.queryByText("DIA")).toBeNull();
+
+  fireEvent.change(screen.getByLabelText("Selected account"), { target: { value: "paper-b" } });
+  expect(accountStatus.textContent).not.toContain("Journal/broker mismatch");
+  expect(accountStatus.textContent).toContain("Protection confirmed at last observation");
+  expect(accountStatus.textContent).toContain("AMZN · pending Alpaca paper entry");
+  expect(accountStatus.textContent).not.toContain("MSFT");
+  expect(accountStatus.textContent).toContain("actual average — · protection awaiting entry fill");
+  expect(accountStatus.textContent).toContain(
+    "held · awaiting activation · not confirmed active · observation stale/unknown",
+  );
+  expect(exitFills.textContent).toContain("AMZN · exit · partially_filled · 2 shares at $101.25");
+  expect(exitFills.textContent).not.toContain("MSFT");
+  expect(screen.getByText("DIA")).toBeDefined();
+  expect(screen.queryByText("IWM")).toBeNull();
+});
+
 it("aborts in-flight requests and removes polling and clock listeners on unmount", async () => {
   const removeListener = vi.spyOn(document, "removeEventListener");
   let requestSignal: AbortSignal | undefined;
