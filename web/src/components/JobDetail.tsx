@@ -11,8 +11,13 @@ import PageHeader from "@/components/PageHeader";
 import ScopeNote from "@/components/ScopeNote";
 import Page from "@/components/Page";
 
-function formatRecordedValue<T>(value: Availability<T>, format: (item: T) => string): string {
-  return value.availability === "available" ? format(value.value) : `Unavailable: ${value.detail}`;
+function formatRecordedValue<T>(
+  observation: Availability<T>,
+  formatValue: (value: T) => string,
+): string {
+  return observation.availability === "available"
+    ? formatValue(observation.value)
+    : `Unavailable: ${observation.detail}`;
 }
 
 export default function JobDetail({
@@ -149,10 +154,10 @@ function QueuedConfiguration({ run }: Pick<JobDetailRecord, "run">) {
           <dt>Symbols</dt>
           <dd>{run.symbols.join(", ") || "Unavailable: no symbols were recorded."}</dd>
         </div>
-        {Object.entries(run.observed_bounds).map(([name, value]) => (
-          <div key={name}>
-            <dt>Observed {labelFromKey(name)}</dt>
-            <dd>{availabilityText(value)}</dd>
+        {Object.entries(run.observed_bounds).map(([boundName, observation]) => (
+          <div key={boundName}>
+            <dt>Observed {labelFromKey(boundName)}</dt>
+            <dd>{availabilityText(observation)}</dd>
           </div>
         ))}
         <div>
@@ -221,14 +226,14 @@ function JobResult({
             Python saved these metrics under its declared basis. Missing amounts remain unavailable.
           </p>
           <dl className="metric-grid">
-            {Object.entries(result.metrics).map(([name, value]) => (
-              <div key={name}>
-                <dt>{labelFromKey(name)}</dt>
+            {Object.entries(result.metrics).map(([metricName, metric]) => (
+              <div key={metricName}>
+                <dt>{labelFromKey(metricName)}</dt>
                 <dd className="num">
-                  <AvailableValue {...describeObservation(name, value)} />
+                  <AvailableValue {...describeObservation(metricName, metric)} />
                 </dd>
                 <small>
-                  {value.unit} · {value.basis}
+                  {metric.unit} · {metric.basis}
                 </small>
               </div>
             ))}
@@ -239,8 +244,8 @@ function JobResult({
           </p>
           {result.limitations.length > 0 && (
             <ul className="research-listing">
-              {result.limitations.map((item) => (
-                <li key={item}>{item}</li>
+              {result.limitations.map((limitation) => (
+                <li key={limitation}>{limitation}</li>
               ))}
             </ul>
           )}
