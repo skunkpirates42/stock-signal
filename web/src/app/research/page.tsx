@@ -1,3 +1,4 @@
+import researchStyles from "@/styles/research.module.css";
 import ServerDataRefresh from "@/components/ServerDataRefresh";
 import ResearchComparisonTable from "@/components/ResearchComparisonTable";
 import { getResearchResults } from "@/lib/demo/server";
@@ -34,14 +35,14 @@ export default async function ResearchPage({
         shows a strategy is profitable.
       </ScopeNote>
       {warningsBeyondScopeNote(warnings).map((warning) => (
-        <p className="research-warning" key={warning}>
+        <p className={researchStyles["research-warning"]} key={warning}>
           {warning}
         </p>
       ))}
       {data.results.length > 0 && <ResearchComparisonTable table={table} />}
       {data.results.length === 0 && <ScopeNote>No saved results yet.</ScopeNote>}
       {nextCursor && (
-        <nav className="research-pagination" aria-label="Research catalog pages">
+        <nav className={researchStyles["research-pagination"]} aria-label="Research catalog pages">
           <p className="note">
             This table compares the results on this page only. More saved results are on the next
             page.

@@ -1,7 +1,7 @@
 /* /system reference page */
 
-.system > .card,
-.system > .stat-grid,
+.system > :global(.card),
+.system > :global(.stat-grid),
 .system-grid {
   margin-bottom: calc(var(--space) * 2);
 }
@@ -45,7 +45,7 @@
   overflow-wrap: anywhere;
 }
 
-.system-type-row .note {
+.system-type-row :global(.note) {
   flex: 0 0 120px;
 }
 

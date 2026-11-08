@@ -1,5 +1,8 @@
 "use client";
 
+import researchStyles from "@/styles/research.module.css";
+import runsStyles from "@/styles/runs.module.css";
+
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ReplayCatalog } from "@/lib/jobs/contracts";
@@ -45,13 +48,13 @@ export default function RunForm({ catalog }: { catalog: ReplayCatalog }) {
   }
 
   return (
-    <form className="card run-form" onSubmit={submit}>
+    <form className={`card ${runsStyles["run-form"]}`} onSubmit={submit}>
       <h2>Approved historical replay</h2>
       <p className="card-note">
         The strategy is fixed. Choices below come from the local approved catalog. A worker must be
         running separately to complete a queued job.
       </p>
-      <div className="run-fields">
+      <div className={runsStyles["run-fields"]}>
         <div>
           <label htmlFor="strategy">Strategy</label>
           <input id="strategy" value={catalog.strategy.label} readOnly />
@@ -128,7 +131,7 @@ export default function RunForm({ catalog }: { catalog: ReplayCatalog }) {
         </p>
       )}
       {error && (
-        <p role="alert" className="research-warning">
+        <p role="alert" className={researchStyles["research-warning"]}>
           {error}
         </p>
       )}

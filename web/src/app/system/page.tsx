@@ -1,3 +1,4 @@
+import systemStyles from "@/styles/system.module.css";
 import AvailableValue from "@/components/AvailableValue";
 import Button from "@/components/Button";
 import Card from "@/components/Card";
@@ -48,7 +49,7 @@ function sampleTable(rows: typeof TABLE_ROWS, compact = false) {
 
 export default function SystemPage() {
   return (
-    <Page className="system">
+    <Page className={systemStyles["system"]}>
       <PageHeader eyebrow="Reference" title="Design system" />
       <ScopeNote>
         Every shared component in each of its states, built from fixtures. Nothing here calls the
@@ -80,10 +81,13 @@ export default function SystemPage() {
       </Card>
 
       <Card title="Color tokens">
-        <div className="system-swatches">
+        <div className={systemStyles["system-swatches"]}>
           {COLOR_TOKENS.map((token) => (
-            <figure className="system-swatch" key={token}>
-              <div className="system-swatch-chip" style={{ background: `var(${token})` }} />
+            <figure className={systemStyles["system-swatch"]} key={token}>
+              <div
+                className={systemStyles["system-swatch-chip"]}
+                style={{ background: `var(${token})` }}
+              />
               <figcaption className="num">{token}</figcaption>
             </figure>
           ))}
@@ -92,7 +96,7 @@ export default function SystemPage() {
 
       <Card title="Type scale">
         {TYPE_SCALE.map((token) => (
-          <div className="system-type-row" key={token}>
+          <div className={systemStyles["system-type-row"]} key={token}>
             <span className="num note">{token}</span>
             <span style={{ fontSize: `var(${token})` }}>Realized net P&amp;L</span>
           </div>
@@ -148,7 +152,7 @@ export default function SystemPage() {
       </Card>
 
       <Card title="Button" note="A link with an href renders as a Next Link with the same look.">
-        <div className="system-buttons">
+        <div className={systemStyles["system-buttons"]}>
           <Button>Default</Button>
           <Button disabled>Disabled</Button>
           <Button inline>Inline</Button>
@@ -162,7 +166,7 @@ export default function SystemPage() {
         </div>
       </Card>
 
-      <div className="system-grid">
+      <div className={systemStyles["system-grid"]}>
         <Card title="Card with a heading" note="The note prop sits under the title.">
           Body content.
         </Card>
@@ -174,7 +178,7 @@ export default function SystemPage() {
         </Card>
       </div>
 
-      <div className="system-grid">
+      <div className={systemStyles["system-grid"]}>
         <Disclosure className="card" summary="Disclosure, closed">
           <p className="card-note">Hidden until opened.</p>
         </Disclosure>

@@ -1,0 +1,398 @@
+{
+  "issue": 151,
+  "command": "cd web && pnpm test:browser",
+  "stats": {
+    "startTime": "2026-11-08T23:18:55.816Z",
+    "duration": 94922.732,
+    "expected": 64,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "checks": [
+    {
+      "title": "accessibility scan /",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /",
+      "project": "firefox",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /?source=all",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /?source=all",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /?source=all",
+      "project": "firefox",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /signals",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /signals",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /signals",
+      "project": "firefox",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /positions",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /positions",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /positions",
+      "project": "firefox",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /run",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /run",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /run",
+      "project": "firefox",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /runs",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /runs",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /runs",
+      "project": "firefox",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /research",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /research",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /research",
+      "project": "firefox",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /system",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /system",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "accessibility scan /system",
+      "project": "firefox",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "keyboard reaches skip link, navigation, scope and signal filters with visible focus",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "keyboard reaches skip link, navigation, scope and signal filters with visible focus",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "keyboard reaches skip link, navigation, scope and signal filters with visible focus",
+      "project": "firefox",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "chart supports arrow keys and an exact-data disclosure without hover",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "chart supports arrow keys and an exact-data disclosure without hover",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "chart supports arrow keys and an exact-data disclosure without hover",
+      "project": "firefox",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Recharts JavaScript reveal honors motion preference: reduce",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Recharts JavaScript reveal honors motion preference: reduce",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Recharts JavaScript reveal honors motion preference: reduce",
+      "project": "firefox",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Recharts JavaScript reveal honors motion preference: no-preference",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Recharts JavaScript reveal honors motion preference: no-preference",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Recharts JavaScript reveal honors motion preference: no-preference",
+      "project": "firefox",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "320px layout keeps navigation, long figures and table scrolling reachable",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "320px layout keeps navigation, long figures and table scrolling reachable",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "320px layout keeps navigation, long figures and table scrolling reachable",
+      "project": "firefox",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "small text meets AA on rendered translucent, gradient and active surfaces",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "small text meets AA on rendered translucent, gradient and active surfaces",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "small text meets AA on rendered translucent, gradient and active surfaces",
+      "project": "firefox",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "browser zoom at 200% and 400% reflows navigation, forms and long values",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "opens metric definitions with keyboard focus and dismisses with Escape, blur and outside pointer",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "opens metric definitions with keyboard focus and dismisses with Escape, blur and outside pointer",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "opens metric definitions with keyboard focus and dismisses with Escape, blur and outside pointer",
+      "project": "firefox",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "toggles native account disclosures with Enter and Space",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "toggles native account disclosures with Enter and Space",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "toggles native account disclosures with Enter and Space",
+      "project": "firefox",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "/ renders against the sample API",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "/positions renders against the sample API",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "/signals renders against the sample API",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "/runs renders against the sample API",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "/research renders against the sample API",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "/system renders against the sample API",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "marks last-known prices stale when a hidden positions tab becomes visible",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "retries a lost queue response as the same run, navigates to its detail, and cancels it",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "scoped research styles survive navigation at 1280px",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "scoped research styles survive navigation at 320px",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "searches beyond 500 rows and preserves filters on refresh, shared links and history",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "expands one signal at a time with the keyboard without requesting paid explanations",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "keeps an invalid date range local until corrected",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "paginates complete results and resets the page when filters change",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "WAIT and source controls preserve complete search semantics",
+      "project": "chromium",
+      "status": "expected",
+      "attempts": 1
+    }
+  ]
+}

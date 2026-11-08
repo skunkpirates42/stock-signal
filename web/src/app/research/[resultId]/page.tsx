@@ -1,3 +1,4 @@
+import researchStyles from "@/styles/research.module.css";
 import AvailableValue from "@/components/AvailableValue";
 import Card from "@/components/Card";
 import Disclosure from "@/components/Disclosure";
@@ -21,7 +22,7 @@ function field(label: string, value: Availability<string>) {
   return (
     <div>
       <dt>{label}</dt>
-      <dd className="config-value">{availabilityText(value)}</dd>
+      <dd className={researchStyles["config-value"]}>{availabilityText(value)}</dd>
     </div>
   );
 }
@@ -29,7 +30,7 @@ function field(label: string, value: Availability<string>) {
 function countList(counts: Record<string, number>) {
   const entries = Object.entries(counts);
   return entries.length ? (
-    <dl className="audit-counts">
+    <dl className={researchStyles["audit-counts"]}>
       {entries.map(([name, count]) => (
         <div key={name}>
           <dt>{labelFromKey(name)}</dt>
@@ -44,7 +45,7 @@ function countList(counts: Record<string, number>) {
 
 function artifactList(resultId: string, artifacts: Artifact[]) {
   return artifacts.length ? (
-    <ul className="artifact-list">
+    <ul className={researchStyles["artifact-list"]}>
       {artifacts.map((artifact) => (
         <li key={artifact.id}>
           <a href={artifactHref(resultId, artifact.id)}>{labelFromKey(artifact.kind)}</a>
@@ -98,7 +99,7 @@ export default async function SavedResultPage({
         evaluation; accounting coverage {result.accounting.coverage}.
       </ScopeNote>
       {warnings.map((warning) => (
-        <p className="research-warning" key={warning}>
+        <p className={researchStyles["research-warning"]} key={warning}>
           {warning}
         </p>
       ))}
@@ -114,10 +115,10 @@ export default async function SavedResultPage({
         note="Values are displayed as supplied by the saved Python projection; this page does not recompute P&L."
       >
         {savedMetricGroups(result.metrics).map((group) => (
-          <div className="metric-group" key={group.title}>
+          <div className={researchStyles["metric-group"]} key={group.title}>
             <h3>{group.title}</h3>
             {group.basis && <p className="card-note">{group.basis}</p>}
-            <dl className="metric-grid">
+            <dl className={researchStyles["metric-grid"]}>
               {group.rows.map((row) => (
                 <div key={row.name}>
                   <dt>{row.label}</dt>
@@ -132,7 +133,7 @@ export default async function SavedResultPage({
         ))}
         {untrackedCosts.length > 0 && (
           <Disclosure
-            className="untracked-costs"
+            className={researchStyles["untracked-costs"]}
             summary={
               <>
                 Not tracked in this result: {untrackedCosts.map((item) => item.label).join(", ")}.
@@ -140,7 +141,7 @@ export default async function SavedResultPage({
               </>
             }
           >
-            <ul className="research-listing">
+            <ul className={researchStyles["research-listing"]}>
               {untrackedCosts.map((item) => (
                 <li key={item.label}>
                   <strong>{item.label}</strong>: Unavailable. {item.reason}
@@ -152,7 +153,7 @@ export default async function SavedResultPage({
       </Card>
 
       <Card title="Accounting audit">
-        <dl className="config-grid">
+        <dl className={researchStyles["config-grid"]}>
           <div>
             <dt>Coverage</dt>
             <dd>{result.accounting.coverage}</dd>
@@ -167,7 +168,7 @@ export default async function SavedResultPage({
           </div>
         </dl>
         {result.accounting.unresolved.length ? (
-          <ul className="research-listing">
+          <ul className={researchStyles["research-listing"]}>
             {result.accounting.unresolved.map((item) => (
               <li key={item}>Unresolved accounting: {item}</li>
             ))}
@@ -182,7 +183,7 @@ export default async function SavedResultPage({
         note="Marked values use the saved marked basis and are distinct from realized results."
       >
         {result.limitations.length ? (
-          <ul className="research-listing">
+          <ul className={researchStyles["research-listing"]}>
             {result.limitations.map((item) => (
               <li key={item}>{item}</li>
             ))}
@@ -197,7 +198,7 @@ export default async function SavedResultPage({
         note="These are saved aggregate counts, not live signals and not counts recomputed by the browser."
       >
         {diagnostics.availability === "available" ? (
-          <div className="audit-columns">
+          <div className={researchStyles["audit-columns"]}>
             <div>
               <h3>Execution and skip reasons</h3>
               {countList(diagnostics.value.signal_execution_reasons)}
@@ -217,7 +218,7 @@ export default async function SavedResultPage({
       </Card>
 
       <Card title="Saved data health">
-        <dl className="config-grid">
+        <dl className={researchStyles["config-grid"]}>
           {field("Recorded feed", run.feed)}
           <div>
             <dt>Saved symbols</dt>
@@ -256,7 +257,7 @@ export default async function SavedResultPage({
       </Card>
 
       <Disclosure
-        className="card reproducibility"
+        className={`card ${researchStyles["reproducibility"]}`}
         summary={
           <>
             <h2>Reproducibility</h2>
@@ -270,7 +271,7 @@ export default async function SavedResultPage({
           is not evidence that a job ran or that this configuration is approved.
         </p>
         <h3>Exact saved configuration</h3>
-        <dl className="config-grid">
+        <dl className={researchStyles["config-grid"]}>
           {field("Strategy version", run.strategy_version)}{" "}
           {field("Dataset SHA-256", run.dataset_sha256)}
           {field("Selected-data SHA-256", run.selected_data_sha256)} {field("Feed", run.feed)}
@@ -279,7 +280,7 @@ export default async function SavedResultPage({
           {field("Working diff SHA-256", run.code.working_diff_sha256)}
           <div>
             <dt>Dataset ID</dt>
-            <dd className="config-value">{run.dataset_id}</dd>
+            <dd className={researchStyles["config-value"]}>{run.dataset_id}</dd>
           </div>
           <div>
             <dt>Selected window</dt>
@@ -291,7 +292,7 @@ export default async function SavedResultPage({
           {Object.entries(run.observed_bounds).map(([name, value]) => (
             <div key={name}>
               <dt>Observed {labelFromKey(name)}</dt>
-              <dd className="config-value">{availabilityText(value)}</dd>
+              <dd className={researchStyles["config-value"]}>{availabilityText(value)}</dd>
             </div>
           ))}
           <div>
@@ -323,7 +324,7 @@ export default async function SavedResultPage({
           Only allowlisted, result-scoped files are linked. An indexed file is evidence of
           availability, not proof that its contents were normalized above.
         </p>
-        <div className="artifact-groups">
+        <div className={researchStyles["artifact-groups"]}>
           <div>
             <h4>Accounting evidence</h4>
             {artifactList(result.id, artifactsByKind.accounting)}
