@@ -21,6 +21,7 @@ const serve = (...bodies: unknown[]) => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 it("uses the later of the visible clock and the latest poll completion", () => {
@@ -86,4 +87,51 @@ it("stops publishing and aborts the request once stopped", async () => {
   stop();
   expect(requestSignal?.aborted).toBe(true);
   expect(states).toEqual([]);
+});
+
+it("recovers after a stalled body times out without losing the last known value", async () => {
+  vi.useFakeTimers();
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  const fetchResponse = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(Response.json(goodPrices))
+    .mockResolvedValueOnce(new Response(new ReadableStream()))
+    .mockResolvedValue(Response.json({ ...goodPrices, checked_at: "2026-10-29T14:01:00Z" }));
+  vi.stubGlobal("fetch", fetchResponse);
+  const { states, stop } = pollPrices();
+  await vi.advanceTimersByTimeAsync(100);
+  expect(states).toHaveLength(1);
+  await vi.advanceTimersByTimeAsync(10_000);
+  expect(states[1]).toMatchObject({ data: goodPrices, failed: true });
+  expect(fetchResponse.mock.calls[1][1]?.signal?.aborted).toBe(true);
+  expect(log).toHaveBeenCalledWith("web_failure", {
+    resource: "position-prices",
+    category: "timeout",
+    reference: null,
+  });
+  await vi.advanceTimersByTimeAsync(100);
+  expect(states[2]).toMatchObject({
+    data: { ...goodPrices, checked_at: "2026-10-29T14:01:00Z" },
+    failed: false,
+  });
+  stop();
+  expect(vi.getTimerCount()).toBe(0);
+  log.mockRestore();
+});
+
+it("records sanitized schema failures then recovers on the same schedule", async () => {
+  vi.useFakeTimers();
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  serve(goodPrices, { prices: { private_account: "secret" } }, goodPrices);
+  const { states, stop } = pollPrices();
+  await vi.advanceTimersByTimeAsync(200);
+  stop();
+  expect(states.map(({ failed }) => failed)).toEqual([false, true, false]);
+  expect(states.every(({ data }) => JSON.stringify(data) === JSON.stringify(goodPrices))).toBe(
+    true,
+  );
+  expect(log.mock.calls).toEqual([
+    ["web_failure", { resource: "position-prices", category: "schema", reference: null }],
+  ]);
+  log.mockRestore();
 });

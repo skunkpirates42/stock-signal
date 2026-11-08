@@ -1,28 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useRouteRefresh } from "@/hooks/useRouteRefresh";
 import type { JobStatus } from "@/lib/jobs/contracts";
-import { startVisiblePolling } from "@/lib/polling";
 import { requestRunCancel } from "@/lib/runRequests";
 import Button from "@/components/Button";
 
 export default function JobActions({ status }: { status: JobStatus }) {
-  const router = useRouter();
   const active = ["queued", "running", "cancel_requested"].includes(status.state);
+  const refresh = useRouteRefresh(active ? 3000 : null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (!active) return;
-    return startVisiblePolling(
-      async () => {
-        router.refresh();
-      },
-      document,
-      3000,
-    );
-  }, [active, router]);
 
   async function cancel() {
     if (busy) return;
@@ -30,7 +18,7 @@ export default function JobActions({ status }: { status: JobStatus }) {
     setError("");
     const outcome = await requestRunCancel(status.run_id);
     setBusy(false);
-    if (outcome.ok) router.refresh();
+    if (outcome.ok) refresh();
     else setError(outcome.message);
   }
 

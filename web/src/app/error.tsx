@@ -1,5 +1,6 @@
 "use client";
 
+import ErrorDetails from "@/components/ErrorDetails";
 import Page from "@/components/Page";
 import ScopeNote from "@/components/ScopeNote";
 import Button from "@/components/Button";
@@ -15,12 +16,11 @@ export default function Error({
     <Page>
       <h1>Something went wrong</h1>
       <ScopeNote>
-        This dashboard could not reach its data API. Check that the Flask API is running, and that
-        FLASK_API_URL points at it if it is not on the default address, then try again.
+        This dashboard view could not be loaded. Try again. If the problem continues, use the error
+        reference when checking the dashboard logs.
       </ScopeNote>
       <Button onClick={() => retry()}>Try again</Button>
-      <p className="error-detail">{error.message}</p>
-      {error.digest && <p className="error-detail">Error reference: {error.digest}</p>}
+      <ErrorDetails error={error} resource="route" />
     </Page>
   );
 }

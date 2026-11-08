@@ -1,3 +1,4 @@
+import ServerDataRefresh from "@/components/ServerDataRefresh";
 import { getMetrics } from "@/lib/api";
 import { formatCurrency, formatPercent, formatPrice, formatRatio, toneForSign } from "@/lib/format";
 import { METRIC_DEFINITIONS } from "@/lib/metricDefinitions";
@@ -36,6 +37,7 @@ export default async function OverviewPage({
 
   return (
     <Page>
+      <ServerDataRefresh />
       <HeroStat
         label="Closed-trade net P&L"
         value={formatCurrency(closedTradePnl)}

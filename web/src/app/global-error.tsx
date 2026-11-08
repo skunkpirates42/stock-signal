@@ -1,5 +1,6 @@
 "use client";
 
+import ErrorDetails from "@/components/ErrorDetails";
 import Page from "@/components/Page";
 import ScopeNote from "@/components/ScopeNote";
 import { fontVariableClasses } from "@/styles/fonts";
@@ -25,8 +26,7 @@ export default function GlobalError({
               logs.
             </ScopeNote>
             <Button onClick={() => retry()}>Try again</Button>
-            <p className="error-detail">{error.message}</p>
-            {error.digest && <p className="error-detail">Error reference: {error.digest}</p>}
+            <ErrorDetails error={error} resource="layout" />
           </Page>
         </div>
       </body>

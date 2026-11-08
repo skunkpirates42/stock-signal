@@ -1,3 +1,4 @@
+import ServerDataRefresh from "@/components/ServerDataRefresh";
 import { notFound } from "next/navigation";
 import { formatTimestamp, labelFromKey } from "@/lib/format";
 import { getJobs } from "@/lib/jobs/server";
@@ -17,6 +18,7 @@ export default async function RunsPage({
   const { data, warnings } = await getJobs(cursor);
   return (
     <Page>
+      <ServerDataRefresh />
       <PageHeader
         eyebrow="Local demo jobs"
         title="Run history"
