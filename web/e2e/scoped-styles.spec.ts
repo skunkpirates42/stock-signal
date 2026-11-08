@@ -1,4 +1,19 @@
+import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
+
+async function railViewportState(page: Page) {
+  return page.locator(".rail").evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    return {
+      scrollY,
+      position: getComputedStyle(element).position,
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+    };
+  });
+}
 
 for (const width of [1280, 320]) {
   test(`scoped research styles survive navigation at ${width}px`, async ({ page }, testInfo) => {
@@ -13,6 +28,11 @@ for (const width of [1280, 320]) {
     await expect(
       page.getByRole("heading", { name: "fixture / baseline", exact: true }),
     ).toBeVisible();
+    const railAtPageTop = await railViewportState(page);
+    expect(railAtPageTop.scrollY).toBe(0);
+    expect(railAtPageTop.y).toBe(0);
+    expect(railAtPageTop.position).toBe(width <= 900 ? "static" : "sticky");
+    expect(railAtPageTop.width).toBe(width <= 900 ? width : 200);
     await page.getByText("Reproducibility", { exact: true }).click();
     const configuration = page.getByRole("heading", { name: "Exact saved configuration" });
     await expect(configuration).toBeVisible();
@@ -30,6 +50,24 @@ for (const width of [1280, 320]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
+    const railAfterDisclosureScroll = await railViewportState(page);
+    expect(railAfterDisclosureScroll.scrollY).toBeGreaterThan(0);
+    expect(railAfterDisclosureScroll.position).toBe(railAtPageTop.position);
+    expect(railAfterDisclosureScroll.y).toBe(width <= 900 ? -railAfterDisclosureScroll.scrollY : 0);
+    await page.screenshot({ path: testInfo.outputPath(`research-${width}-scrolled-viewport.png`) });
+    await page.evaluate(() => scrollTo({ top: 0, left: 0, behavior: "instant" }));
+    await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
+    const railBeforeCapture = await railViewportState(page);
+    expect(railBeforeCapture).toEqual(railAtPageTop);
+    await testInfo.attach(`rail-position-${width}.json`, {
+      body: JSON.stringify(
+        { railAtPageTop, railAfterDisclosureScroll, railBeforeCapture },
+        null,
+        2,
+      ),
+      contentType: "application/json",
+    });
+    await page.screenshot({ path: testInfo.outputPath(`research-${width}-top-viewport.png`) });
     await page.screenshot({ path: testInfo.outputPath(`research-${width}.png`), fullPage: true });
 
     await page.getByRole("link", { name: "Design system", exact: true }).click();

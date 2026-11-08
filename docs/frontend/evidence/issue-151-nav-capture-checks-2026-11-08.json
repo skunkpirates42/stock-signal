@@ -1,0 +1,78 @@
+{
+  "stats": {
+    "startTime": "2026-11-08T23:22:23.447Z",
+    "duration": 6375.229,
+    "expected": 2,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "checks": [
+    {
+      "title": "scoped research styles survive navigation at 1280px",
+      "project": "chromium",
+      "status": "expected",
+      "measurements": [
+        {
+          "railAtPageTop": {
+            "scrollY": 0,
+            "position": "sticky",
+            "x": 0,
+            "y": 0,
+            "width": 200,
+            "height": 900
+          },
+          "railAfterDisclosureScroll": {
+            "scrollY": 1124,
+            "position": "sticky",
+            "x": 0,
+            "y": 0,
+            "width": 200,
+            "height": 900
+          },
+          "railBeforeCapture": {
+            "scrollY": 0,
+            "position": "sticky",
+            "x": 0,
+            "y": 0,
+            "width": 200,
+            "height": 900
+          }
+        }
+      ]
+    },
+    {
+      "title": "scoped research styles survive navigation at 320px",
+      "project": "chromium",
+      "status": "expected",
+      "measurements": [
+        {
+          "railAtPageTop": {
+            "scrollY": 0,
+            "position": "static",
+            "x": 0,
+            "y": 0,
+            "width": 320,
+            "height": 230
+          },
+          "railAfterDisclosureScroll": {
+            "scrollY": 3287,
+            "position": "static",
+            "x": 0,
+            "y": -3287,
+            "width": 320,
+            "height": 230
+          },
+          "railBeforeCapture": {
+            "scrollY": 0,
+            "position": "static",
+            "x": 0,
+            "y": 0,
+            "width": 320,
+            "height": 230
+          }
+        }
+      ]
+    }
+  ]
+}
