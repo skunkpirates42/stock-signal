@@ -4,6 +4,7 @@ import { Children, isValidElement, type ElementType, type ReactNode } from "reac
 // next/font calls only work after Next's compiler transform, which vitest does not run.
 vi.mock("@/styles/fonts", () => ({ fontVariableClasses: "font-vars" }));
 
+import ErrorDetails from "@/components/ErrorDetails";
 import Button from "@/components/Button";
 import GlobalError from "./global-error";
 
@@ -37,11 +38,14 @@ describe("global error page", () => {
     expect(findByType(page, "title")?.props.children).toBe("Something went wrong");
   });
 
-  it("shows the error message and, when present, the digest", () => {
+  it("delegates safe diagnostics and omits raw error messages", () => {
     const error = Object.assign(new Error("layout broke"), { digest: "abc123" });
     const text = textOf(GlobalError({ error, retry: () => {} }));
-    expect(text).toContain("layout broke");
-    expect(text).toContain("abc123");
+    expect(text).not.toContain("layout broke");
+    expect(findByType(GlobalError({ error, retry: () => {} }), ErrorDetails)?.props).toEqual({
+      error,
+      resource: "layout",
+    });
   });
 
   it("retries when Try again is clicked", () => {

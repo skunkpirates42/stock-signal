@@ -1,3 +1,4 @@
+import ServerDataRefresh from "@/components/ServerDataRefresh";
 import Link from "next/link";
 import { searchSignals } from "@/lib/api";
 import { parseSignalQuery, signalQueryParams, type SignalSearchParams } from "@/lib/signalSearch";
@@ -32,6 +33,7 @@ export default async function SignalsPage({
 
   return (
     <Page>
+      <ServerDataRefresh />
       <PageHeader
         title="Signals"
         aside={<span className="micro">{result.total} matching signals</span>}

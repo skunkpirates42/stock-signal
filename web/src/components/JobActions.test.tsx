@@ -184,19 +184,19 @@ it("pauses refresh while hidden, resumes on visibility, and removes listeners on
   const removeListener = vi.spyOn(document, "removeEventListener");
   const view = render(<JobActions status={status("queued")} />);
   await advanceTime(0);
-  expect(navigation.refresh).toHaveBeenCalledTimes(1);
+  expect(navigation.refresh).toHaveBeenCalledTimes(0);
   await advanceTime(3000);
-  expect(navigation.refresh).toHaveBeenCalledTimes(2);
+  expect(navigation.refresh).toHaveBeenCalledTimes(1);
   await changeVisibility("hidden");
   await advanceTime(9000);
-  expect(navigation.refresh).toHaveBeenCalledTimes(2);
+  expect(navigation.refresh).toHaveBeenCalledTimes(1);
   await changeVisibility("visible");
-  expect(navigation.refresh).toHaveBeenCalledTimes(3);
+  expect(navigation.refresh).toHaveBeenCalledTimes(2);
   view.unmount();
   expect(removeListener).toHaveBeenCalledWith("visibilitychange", expect.any(Function));
   await changeVisibility("visible");
   await advanceTime(6000);
-  expect(navigation.refresh).toHaveBeenCalledTimes(3);
+  expect(navigation.refresh).toHaveBeenCalledTimes(2);
   expect(vi.getTimerCount()).toBe(0);
 });
 

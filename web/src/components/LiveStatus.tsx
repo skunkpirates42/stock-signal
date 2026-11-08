@@ -1,47 +1,31 @@
 "use client";
-import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+
+import { useSearchParams } from "next/navigation";
 import { usePolledResource } from "@/hooks/usePolledResource";
 import { useVisibleClock } from "@/hooks/useVisibleClock";
-import { getOperationalStatus } from "@/lib/actions";
 import {
   describeStatus,
   marketStatusLabel,
   readMarketStatus,
-  type OperationalStatus,
+  readOperationalStatus,
 } from "@/lib/health";
-import { startVisiblePolling } from "@/lib/polling";
 import StatusLine from "@/components/StatusLine";
 
 export default function LiveStatus() {
-  const router = useRouter();
-  const marketPoll = usePolledResource("/api/market-status", readMarketStatus, 15000);
+  const marketPoll = usePolledResource("/api/market-status", readMarketStatus, 15_000);
+  const statusPoll = usePolledResource("/api/operational-status", readOperationalStatus, 15_000);
   const market = marketPoll.failed ? null : marketPoll.data;
   const marketCheckedAt = useVisibleClock(1000).getTime();
   const source = useSearchParams().get("source");
-  const [status, setStatus] = useState<OperationalStatus | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [checked, setChecked] = useState<string | null>(null);
-  useEffect(() => {
-    let active = true;
-    const stop = startVisiblePolling(async () => {
-      try {
-        const result = await getOperationalStatus();
-        if (!active) return;
-        setStatus(result);
-        setError(null);
-        setChecked(new Date().toISOString());
-        router.refresh();
-      } catch {
-        if (active) setError("API unavailable. Displayed records may be stale.");
-      }
-    }, document);
-    return () => {
-      active = false;
-      stop();
-    };
-  }, [router]);
-  const summary = describeStatus({ source, status, apiFailed: error !== null, checkedAt: checked });
+  const error = statusPoll.failed
+    ? "Status update unavailable. Displayed records may be stale."
+    : null;
+  const summary = describeStatus({
+    source,
+    status: statusPoll.data,
+    apiFailed: statusPoll.failed,
+    checkedAt: statusPoll.checkedAt?.toISOString() ?? null,
+  });
   return (
     <StatusLine
       summary={summary}

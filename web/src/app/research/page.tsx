@@ -1,3 +1,4 @@
+import ServerDataRefresh from "@/components/ServerDataRefresh";
 import ResearchComparisonTable from "@/components/ResearchComparisonTable";
 import { getResearchResults } from "@/lib/demo/server";
 import { isOpaqueDemoId } from "@/lib/demo/contracts";
@@ -22,6 +23,7 @@ export default async function ResearchPage({
 
   return (
     <Page>
+      <ServerDataRefresh />
       <PageHeader
         eyebrow="Saved-source catalog"
         title="Research"

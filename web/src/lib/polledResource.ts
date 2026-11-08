@@ -1,3 +1,4 @@
+import { polledResourceName, recordFailure, RequestFailure } from "@/lib/failures";
 import type { Read } from "@/lib/parse";
 import { startVisiblePolling } from "@/lib/polling";
 
@@ -9,15 +10,40 @@ export interface PolledResource<T> {
 
 export const NOT_YET_POLLED: PolledResource<never> = { data: null, failed: false, checkedAt: null };
 
-const REQUEST_TIMEOUT_MS = 10_000;
+export const POLL_REQUEST_TIMEOUT_MS = 10_000;
 
 async function fetchParsed<T>(url: string, read: Read<T>, signal: AbortSignal): Promise<T> {
-  const response = await fetch(url, {
-    cache: "no-store",
-    signal: AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]),
+  const controller = new AbortController();
+  let rejectAborted: (reason: unknown) => void = () => {};
+  const aborted = new Promise<never>((_, reject) => {
+    rejectAborted = reject;
   });
-  if (!response.ok) throw new Error(`${url} responded ${response.status}`);
-  return read(await response.json(), url);
+  const abort = () => {
+    rejectAborted(new RequestFailure("aborted"));
+    controller.abort();
+  };
+  signal.addEventListener("abort", abort, { once: true });
+  const timeout = setTimeout(() => {
+    rejectAborted(new RequestFailure("timeout"));
+    controller.abort();
+  }, POLL_REQUEST_TIMEOUT_MS);
+  const fetchData = async () => {
+    let response: Response;
+    try {
+      response = await fetch(url, { cache: "no-store", signal: controller.signal });
+    } catch {
+      throw new RequestFailure("transport");
+    }
+    if (!response.ok) throw new RequestFailure("http");
+    return read(await response.json(), url);
+  };
+  try {
+    if (signal.aborted) abort();
+    return await Promise.race([fetchData(), aborted]);
+  } finally {
+    clearTimeout(timeout);
+    signal.removeEventListener("abort", abort);
+  }
 }
 
 // A failed poll keeps the last good data so views can show it as possibly stale.
@@ -41,7 +67,9 @@ export function startPolledResource<T>(
       try {
         const data = await fetchParsed(url, read, controller.signal);
         publish({ data, failed: false, checkedAt: new Date() });
-      } catch {
+      } catch (error) {
+        if (!active) return;
+        recordFailure(polledResourceName(url), error);
         publish({ data: current.data, failed: true, checkedAt: new Date() });
       }
     },
