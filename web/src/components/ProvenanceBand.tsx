@@ -1,4 +1,4 @@
-import Link from "next/link";
+import IntentPrefetchLink from "@/components/IntentPrefetchLink";
 import { sampleWarning } from "@/lib/provenance";
 
 export interface ProvenanceBandProps {
@@ -19,12 +19,12 @@ export default function ProvenanceBand({ source, nClosed, nLiveClosed }: Provena
         {isLive ? (
           <>
             Showing {nClosed} live trades. Backtest rows excluded.{" "}
-            <Link href="/?source=all">Include backtest rows</Link>
+            <IntentPrefetchLink href="/?source=all">Include backtest rows</IntentPrefetchLink>
           </>
         ) : (
           <>
             Showing {nClosed} trades, live and backtest replay combined.{" "}
-            <Link href="/">Show live trades only</Link>
+            <IntentPrefetchLink href="/">Show live trades only</IntentPrefetchLink>
           </>
         )}
       </p>
