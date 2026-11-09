@@ -1,4 +1,4 @@
-import Link from "next/link";
+import IntentPrefetchLink from "@/components/IntentPrefetchLink";
 import type { ReactNode } from "react";
 
 export interface PageHeaderProps {
@@ -12,9 +12,9 @@ export default function PageHeader({ title, eyebrow, aside, back }: PageHeaderPr
   return (
     <>
       {back && (
-        <Link className="micro page-back" href={back.href}>
+        <IntentPrefetchLink className="micro page-back" href={back.href}>
           ← {back.label}
-        </Link>
+        </IntentPrefetchLink>
       )}
       <div className="page-head">
         <div>

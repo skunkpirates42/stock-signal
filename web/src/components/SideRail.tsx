@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import IntentPrefetchLink from "@/components/IntentPrefetchLink";
 import { usePathname, useSearchParams } from "next/navigation";
 import { isActiveRailLink } from "@/lib/navigation";
 
@@ -31,40 +31,40 @@ export default function SideRail() {
 
   return (
     <aside className="rail">
-      <Link href={keepScope("/")} className="rail-mark">
+      <IntentPrefetchLink href={keepScope("/")} className="rail-mark">
         PT<span className="rail-mark-slash">{"//"}</span>26
-      </Link>
+      </IntentPrefetchLink>
 
       <nav className="rail-nav" aria-label="Primary">
         {LINKS.map((link) => (
-          <Link
+          <IntentPrefetchLink
             key={link.href}
             href={keepScope(link.href)}
             className={`rail-link${isActiveRailLink(pathname, link.href) ? " rail-link-active" : ""}`}
             aria-current={isActiveRailLink(pathname, link.href) ? "page" : undefined}
           >
             {link.label}
-          </Link>
+          </IntentPrefetchLink>
         ))}
       </nav>
 
       <div className="rail-scope">
         <span className="micro">Scope</span>
         <div className="segmented">
-          <Link
+          <IntentPrefetchLink
             href={scopeHref("live")}
             className={`segmented-option${scope === "live" ? " segmented-option-active" : ""}`}
             aria-current={scope === "live" ? "true" : undefined}
           >
             Live
-          </Link>
-          <Link
+          </IntentPrefetchLink>
+          <IntentPrefetchLink
             href={scopeHref("all")}
             className={`segmented-option${scope === "all" ? " segmented-option-active" : ""}`}
             aria-current={scope === "all" ? "true" : undefined}
           >
             All
-          </Link>
+          </IntentPrefetchLink>
         </div>
       </div>
     </aside>

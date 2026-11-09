@@ -19,6 +19,7 @@
     "test:smoke": "playwright test pages.spec.ts --project=chromium",
     "test:interactions": "playwright test signals.spec.ts replay.spec.ts keyboard.spec.ts position-freshness.spec.ts --project=chromium",
     "test:accessibility": "playwright test accessibility.spec.ts keyboard.spec.ts browser-zoom.spec.ts",
+    "test:performance": "PERF_FIXTURE=small playwright test --project=performance && PERF_FIXTURE=large playwright test --project=performance",
     "lint:styles": "vitest run src/styles/styles.test.ts"
   },
   "dependencies": {

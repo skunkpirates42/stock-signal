@@ -1,26 +1,25 @@
 "use client";
 
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import DataTable from "@/components/DataTable";
+import dynamic from "next/dynamic";
+import { useState } from "react";
 import Disclosure from "@/components/Disclosure";
 import Card from "@/components/Card";
+import EquityDataTable from "@/components/EquityDataTable";
 import type { EquityPoint } from "@/lib/types";
-import { formatDate, formatBalance, formatTimestamp, formatWholeDollarBalance } from "@/lib/format";
 import { summarizeEquityCurve } from "@/lib/equity";
+
+const EquityChart = dynamic(() => import("@/components/EquityChart"), {
+  ssr: false,
+  loading: () => <p className="equity-chart-loading">Loading chart…</p>,
+});
 
 export interface EquityCurveProps {
   points: EquityPoint[];
 }
 
 export default function EquityCurve({ points }: EquityCurveProps) {
+  const [hasOpenedData, setHasOpenedData] = useState(false);
+
   if (points.length < 2) {
     return (
       <Card title="Equity" titleVariant="label" className="equity-curve">
@@ -32,69 +31,15 @@ export default function EquityCurve({ points }: EquityCurveProps) {
   return (
     <Card title="Equity" titleVariant="label" className="equity-curve">
       <p className="card-note">{summarizeEquityCurve(points)}</p>
-      <ResponsiveContainer width="100%" height={260}>
-        <AreaChart
-          data={points}
-          accessibilityLayer
-          aria-label="Equity over time"
-          margin={{ top: 5, right: 20, bottom: 5, left: 0 }}
-        >
-          <defs>
-            <linearGradient id="equity-fill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.28} />
-              <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" />
-          <XAxis dataKey="label" tickFormatter={formatDate} stroke="var(--faint)" fontSize={11} />
-          <YAxis
-            domain={["auto", "auto"]}
-            tickFormatter={formatWholeDollarBalance}
-            width="auto"
-            stroke="var(--faint)"
-            fontSize={11}
-          />
-          <Tooltip
-            labelFormatter={(label) => formatDate(String(label))}
-            formatter={(value) => formatBalance(typeof value === "number" ? value : undefined)}
-            isAnimationActive="auto"
-            contentStyle={{
-              background: "var(--ground)",
-              border: "1px solid var(--line-strong)",
-              borderRadius: "var(--radius-sm)",
-            }}
-            labelStyle={{ color: "var(--muted)" }}
-            itemStyle={{ color: "var(--ink)" }}
-          />
-          <Area
-            isAnimationActive="auto"
-            type="monotone"
-            dataKey="equity"
-            stroke="var(--accent)"
-            strokeWidth={2}
-            fill="url(#equity-fill)"
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-      <Disclosure className="equity-data" summary="View equity data">
-        <DataTable caption="Equity data">
-          <thead>
-            <tr>
-              <th scope="col">Time (UTC)</th>
-              <th scope="col" className="num">
-                Equity
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {points.map((point, index) => (
-              <tr key={`${point.label}-${index}`}>
-                <td>{formatTimestamp(point.label)}</td>
-                <td className="num">{formatBalance(point.equity)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </DataTable>
+      <div className="equity-chart-slot">
+        <EquityChart points={points} />
+      </div>
+      <Disclosure
+        className="equity-data"
+        summary="View equity data"
+        onToggle={(open) => open && setHasOpenedData(true)}
+      >
+        {hasOpenedData && <EquityDataTable points={points} />}
       </Disclosure>
     </Card>
   );

@@ -17,7 +17,21 @@ export default defineConfig({
     serviceWorkers: "block",
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "chromium",
+      testIgnore: /performance\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    ...(process.env.PERF_FIXTURE
+      ? [
+          {
+            name: "performance",
+            testMatch: /performance\.spec\.ts/,
+            timeout: 120_000,
+            use: { ...devices["Desktop Chrome"] },
+          },
+        ]
+      : []),
     {
       name: "mobile-chromium",
       testMatch: /(?:accessibility|keyboard)\.spec\.ts/,
@@ -32,9 +46,10 @@ export default defineConfig({
   webServer: [
     {
       command: "../.venv/bin/python e2e/serve_sample_api.py",
+      env: { PERF_FIXTURE: process.env.PERF_FIXTURE ?? "" },
       url: "http://127.0.0.1:18000/api/metrics",
       reuseExistingServer: false,
-      timeout: 120_000,
+      timeout: 300_000,
       gracefulShutdown: { signal: "SIGINT", timeout: 5_000 },
     },
     {
