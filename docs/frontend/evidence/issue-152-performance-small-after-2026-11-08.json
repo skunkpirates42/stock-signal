@@ -1,0 +1,96 @@
+{
+  "fixture": "small",
+  "cpuSlowdown": 4,
+  "results": [
+    {
+      "route": "/",
+      "documentBytes": 8632,
+      "scriptBytes": 137536,
+      "scriptRequests": 7,
+      "chartScriptBytes": 0,
+      "firstContentfulPaintMs": 76,
+      "largestContentfulPaintMs": 412,
+      "totalBlockingTimeMs": 20,
+      "domNodes": 211,
+      "chartRendered": false,
+      "chartVisibleMs": null,
+      "backgroundRequests": {
+        "/api/market-status": 2,
+        "/api/operational-status": 2,
+        "/ (route refresh)": 2
+      }
+    },
+    {
+      "route": "/?source=all",
+      "documentBytes": 10067,
+      "scriptBytes": 238805,
+      "scriptRequests": 8,
+      "chartScriptBytes": 101269,
+      "firstContentfulPaintMs": 116,
+      "largestContentfulPaintMs": 116,
+      "totalBlockingTimeMs": 83,
+      "domNodes": 376,
+      "chartRendered": true,
+      "chartVisibleMs": 617,
+      "backgroundRequests": {
+        "/ (route refresh)": 2,
+        "/api/market-status": 2,
+        "/api/operational-status": 2
+      }
+    },
+    {
+      "route": "/positions",
+      "documentBytes": 2816,
+      "scriptBytes": 139027,
+      "scriptRequests": 7,
+      "chartScriptBytes": 0,
+      "firstContentfulPaintMs": 64,
+      "largestContentfulPaintMs": 64,
+      "totalBlockingTimeMs": 18,
+      "domNodes": 490,
+      "chartRendered": false,
+      "chartVisibleMs": null,
+      "backgroundRequests": {
+        "/api/position-state": 6,
+        "/api/market-status": 2,
+        "/api/operational-status": 2
+      }
+    },
+    {
+      "route": "/signals",
+      "documentBytes": 6766,
+      "scriptBytes": 138762,
+      "scriptRequests": 7,
+      "chartScriptBytes": 0,
+      "firstContentfulPaintMs": 128,
+      "largestContentfulPaintMs": 128,
+      "totalBlockingTimeMs": 22,
+      "domNodes": 763,
+      "chartRendered": false,
+      "chartVisibleMs": null,
+      "backgroundRequests": {
+        "/signals (route refresh)": 2,
+        "/api/market-status": 2,
+        "/api/operational-status": 2
+      }
+    },
+    {
+      "route": "/runs/active",
+      "documentBytes": 8432,
+      "scriptBytes": 135621,
+      "scriptRequests": 7,
+      "chartScriptBytes": 0,
+      "firstContentfulPaintMs": 64,
+      "largestContentfulPaintMs": 360,
+      "totalBlockingTimeMs": 0,
+      "domNodes": 174,
+      "chartRendered": false,
+      "chartVisibleMs": null,
+      "backgroundRequests": {
+        "/runs/1a78ae2f-61c8-4563-b3b0-fe25c8a53a55 (route refresh)": 10,
+        "/api/market-status": 2,
+        "/api/operational-status": 2
+      }
+    }
+  ]
+}
