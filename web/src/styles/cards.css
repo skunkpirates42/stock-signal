@@ -395,6 +395,15 @@ main > .card + .card {
   z-index: 1;
 }
 
+.equity-chart-slot {
+  min-height: 260px;
+}
+
+.equity-chart-loading {
+  color: var(--muted);
+  font-size: var(--text-small);
+}
+
 .equity-data {
   margin-top: var(--space);
   color: var(--muted);
